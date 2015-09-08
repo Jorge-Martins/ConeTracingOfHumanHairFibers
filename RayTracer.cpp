@@ -169,7 +169,7 @@ int main(int argc, char *argv[]) {
 
     float3 from = computeFromCoordinates();
     float3 up = make_float3(0,1,0);
-    float3 at = make_float3(0,0,0);
+    float3 at = make_float3(0.0f);
     float fov = 45;
     RES_X = RES_Y = 512;
 
