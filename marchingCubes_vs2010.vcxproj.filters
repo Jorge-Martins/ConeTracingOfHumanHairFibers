@@ -1,0 +1,82 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClInclude Include="defines.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="SceneLoader.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="parsing\mc_driver.hpp">
+      <Filter>parsing files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="headers">
+      <UniqueIdentifier>{e4af192b-9b4d-46d4-b849-f1d7986a3552}</UniqueIdentifier>
+      <Extensions>.h</Extensions>
+    </Filter>
+    <Filter Include="cuda">
+      <UniqueIdentifier>{747df255-278d-4355-8091-c47c2e3ec97d}</UniqueIdentifier>
+      <Extensions>.cu</Extensions>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{c1bc5fe6-f571-4a52-b7cc-2d3203ab1c0d}</UniqueIdentifier>
+      <Extensions>.cpp</Extensions>
+    </Filter>
+    <Filter Include="parsing files">
+      <UniqueIdentifier>{3fc12018-add2-4572-bd9c-d8fad3d04c2c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="resource files">
+      <UniqueIdentifier>{ba4f3d60-2ec0-4861-8237-a5872aef4a6f}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="rayTracer_kernel.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="RayTracer.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="parsing\mc_driver.cpp">
+      <Filter>parsing files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\resources\nffFiles\ball.nff">
+      <Filter>resource files</Filter>
+    </None>
+    <None Include="..\resources\nffFiles\ball_r.nff">
+      <Filter>resource files</Filter>
+    </None>
+    <None Include="..\resources\nffFiles\balls_high.nff">
+      <Filter>resource files</Filter>
+    </None>
+    <None Include="..\resources\nffFiles\balls_low.nff">
+      <Filter>resource files</Filter>
+    </None>
+    <None Include="..\resources\nffFiles\balls_medium.nff">
+      <Filter>resource files</Filter>
+    </None>
+    <None Include="..\resources\nffFiles\cornell_box.nff">
+      <Filter>resource files</Filter>
+    </None>
+    <None Include="..\resources\nffFiles\mount_high.nff">
+      <Filter>resource files</Filter>
+    </None>
+    <None Include="..\resources\nffFiles\mount_low.nff">
+      <Filter>resource files</Filter>
+    </None>
+    <None Include="..\resources\nffFiles\mount_very_high.nff">
+      <Filter>resource files</Filter>
+    </None>
+    <None Include="..\resources\nffFiles\test_shadow.nff">
+      <Filter>resource files</Filter>
+    </None>
+  </ItemGroup>
+</Project>
