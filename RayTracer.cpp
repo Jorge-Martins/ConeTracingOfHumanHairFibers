@@ -25,7 +25,7 @@ bool drawing = false;
 
 std::string balls_complexity = "low";
 
-extern void drawScene(Shape **shapes, long shapeSize, Light* lights, long lightSize, Color backcolor, int resX,
+extern void hostDrawScene(Shape **shapes, long shapeSize, Light* lights, long lightSize, Color backcolor, int resX,
                       int resY, float3 *d_finalImage);
 
 
@@ -74,15 +74,10 @@ void drawScene() {
     int res = RES_X * RES_Y;
     int size = res * sizeof(float3);
 
-    drawScene(scene->getDShapes(), scene->getDShapesSize(), scene->getDLights(), scene->getDLightsSize(), 
+    hostDrawScene(scene->getDShapes(), scene->getDShapesSize(), scene->getDLights(), scene->getDLightsSize(), 
               scene->backcolor(), RES_X, RES_Y, d_finalImage);
 
     checkCudaErrors(cudaMemcpy(finalImage, d_finalImage, size, cudaMemcpyDeviceToHost));
-
-    //Debug
-    for(int i = 0; i < res; i++) {
-        finalImage[i] = make_float3(1.0f);
-    }
 
     glBegin(GL_POINTS);
 	for(int i = 0; i < res; i++) {

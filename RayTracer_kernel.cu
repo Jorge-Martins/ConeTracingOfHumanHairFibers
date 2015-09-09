@@ -181,6 +181,12 @@ void drawScene(Shape **shapes, long shapeSize, Light* lights, long lightSize, Co
     }
 }
 
+void hostDrawScene(Shape **shapes, long shapeSize, Light* lights, long lightSize, Color backcolor, int resX,
+                   int resY, float3 *d_finalImage) {
+
+    drawScene<<<1, 1>>>(shapes, shapeSize, lights, lightSize, backcolor, resX, resY, d_finalImage);
+}
+
 __device__
 bool nearestIntersect(Shape **shapes, long shapeSize, Ray ray, RayIntersection *out) {
 	RayIntersection minIntersect((float)FLT_MAX, make_float3(0.0f), make_float3(0.0f));
