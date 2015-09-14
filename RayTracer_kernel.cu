@@ -172,19 +172,20 @@ bool Triangle::intersection(Ray ray, RayIntersection *out) {
 }
 	
 __global__
-void drawScene(Shape **shapes, long shapeSize, Light* lights, long lightSize, Color backcolor, int resX,
-               int resY, float3 *d_finalImage) {
+void drawScene(Shape **shapes, size_t shapeSize, Light* lights, size_t lightSize, Color backcolor, int resX,
+               int resY, float4 *d_output) {
 
+    float4 pixel = make_float4(1.0f, 0.0f, 0.0f, 1.0f);
     int res = resX * resY;
     for(int i = 0; i < res; i++) {
-        d_finalImage[i] = make_float3(1.0f);
+        d_output[i] = pixel;
     }
 }
 
-void hostDrawScene(Shape **shapes, long shapeSize, Light* lights, long lightSize, Color backcolor, int resX,
-                   int resY, float3 *d_finalImage) {
+void deviceDrawScene(Shape **shapes, size_t shapeSize, Light* lights, size_t lightSize, Color backcolor, int resX,
+                   int resY, float4 *d_output) {
 
-    drawScene<<<1, 1>>>(shapes, shapeSize, lights, lightSize, backcolor, resX, resY, d_finalImage);
+    drawScene<<<1, 1>>>(shapes, shapeSize, lights, lightSize, backcolor, resX, resY, d_output);
 }
 
 __device__

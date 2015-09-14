@@ -125,21 +125,23 @@
     <Flex Include="parsing\mc_lexer.l" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\resources\nffFiles\ball.nff" />
-    <None Include="..\resources\nffFiles\balls_high.nff" />
-    <None Include="..\resources\nffFiles\balls_low.nff" />
-    <None Include="..\resources\nffFiles\balls_medium.nff" />
-    <None Include="..\resources\nffFiles\ball_r.nff" />
-    <None Include="..\resources\nffFiles\cornell_box.nff" />
-    <None Include="..\resources\nffFiles\mount_high.nff" />
-    <None Include="..\resources\nffFiles\mount_low.nff" />
-    <None Include="..\resources\nffFiles\mount_very_high.nff" />
-    <None Include="..\resources\nffFiles\test_shadow.nff" />
     <Bison Include="parsing\mc_parser.yy">
       <FileType>Document</FileType>
       <Warnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
       </Warnings>
     </Bison>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\resources\nffFiles\ball.nff" />
+    <None Include="..\..\resources\nffFiles\balls_high.nff" />
+    <None Include="..\..\resources\nffFiles\balls_low.nff" />
+    <None Include="..\..\resources\nffFiles\balls_medium.nff" />
+    <None Include="..\..\resources\nffFiles\ball_r.nff" />
+    <None Include="..\..\resources\nffFiles\cornell_box.nff" />
+    <None Include="..\..\resources\nffFiles\mount_high.nff" />
+    <None Include="..\..\resources\nffFiles\mount_low.nff" />
+    <None Include="..\..\resources\nffFiles\mount_very_high.nff" />
+    <None Include="..\..\resources\nffFiles\test_shadow.nff" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

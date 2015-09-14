@@ -2,9 +2,11 @@
 #include <stdio.h>
 #include <GL/glew.h>
 #include <GL/freeglut.h> 
-#include <iostream>
 
 #include "SceneLoader.h"
+
+#include <cuda_gl_interop.h>
+#include <helper_functions.h>
 
 Scene *scene;
 Camera *camera;
@@ -13,20 +15,30 @@ int fpsCount = 0;
 int fpsLimit = 1;        // FPS limit for sampling
 
 int RES_X, RES_Y;
-float3 *finalImage;
-float3 *d_finalImage;
 
 float latitude, longitude, radius;
 int xDragStart, yDragStart, dragging, zooming;
 
-unsigned int frameCount = 0;
-unsigned int render = 0;
+
 bool drawing = false;
 
 std::string balls_complexity = "low";
 
-extern void hostDrawScene(Shape **shapes, long shapeSize, Light* lights, long lightSize, Color backcolor, int resX,
-                      int resY, float3 *d_finalImage);
+// OpenGL pixel buffer object
+GLuint pbo;
+
+// OpenGL texture object
+GLuint tex = 0;
+
+// CUDA Graphics Resource (to transfer PBO)
+struct cudaGraphicsResource *cuda_pbo = 0; 
+
+StopWatchInterface *timer = NULL;
+
+const char* windowTitle = "Msc Ray Tracing";
+
+extern void deviceDrawScene(Shape **shapes, size_t shapeSize, Light* lights, size_t lightSize, 
+                            Color backcolor, int resX, int resY, float4 *d_output);
 
 
 float3 computeFromCoordinates(){
@@ -38,56 +50,138 @@ float3 computeFromCoordinates(){
    return make_float3(radius * sin(longi) * sin(lat), radius * cos(lat), radius * sin(lat) * cos(longi));
 }
 
-void reshape(int w, int h) {
-    if(RES_X == w && RES_Y == h) {
-        return;
+void cleanup() {
+    sdkDeleteTimer(&timer);
+
+    if (pbo) {
+        cudaGraphicsUnregisterResource(cuda_pbo);
+        glDeleteBuffersARB(1, &pbo);
+        glDeleteTextures(1, &tex);
     }
 
-    cudaFree(d_finalImage);
-    delete[] finalImage;
+    checkCudaErrors(cudaDeviceReset());
 
+    cudaDeviceReset();
+}
+
+void computeFPS() {
+    fpsCount++;
+
+    if (fpsCount == fpsLimit) {
+        char fps[100];
+        float ifps = 1.f / (sdkGetAverageTimerValue(&timer) / 1000.f);
+        sprintf(fps, "%s: %3.1f fps", windowTitle, ifps);
+        
+        glutSetWindowTitle(fps);
+        fpsCount = 0;
+
+        fpsLimit = (int)MAX(1.0f, ifps);
+        sdkResetTimer(&timer);
+    }
+}
+
+void initPixelBuffer() {
+    if (pbo) {
+        // unregister this buffer object from CUDA C
+        checkCudaErrors(cudaGraphicsUnregisterResource(cuda_pbo));
+
+        // delete old buffer
+        glDeleteBuffersARB(1, &pbo);
+        glDeleteTextures(1, &tex);
+    }
+
+    // create pixel buffer object for display
+    glGenBuffersARB(1, &pbo);
+    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
+    glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, RES_X * RES_Y * sizeof(float4), 0, GL_STREAM_DRAW_ARB);
+    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+
+    // register this buffer object with CUDA
+    checkCudaErrors(cudaGraphicsGLRegisterBuffer(&cuda_pbo, pbo, cudaGraphicsMapFlagsWriteDiscard));
+
+    // create texture for display
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, RES_X, RES_Y, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+//Function that calls the kernel
+void render() {
+    float4 *d_output;
+
+    // map PBO to get CUDA device pointer
+    checkCudaErrors(cudaGraphicsMapResources(1, &cuda_pbo, 0));
+    size_t num_bytes;
+    checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&d_output, &num_bytes, cuda_pbo));
+
+    // call CUDA kernel, writing results to PBO
+    deviceDrawScene(scene->getDShapes(), scene->getDShapesSize(), scene->getDLights(), scene->getDLightsSize(), 
+                  scene->backcolor(), RES_X, RES_Y, d_output);
+
+    getLastCudaError("render_kernel failed");
+
+    checkCudaErrors(cudaGraphicsUnmapResources(1, &cuda_pbo, 0));
+    
+}
+
+void reshape(int w, int h) {
     RES_X = w;
     RES_Y = h;
 
-    finalImage = new float3[RES_X * RES_Y];
-
-    int size = RES_X * RES_Y * sizeof(float3);
-    checkCudaErrors(cudaMalloc((void**) &d_finalImage, size));
-    
-
     camera->update(RES_X, RES_Y);
+    initPixelBuffer();
 
-	glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
-	glViewport(0, 0, w, h);
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
+    glViewport(0, 0, w, h);
 
-    gluOrtho2D(0, RES_X - 1, 0, RES_Y - 1);
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0.0, 1.0, 0.0, 1.0, 0.0, 1.0);
 
 }
 
 // Draw function by primary ray casting from the eye towards the scene's objects 
 void drawScene() {
-    int res = RES_X * RES_Y;
-    int size = res * sizeof(float3);
+    sdkStartTimer(&timer);
+    
+    render();
 
-    hostDrawScene(scene->getDShapes(), scene->getDShapesSize(), scene->getDLights(), scene->getDLightsSize(), 
-              scene->backcolor(), RES_X, RES_Y, d_finalImage);
+    // display results
+    glClear(GL_COLOR_BUFFER_BIT);
 
-    checkCudaErrors(cudaMemcpy(finalImage, d_finalImage, size, cudaMemcpyDeviceToHost));
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-    glBegin(GL_POINTS);
-	for(int i = 0; i < res; i++) {
-        float3 pixel = finalImage[i];
-      
-        glColor3f(pixel.x, pixel.y, pixel.z);
-		glVertex2i(i % RES_X, i / RES_X);
-	}
-	glEnd();
-	glFlush();
+    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, RES_X, RES_Y, GL_RGBA, GL_FLOAT, 0);
+    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+
+    // draw textured quad
+    glEnable(GL_TEXTURE_2D);
+    glBegin(GL_QUADS);
+    glTexCoord2f(0, 0);
+    glVertex2f(0, 0);
+    glTexCoord2f(1, 0);
+    glVertex2f(1, 0);
+    glTexCoord2f(1, 1);
+    glVertex2f(1, 1);
+    glTexCoord2f(0, 1);
+    glVertex2f(0, 1);
+    glEnd();
+
+    glDisable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glutSwapBuffers();
+    glutReportErrors();
+
+    sdkStopTimer(&timer);
+    computeFPS();
 }
 
 void mouseMove(int x, int y) { 	
@@ -121,6 +215,7 @@ void mouseMove(int x, int y) {
         camera->update(computeFromCoordinates());
 
     }
+    glutPostRedisplay();
 }
 
 void mousePressed(int button, int state, int x, int y) {
@@ -142,19 +237,16 @@ void mousePressed(int button, int state, int x, int y) {
          zooming = 0;
       }
    }
+   glutPostRedisplay();
 }
 
-void computeFPS() {
-    frameCount++;
-    fpsCount++;
-
-    if (fpsCount == fpsLimit) {
-        
-    }
+void idle() {
+    glutPostRedisplay();
 }
 
 int main(int argc, char *argv[]) {
-	std::string path = "../resources/nffFiles/";
+    sdkCreateTimer(&timer);
+	std::string path = "../../resources/nffFiles/";
 
     scene = new Scene();
     
@@ -170,6 +262,9 @@ int main(int argc, char *argv[]) {
 
     camera = new Camera(from, at, up, fov, RES_X, RES_Y);
 
+    //Explicitly set device 0 
+    cudaSetDevice(0); 
+
 	if (!load_nff(path + "balls_" + balls_complexity + ".nff", scene)) {
 		std::cout << "Could not find scene files." << std::endl;
 		return -1;
@@ -179,27 +274,36 @@ int main(int argc, char *argv[]) {
 	RES_Y = camera->winY();
 	std::cout << "ResX = " << RES_X << std::endl << "ResY = " << RES_Y << std::endl;
 
-    finalImage = new float3[RES_X * RES_Y];
-
-    int size = RES_X * RES_Y * sizeof(float3);
-    cudaMalloc((void**) &d_finalImage, size);
 
 	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_SINGLE | GLUT_RGBA);
+	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
 
 	glutInitWindowSize(RES_X, RES_Y);
 	glutInitWindowPosition(100, 100);
-	glutCreateWindow("Msc Ray Tracing");
+	glutCreateWindow(windowTitle);
 	glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
+
+    glewInit();
+    if (!glewIsSupported("GL_VERSION_2_0 GL_ARB_pixel_buffer_object")) {
+        printf("Required OpenGL extensions missing.");
+        exit(EXIT_SUCCESS);
+    }
 
 	glutReshapeFunc(reshape);
 	glutDisplayFunc(drawScene);
 	glutMouseFunc(mousePressed);
     glutMotionFunc(mouseMove);
+    glutIdleFunc(idle);
+    glutCloseFunc(cleanup);
 	glDisable(GL_DEPTH_TEST);
 
+
+    initPixelBuffer();
+
 	std::cout << std::endl << "CONTEXT: OpenGL v" << glGetString(GL_VERSION) << std::endl;
+
 	glutMainLoop();
+
 	return 0;
 }

@@ -445,8 +445,8 @@ private:
     Shape **_d_shapes;
     Light *_d_lights;
 
-    long _d_shapesSize;
-    long _d_lightsSize;
+    size_t _d_shapesSize;
+    size_t _d_lightsSize;
 
 public:
     __host__
@@ -470,12 +470,12 @@ public:
     }
 
     __host__
-    int getDShapesSize() {
+    size_t getDShapesSize() {
         return _d_shapesSize;
     }
 
     __host__
-    int getDLightsSize() {
+    size_t getDLightsSize() {
         return _d_lightsSize;
     }
 
@@ -491,7 +491,7 @@ public:
 
     __host__
     bool copyToDevice() {
-        long size;
+        size_t size;
         Light *ltVector = new Light[_h_lights.size()];
         Shape **spVector = new Shape*[_h_shapes.size()];
 

@@ -48,34 +48,34 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\resources\nffFiles\ball.nff">
+    <None Include="..\..\resources\nffFiles\ball.nff">
       <Filter>resource files</Filter>
     </None>
-    <None Include="..\resources\nffFiles\ball_r.nff">
+    <None Include="..\..\resources\nffFiles\ball_r.nff">
       <Filter>resource files</Filter>
     </None>
-    <None Include="..\resources\nffFiles\balls_high.nff">
+    <None Include="..\..\resources\nffFiles\balls_high.nff">
       <Filter>resource files</Filter>
     </None>
-    <None Include="..\resources\nffFiles\balls_low.nff">
+    <None Include="..\..\resources\nffFiles\balls_low.nff">
       <Filter>resource files</Filter>
     </None>
-    <None Include="..\resources\nffFiles\balls_medium.nff">
+    <None Include="..\..\resources\nffFiles\balls_medium.nff">
       <Filter>resource files</Filter>
     </None>
-    <None Include="..\resources\nffFiles\cornell_box.nff">
+    <None Include="..\..\resources\nffFiles\cornell_box.nff">
       <Filter>resource files</Filter>
     </None>
-    <None Include="..\resources\nffFiles\mount_high.nff">
+    <None Include="..\..\resources\nffFiles\mount_high.nff">
       <Filter>resource files</Filter>
     </None>
-    <None Include="..\resources\nffFiles\mount_low.nff">
+    <None Include="..\..\resources\nffFiles\mount_low.nff">
       <Filter>resource files</Filter>
     </None>
-    <None Include="..\resources\nffFiles\mount_very_high.nff">
+    <None Include="..\..\resources\nffFiles\mount_very_high.nff">
       <Filter>resource files</Filter>
     </None>
-    <None Include="..\resources\nffFiles\test_shadow.nff">
+    <None Include="..\..\resources\nffFiles\test_shadow.nff">
       <Filter>resource files</Filter>
     </None>
   </ItemGroup>
