@@ -8,6 +8,9 @@
 #include <cuda_gl_interop.h>
 #include <helper_functions.h>
 
+#define iDivUp(a, b) (a % b != 0) ? (a / b + 1) : (a / b)
+
+
 Scene *scene;
 Camera *camera;
 
@@ -15,6 +18,8 @@ int fpsCount = 0;
 int fpsLimit = 1;        // FPS limit for sampling
 
 int RES_X, RES_Y;
+dim3 blockSize(32, 32);
+dim3 gridSize;
 
 float latitude, longitude, radius;
 int xDragStart, yDragStart, dragging, zooming;
@@ -37,17 +42,18 @@ StopWatchInterface *timer = NULL;
 
 const char* windowTitle = "Msc Ray Tracing";
 
-extern void deviceDrawScene(Shape **shapes, size_t shapeSize, Light* lights, size_t lightSize, 
-                            Color backcolor, int resX, int resY, float4 *d_output);
+extern void deviceDrawScene(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightSize, Color backcolor, 
+                            int resX, int resY, float width, float height, float atDistance, float3 xe, 
+                            float3 ye, float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize);
 
 
 float3 computeFromCoordinates(){
-   float lat, longi;
+   float phi, theta;
 
-   lat = (float) (latitude * DEG2RAD);
-   longi = (float) (longitude * DEG2RAD);
+   phi = (float) (latitude * DEG2RAD);
+   theta = (float) (longitude * DEG2RAD);
 
-   return make_float3(radius * sin(longi) * sin(lat), radius * cos(lat), radius * sin(lat) * cos(longi));
+   return make_float3(radius * sin(phi) * cos(theta), radius * sin(phi) * sin(theta), radius * cos(phi));
 }
 
 void cleanup() {
@@ -93,7 +99,7 @@ void initPixelBuffer() {
     // create pixel buffer object for display
     glGenBuffersARB(1, &pbo);
     glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
-    glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, RES_X * RES_Y * sizeof(float4), 0, GL_STREAM_DRAW_ARB);
+    glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, RES_X * RES_Y * sizeof(float3), 0, GL_STREAM_DRAW_ARB);
     glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
 
     // register this buffer object with CUDA
@@ -102,7 +108,7 @@ void initPixelBuffer() {
     // create texture for display
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, RES_X, RES_Y, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, RES_X, RES_Y, 0, GL_RGB, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -110,7 +116,7 @@ void initPixelBuffer() {
 
 //Function that calls the kernel
 void render() {
-    float4 *d_output;
+    float3 *d_output;
 
     // map PBO to get CUDA device pointer
     checkCudaErrors(cudaGraphicsMapResources(1, &cuda_pbo, 0));
@@ -119,10 +125,14 @@ void render() {
 
     // call CUDA kernel, writing results to PBO
     deviceDrawScene(scene->getDShapes(), scene->getDShapesSize(), scene->getDLights(), scene->getDLightsSize(), 
-                  scene->backcolor(), RES_X, RES_Y, d_output);
+                    scene->backcolor(), RES_X, RES_Y, camera->width(), camera->height(), camera->atDistance(), 
+                    camera->xe(), camera->ye(), camera->ze(), camera->from(), d_output, gridSize, blockSize);
 
-    getLastCudaError("render_kernel failed");
-
+    cudaError_t error = cudaGetLastError();
+    if(error != cudaSuccess) {
+        std::cerr << cudaGetErrorString(error) << std::endl;
+    }
+    
     checkCudaErrors(cudaGraphicsUnmapResources(1, &cuda_pbo, 0));
     
 }
@@ -130,6 +140,9 @@ void render() {
 void reshape(int w, int h) {
     RES_X = w;
     RES_Y = h;
+
+    // calculate new grid size
+    gridSize = dim3(iDivUp(w, blockSize.x), iDivUp(h, blockSize.y));
 
     camera->update(RES_X, RES_Y);
     initPixelBuffer();
@@ -142,7 +155,7 @@ void reshape(int w, int h) {
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glOrtho(0.0, 1.0, 0.0, 1.0, 0.0, 1.0);
-
+    
 }
 
 // Draw function by primary ray casting from the eye towards the scene's objects 
@@ -158,7 +171,7 @@ void drawScene() {
 
     glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
     glBindTexture(GL_TEXTURE_2D, tex);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, RES_X, RES_Y, GL_RGBA, GL_FLOAT, 0);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, RES_X, RES_Y, GL_RGB, GL_FLOAT, 0);
     glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
 
     // draw textured quad
@@ -185,9 +198,9 @@ void drawScene() {
 }
 
 void mouseMove(int x, int y) { 	
-    float ystep = 0.006f;
-    float xstep = 0.008f;
-    float zstep = 0.004f;
+    float ystep = 0.001f;
+    float xstep = 0.001f;
+    float zstep = 0.001f;
 
     if (dragging == 1) {
         longitude += (-x + xDragStart) * xstep;
@@ -215,7 +228,6 @@ void mouseMove(int x, int y) {
         camera->update(computeFromCoordinates());
 
     }
-    glutPostRedisplay();
 }
 
 void mousePressed(int button, int state, int x, int y) {
@@ -237,7 +249,6 @@ void mousePressed(int button, int state, int x, int y) {
          zooming = 0;
       }
    }
-   glutPostRedisplay();
 }
 
 void idle() {
@@ -250,15 +261,18 @@ int main(int argc, char *argv[]) {
 
     scene = new Scene();
     
-    radius = 2;
-    longitude = 0;
-    latitude = 45;
+    radius = 3;
+    longitude = 32;
+    latitude = 55;
 
     float3 from = computeFromCoordinates();
-    float3 up = make_float3(0,1,0);
+    float3 up = make_float3(0.0f , 0.0f, 1.0f);
     float3 at = make_float3(0.0f);
     float fov = 45;
     RES_X = RES_Y = 512;
+
+    // calculate new grid size
+    gridSize = dim3(iDivUp(RES_X, blockSize.x), iDivUp(RES_Y, blockSize.y));
 
     camera = new Camera(from, at, up, fov, RES_X, RES_Y);
 
@@ -266,14 +280,9 @@ int main(int argc, char *argv[]) {
     cudaSetDevice(0); 
 
 	if (!load_nff(path + "balls_" + balls_complexity + ".nff", scene)) {
-		std::cout << "Could not find scene files." << std::endl;
+        std::cerr << "Could not find scene files." << std::endl;
 		return -1;
 	}
-
-	RES_X = camera->winX();
-	RES_Y = camera->winY();
-	std::cout << "ResX = " << RES_X << std::endl << "ResY = " << RES_Y << std::endl;
-
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);

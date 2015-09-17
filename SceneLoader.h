@@ -4,18 +4,30 @@
 #define _SCENELOADER_H_
 
 #include "Scene.h"
+#include <time.h>
 #include "parsing/mc_driver.hpp"
 
 #define PI 3.14159265359f
 #define DEG2RAD (PI/180.0f)
 
 bool load_nff(std::string filePath, Scene *sc) {
+    clock_t start, end;
+
 	std::cout << "Loading: " << filePath << std::endl;
+
+    start = clock();
 	MC::MC_Driver driver(sc);
 	driver.parse(filePath.c_str());
+    end = clock();
 
-    std::cout << "Scene loaded" << std::endl;
-    std::cout << "copy to device " << sc->copyToDevice() << std::endl;
+    std::cout << "Build time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
+
+
+    start = clock();
+    sc->copyToDevice();
+    end = clock();
+
+    std::cout << "Transfer time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl;
 	return true;
 }
 
@@ -76,14 +88,17 @@ public:
         return _up;
     }
 
-    int winX() {
-        return _winX;
+    float width() {
+        return _width;
     }
 
-    int winY() {
-        return _winY;
+    float height() {
+        return _height;
     }
 
+    float atDistance() {
+        return _atDistance;
+    }
 
 	Camera(float3 from, float3 at, float3 up, float fov, int winX, int winY) {
         _from = from;

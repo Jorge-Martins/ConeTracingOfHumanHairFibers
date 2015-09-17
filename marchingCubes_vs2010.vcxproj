@@ -119,7 +119,6 @@
     <ClInclude Include="Scene.h" />
     <ClInclude Include="SceneLoader.h" />
     <CudaCompile Include="rayTracer_kernel.cu" />
-    <ClInclude Include="defines.h" />
   </ItemGroup>
   <ItemGroup>
     <Flex Include="parsing\mc_lexer.l" />
