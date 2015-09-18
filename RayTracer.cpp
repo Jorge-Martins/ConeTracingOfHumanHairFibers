@@ -18,7 +18,7 @@ int fpsCount = 0;
 int fpsLimit = 1;        // FPS limit for sampling
 
 int RES_X, RES_Y;
-dim3 blockSize(8, 8);
+dim3 blockSize(16, 16);
 dim3 gridSize;
 
 float latitude, longitude, radius;
@@ -140,19 +140,23 @@ void reshape(int w, int h) {
     RES_Y = h;
 
     // calculate new grid size
-    gridSize = dim3(iDivUp(w, blockSize.x), iDivUp(h, blockSize.y));
+    gridSize = dim3(iDivUp(RES_X, blockSize.x), iDivUp(RES_Y, blockSize.y));
 
-    camera->update(RES_X, RES_Y);
+    camera->update(RES_X / (float)RES_Y);
     initPixelBuffer();
 
-    glViewport(0, 0, w, h);
+    glViewport(0, 0, RES_X, RES_Y);
 
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
 
     glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
+	glLoadIdentity();
+	
     glOrtho(0.0, 1.0, 0.0, 1.0, 0.0, 1.0);
+    
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+
+    
     
 }
 
@@ -273,12 +277,12 @@ int main(int argc, char *argv[]) {
     // calculate new grid size
     gridSize = dim3(iDivUp(RES_X, blockSize.x), iDivUp(RES_Y, blockSize.y));
 
-    camera = new Camera(from, at, up, fov, RES_X, RES_Y);
+    camera = new Camera(from, at, up, fov, RES_X / (float)RES_Y);
 
     //Explicitly set device 0 
     cudaSetDevice(0); 
 
-	if (!load_nff(path + "balls_low", scene)) {
+	if (!load_nff(path + "mount_low", scene)) {
         std::cerr << "Could not find scene file." << std::endl;
 		return -1;
 	}

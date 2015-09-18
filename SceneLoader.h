@@ -37,7 +37,7 @@ private:
 	float3 _from, _at, _up;
 	float _fov;
 	float _width, _height;
-    int _winX, _winY;
+    float _aspect;
     float _atDistance;
     float3 _xe, _ye, _ze;
 
@@ -53,10 +53,9 @@ private:
 
 	
 	void computeHitherDimensions() {
-        float aspect = _winX / (float)_winY;
 	    float atDist = length(_at - _from);
-        float h = 2 * tanf(aspect * DEG2RAD*0.5f) * atDist;
-	    float w = aspect * h;
+        float h = 2 * tanf(_aspect * DEG2RAD*0.5f) * atDist;
+	    float w = _aspect * h;
 
 	    _atDistance = atDist;
 	    _width = w;
@@ -97,13 +96,12 @@ public:
         return _atDistance;
     }
 
-	Camera(float3 from, float3 at, float3 up, float fov, int winX, int winY) {
+	Camera(float3 from, float3 at, float3 up, float fov, float aspect) {
         _from = from;
         _at = at;
         _up = up;
         _fov = fov;
-        _winX = winX;
-        _winY = winY;
+        _aspect = aspect;
         computeFrame();
 	    computeHitherDimensions();
     }
@@ -114,9 +112,8 @@ public:
 	    computeHitherDimensions();
     }
 
-    void update(int winX, int winY) {
-        _winX = winX;
-        _winY = winY;
+    void update(float aspect) {
+        _aspect = aspect;
 	    computeHitherDimensions();
     }
 

@@ -130,72 +130,97 @@ float3 computeTransmissionDir(float3 inDir, float3 normal, float beforeIOR, floa
 __device__
 Color rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightSize, Color backcolor, Ray ray, float ior) {
 
+    Ray refractedRay = Ray();
+    Ray reflectedRay = Ray();
+    Ray feeler = Ray();
+
+    float3 locals[MAX_DEPTH];
+    float3 reflectionCols[MAX_DEPTH];
+    float3 refractionCols[MAX_DEPTH];
+
     RayIntersection intersect;
+    Ray activeRay;
 
-	bool foundIntersect = nearestIntersect(shapes, shapeSize, ray, &intersect);
+    for(int depth = 0; depth < MAX_DEPTH; depth++) {
 
-	if (!foundIntersect) {
-		return backcolor;
+	    bool foundIntersect = nearestIntersect(shapes, shapeSize, ray, &intersect);
+
+	    if (!foundIntersect) {
+		    return backcolor;
+        }
+
+        Material mat = intersect._shape->material();
+    
+        // local illumination
+	    locals[depth] = make_float3(0.0f);
+	    for(size_t li = 0; li < lightSize; li++) {
+		    float3 feelerDir = normalize(lights[li].position() - intersect._point);
+		    feeler.update(intersect._point, feelerDir);
+		    compensatePrecision(feeler);
+
+		    bool inShadow = false;
+		    for(size_t si = 0; si < shapeSize; si++) {
+			    if (shapes[si].intersection(feeler, nullptr)) {
+				    inShadow = true;
+				    break;
+			    }
+		    }
+		    if(!inShadow) {
+			    float diff = fmax(dot(feelerDir, intersect._normal), 0.0f);
+			    float3 reflectDir = reflect(-feelerDir, intersect._normal);
+			    float spec = powf(fmax(dot(reflectDir, -ray.direction()), 0.0f), mat.shininess());
+
+			    float3 seenColor = mat.color().color() * lights[li].color().color();
+			    locals[depth] += seenColor * (diff * mat.diffuse() + spec * mat.specular());
+		    }
+	    }
+    
+
+        if(depth < MAX_DEPTH) {
+	        // reflection
+	        if(mat.specular() > 0.0f) {
+		        reflectedRay.update(intersect._point, reflect(ray.direction(), intersect._normal));
+		        compensatePrecision(reflectedRay);
+
+                reflectionCols[depth] = mat.color().color() * mat.specular();
+                //rayTracing(shapes, shapeSize, lights, lightSize, backcolor, reflectedRay, depth - 1, mat.refraction());
+	        }
+
+	        // transmission
+	        if(mat.transparency() > 0.0f) {
+		        float ior1, ior2;
+		        if(intersect._isEntering) {
+			        ior1 = 1.0f;
+			        ior2 = mat.refraction();
+		        }
+		        else {
+			        ior1 = mat.refraction();
+			        ior2 = 1.0f;
+		        }
+		        float3 refractionDir = computeTransmissionDir(ray.direction(), intersect._normal, ior1, ior2);
+		        if (!equal(length(refractionDir), 0.0f)) {
+			        refractedRay.update(intersect._point, refractionDir);
+			        compensatePrecision(refractedRay);
+			        
+                    refractionCols[depth] = mat.color().color() * mat.transparency();
+                    //rayTracing(shapes, shapeSize, lights, lightSize, backcolor, refractedRay, depth - 1, mat.refraction());
+		        }
+	        }
+
+        } else {
+            reflectionCols[depth] = refractionCols[depth] = make_float3(0.0f);
+        }
     }
 
-    Material mat = intersect._shape->material();
+    int i = MAX_DEPTH - 1;
+    //locals[i] += reflectionCols[i] + refractionCols[i];
 
-    Color reflectionCol = Color();
-    Color refractionCol = Color();
-    
-    // local illumination
-	float3 local = make_float3(0.0f);
-	for(size_t li = 0; li < lightSize; li++) {
-		float3 feelerDir = normalize(lights[li].position() - intersect._point);
-		Ray feeler = Ray(intersect._point, feelerDir);
-		compensatePrecision(feeler);
+    for(int i = MAX_DEPTH - 2; i >= 0; i--) {
+        locals[i] += reflectionCols[i] + refractionCols[i];
+        locals[i] += locals[i+1];
+    }
 
-		bool inShadow = false;
-		for(size_t si = 0; si < shapeSize; si++) {
-			if (shapes[si].intersection(feeler, nullptr)) {
-				inShadow = true;
-				break;
-			}
-		}
-		if(!inShadow) {
-			float diff = fmax(dot(feelerDir, intersect._normal), 0.0f);
-			float3 reflectDir = reflect(-feelerDir, intersect._normal);
-			float spec = powf(fmax(dot(reflectDir, -ray.direction()), 0.0f), mat.shininess());
-
-			float3 seenColor = mat.color().color() * lights[li].color().color();
-			local += seenColor * (diff * mat.diffuse() + spec * mat.specular());
-		}
-	}
-
-    /*if(depth > 0) {
-	    // reflection
-	    if(mat.specular() > 0.0f) {
-		    Ray reflectedRay = Ray(intersect._point, reflect(ray.direction(), intersect._normal));
-		    compensatePrecision(reflectedRay);
-		    reflectionCol = rayTracing(shapes, shapeSize, lights, lightSize, backcolor, reflectedRay, depth - 1, mat.refraction()) * mat.color() * mat.specular();
-	    }
-
-	    // transmission
-	    if(mat.transparency() > 0.0f) {
-		    float ior1, ior2;
-		    if(intersect._isEntering) {
-			    ior1 = 1.0f;
-			    ior2 = mat.refraction();
-		    }
-		    else {
-			    ior1 = mat.refraction();
-			    ior2 = 1.0f;
-		    }
-		    float3 refractionDir = computeTransmissionDir(ray.direction(), intersect._normal, ior1, ior2);
-		    if (!equal(length(refractionDir), 0.0f)) {
-			    Ray refractedRay = Ray(intersect._point, refractionDir);
-			    compensatePrecision(refractedRay);
-			    refractionCol = rayTracing(shapes, shapeSize, lights, lightSize, backcolor, refractedRay, depth - 1, mat.refraction()) * mat.color() * mat.transparency();
-		    }
-	    }
-    }*/
-
-	return Color(local) + reflectionCol + refractionCol;
+	return Color(locals[0]);
 }
 
 

@@ -18,8 +18,8 @@
 
 #define FLOAT_EPSILON 4E-3f
 #define ACNE_EPSILON 1E-2f
-#define SUPER_SAMPLING 1
-#define MAX_DEPTH 6
+#define SUPER_SAMPLING 2
+#define MAX_DEPTH 1
 
 //====================================  device ========================
 struct Sphere;
@@ -28,7 +28,6 @@ struct Ray{
 private:
     float3 _origin;
     float3 _direction;
-    int _depth;
 
 public:
     __device__ Ray(){
@@ -39,15 +38,22 @@ public:
     __device__ Ray(float3 origin, float3 direction) {
         _origin = origin;
         _direction = direction;
-        _depth = 0;
     }
 
-    __device__ float3 origin() {
+    __device__ 
+    float3 origin() {
         return _origin;
     }
 
-    __device__ float3 direction() {
+    __device__ 
+    float3 direction() {
         return _direction;
+    }
+
+    __device__
+    void update(float3 origin, float3 direction) {
+        _origin = origin;
+        _direction = direction;
     }
 };
 
