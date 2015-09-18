@@ -13,6 +13,7 @@
 bool load_nff(std::string filePath, Scene *sc) {
     clock_t start, end;
 
+    filePath += ".nff";
 	std::cout << "Loading: " << filePath << std::endl;
 
     start = clock();
@@ -41,17 +42,13 @@ private:
     float3 _xe, _ye, _ze;
 
 	void computeFrame() {
-        float3 at2eye = _from - _at;
-	    float3 ze = normalize(at2eye);
-
-	    float3 upXze = cross(_up, ze);
-	    float3 xe = normalize(upXze);
-
+	    float3 ze = normalize(_from - _at);
+	    float3 xe = normalize(cross(_up, ze));
 	    float3 ye = cross(ze, xe);
 
 	    _xe = xe;
 	    _ye = ye;
-	    _ze = ze;
+	    _ze = -ze;
     }
 
 	

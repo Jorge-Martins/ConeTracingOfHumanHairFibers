@@ -140,9 +140,8 @@ Color rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightSi
 
     Material mat = intersect._shape->material();
 
-    //return Color(intersect._point);
-    //Color reflectionCol;
-    //Color refractionCol;
+    Color reflectionCol = Color();
+    Color refractionCol = Color();
     
     // local illumination
 	float3 local = make_float3(0.0f);
@@ -161,7 +160,7 @@ Color rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightSi
 		if(!inShadow) {
 			float diff = fmax(dot(feelerDir, intersect._normal), 0.0f);
 			float3 reflectDir = reflect(-feelerDir, intersect._normal);
-			float spec = 1.0f;//powf(fmax(dot(reflectDir, -ray.direction()), 0.0f), mat.shininess());
+			float spec = powf(fmax(dot(reflectDir, -ray.direction()), 0.0f), mat.shininess());
 
 			float3 seenColor = mat.color().color() * lights[li].color().color();
 			local += seenColor * (diff * mat.diffuse() + spec * mat.specular());
@@ -196,7 +195,7 @@ Color rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightSi
 	    }
     }*/
 
-	return Color(local); //+ reflectionCol + refractionCol;
+	return Color(local) + reflectionCol + refractionCol;
 }
 
 
@@ -208,24 +207,17 @@ void drawScene(Sphere *shapes, size_t shapeSize, Light* lights, size_t lightSize
     uint x = blockIdx.x * blockDim.x + threadIdx.x;
     uint y = blockIdx.y * blockDim.y + threadIdx.y;
 
-    //float3 pixel = make_float3(1.0f, 0.0f, 0.0f);
-    /*for(int x = 0; x < resX; x++) {
-        for(int y = 0; y < resY; y++) {*/
-        float zeFactor = -atDistance;
-	    float yeFactor = height * ((y + 0.5f) / resY - 0.5f);
-	    float xeFactor = width * ((x + 0.5f) / resX - 0.5f);
+    float zeFactor = atDistance;
+	float yeFactor = height * ((y + 0.5f) / resY - 0.5f);
+	float xeFactor = width * ((x + 0.5f) / resX - 0.5f);
 
-	    float3 direction = zeFactor * ze + yeFactor * ye + xeFactor * xe;
-	    Ray ray = Ray(from, direction);
+	float3 direction = normalize(zeFactor * ze + yeFactor * ye + xeFactor * xe);
+	Ray ray = Ray(from, direction);
 
-        Color color = rayTracing(shapes, shapeSize, lights, lightSize, backcolor, ray, 1.0);
+    Color color = rayTracing(shapes, shapeSize, lights, lightSize, backcolor, ray, 1.0);
 
-        d_output[y * resX + x] = normalize(color.color());
-        //d_output[y * resX + x] = pixel;
-        //}
-    //}
-    
-    
+    d_output[y * resX + x] = normalize(color.color());
+
 }
 
 void deviceDrawScene(Sphere *shapes, size_t shapeSize, Light* lights, size_t lightSize, Color backcolor, 

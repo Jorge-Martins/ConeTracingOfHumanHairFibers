@@ -18,7 +18,7 @@ int fpsCount = 0;
 int fpsLimit = 1;        // FPS limit for sampling
 
 int RES_X, RES_Y;
-dim3 blockSize(32, 32);
+dim3 blockSize(8, 8);
 dim3 gridSize;
 
 float latitude, longitude, radius;
@@ -26,8 +26,6 @@ int xDragStart, yDragStart, dragging, zooming;
 
 
 bool drawing = false;
-
-std::string balls_complexity = "low";
 
 // OpenGL pixel buffer object
 GLuint pbo;
@@ -226,8 +224,9 @@ void mouseMove(int x, int y) {
         radius += (y - yDragStart) * zstep;
 
         camera->update(computeFromCoordinates());
-
-    }
+        //std::cout<< "From: " << camera->from().x << " " << camera->from().y << " " << camera->from().z << std::endl;
+        //std::cout<< "radius: " << radius << std::endl;
+    } 
 }
 
 void mousePressed(int button, int state, int x, int y) {
@@ -261,10 +260,10 @@ int main(int argc, char *argv[]) {
 
     scene = new Scene();
     
-    radius = 3;
-    longitude = 32;
-    latitude = 55;
-
+    radius = 80;//3;
+    longitude = 135.f;//32;
+    latitude = 55;//55;
+    
     float3 from = computeFromCoordinates();
     float3 up = make_float3(0.0f , 0.0f, 1.0f);
     float3 at = make_float3(0.0f);
@@ -279,8 +278,8 @@ int main(int argc, char *argv[]) {
     //Explicitly set device 0 
     cudaSetDevice(0); 
 
-	if (!load_nff(path + "balls_" + balls_complexity + ".nff", scene)) {
-        std::cerr << "Could not find scene files." << std::endl;
+	if (!load_nff(path + "balls_low", scene)) {
+        std::cerr << "Could not find scene file." << std::endl;
 		return -1;
 	}
 

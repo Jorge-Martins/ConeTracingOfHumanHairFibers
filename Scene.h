@@ -16,7 +16,7 @@
 #include <sstream>
 
 
-#define FLOAT_EPSILON 1E-3f
+#define FLOAT_EPSILON 4E-3f
 #define ACNE_EPSILON 1E-2f
 #define SUPER_SAMPLING 1
 #define MAX_DEPTH 6
