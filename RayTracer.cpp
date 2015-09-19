@@ -13,11 +13,13 @@
 
 Scene *scene;
 Camera *camera;
+Ray *d_rays;
+Color *d_locals, *d_reflectionCols, *d_refractionCols;
 
 int fpsCount = 0;
 int fpsLimit = 1;        // FPS limit for sampling
 
-int RES_X, RES_Y;
+int RES_X = 512, RES_Y = 512;
 dim3 blockSize(16, 16);
 dim3 gridSize;
 
@@ -42,7 +44,8 @@ const char* windowTitle = "Msc Ray Tracing";
 
 extern void deviceDrawScene(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightSize, Color backcolor, 
                             int resX, int resY, float width, float height, float atDistance, float3 xe, 
-                            float3 ye, float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize);
+                            float3 ye, float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize,
+                            Ray* d_rays, Color* d_locals, Color* d_reflectionCols, Color* d_refractionCols);
 
 
 float3 computeFromCoordinates(){
@@ -55,6 +58,15 @@ float3 computeFromCoordinates(){
 }
 
 void cleanup() {
+    delete scene;
+    delete camera;
+
+    cudaFree(d_rays);
+    cudaFree(d_locals);
+    cudaFree(d_reflectionCols);
+    cudaFree(d_refractionCols);
+
+
     sdkDeleteTimer(&timer);
 
     if (pbo) {
@@ -82,6 +94,33 @@ void computeFPS() {
         fpsLimit = (int)MAX(1.0f, ifps);
         sdkResetTimer(&timer);
     }
+}
+
+void cudaInit() {
+    int sizeRR = (2 << (MAX_DEPTH - 1)) - 1;
+
+    //size local and ray arrays 
+    int raysPerPixel = (2 << MAX_DEPTH) - 1;
+    int totalRays = RES_X * RES_Y * raysPerPixel;
+
+    Ray *rays = new Ray[totalRays]; 
+    Color *colors = new Color[totalRays];
+
+    int size = totalRays * sizeof(Ray);
+
+    checkCudaErrors(cudaMalloc((void**) &d_rays, size));
+    checkCudaErrors(cudaMemcpy(d_rays, rays, size, cudaMemcpyHostToDevice));
+
+    size = totalRays * sizeof(Color);
+    checkCudaErrors(cudaMalloc((void**) &d_locals, size));
+    checkCudaErrors(cudaMemcpy(d_locals, colors, size, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMalloc((void**) &d_reflectionCols, size));
+    checkCudaErrors(cudaMemcpy(d_reflectionCols, colors, size, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMalloc((void**) &d_refractionCols, size));
+    checkCudaErrors(cudaMemcpy(d_refractionCols, colors, size, cudaMemcpyHostToDevice));
+
+    delete[] rays;
+    delete[] colors;
 }
 
 void initPixelBuffer() {
@@ -124,7 +163,8 @@ void render() {
     // call CUDA kernel, writing results to PBO
     deviceDrawScene(scene->getDShapes(), scene->getDShapesSize(), scene->getDLights(), scene->getDLightsSize(), 
                     scene->backcolor(), RES_X, RES_Y, camera->width(), camera->height(), camera->atDistance(), 
-                    camera->xe(), camera->ye(), camera->ze(), camera->from(), d_output, gridSize, blockSize);
+                    camera->xe(), camera->ye(), camera->ze(), camera->from(), d_output, gridSize, blockSize, 
+                    d_rays, d_locals, d_reflectionCols, d_refractionCols);
 
     cudaError_t error = cudaGetLastError();
     if(error != cudaSuccess) {
@@ -272,7 +312,6 @@ int main(int argc, char *argv[]) {
     float3 up = make_float3(0.0f , 0.0f, 1.0f);
     float3 at = make_float3(0.0f);
     float fov = 45;
-    RES_X = RES_Y = 512;
 
     // calculate new grid size
     gridSize = dim3(iDivUp(RES_X, blockSize.x), iDivUp(RES_Y, blockSize.y));
@@ -286,6 +325,7 @@ int main(int argc, char *argv[]) {
         std::cerr << "Could not find scene file." << std::endl;
 		return -1;
 	}
+    cudaInit();
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);

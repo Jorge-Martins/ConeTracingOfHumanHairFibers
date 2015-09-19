@@ -31,7 +31,8 @@ private:
     bool _exists;
 
 public:
-    __device__ Ray(){
+    __host__ __device__ 
+    Ray(){
         _origin = make_float3(0.0f);
         _direction = make_float3(0.0f, 0.0f, 1.0f);
         _exists = true;
@@ -67,6 +68,7 @@ public:
     void update(float3 origin, float3 direction) {
         _origin = origin;
         _direction = direction;
+        _exists = true;
     }
 };
 
