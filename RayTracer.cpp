@@ -282,7 +282,7 @@ int main(int argc, char *argv[]) {
     //Explicitly set device 0 
     cudaSetDevice(0); 
 
-	if (!load_nff(path + "mount_low", scene)) {
+	if (!load_nff(path + "balls_low", scene)) {
         std::cerr << "Could not find scene file." << std::endl;
 		return -1;
 	}

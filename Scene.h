@@ -18,8 +18,8 @@
 
 #define FLOAT_EPSILON 4E-3f
 #define ACNE_EPSILON 1E-2f
-#define SUPER_SAMPLING 2
-#define MAX_DEPTH 1
+#define SUPER_SAMPLING 1
+#define MAX_DEPTH 2
 
 //====================================  device ========================
 struct Sphere;
@@ -28,16 +28,19 @@ struct Ray{
 private:
     float3 _origin;
     float3 _direction;
+    bool _exists;
 
 public:
     __device__ Ray(){
         _origin = make_float3(0.0f);
         _direction = make_float3(0.0f, 0.0f, 1.0f);
+        _exists = true;
     };
 
     __device__ Ray(float3 origin, float3 direction) {
         _origin = origin;
         _direction = direction;
+        _exists = true;
     }
 
     __device__ 
@@ -48,6 +51,16 @@ public:
     __device__ 
     float3 direction() {
         return _direction;
+    }
+
+    __device__ 
+    bool exists() {
+        return _exists;
+    }
+
+    __device__ 
+    void setState(bool exists) {
+        _exists = exists;
     }
 
     __device__
@@ -140,17 +153,31 @@ public:
 
     __host__ __device__ 
     Color operator+(Color color) {
-        return Color(make_float3(this->r() + color.r(), this->g() + color.g(), this->b() + color.b()));
+        return Color(_color + color.color());
     }
 
     __host__ __device__ 
     Color operator*(Color color) {
-        return Color(make_float3(this->r() * color.r(), this->g() * color.g(), this->b() * color.b()));
+        return Color(_color * color.color());
+    }
+
+    __host__ __device__ 
+    Color operator+=(Color color) {
+        _color += color.color();
+
+        return _color;
+    }
+
+    __host__ __device__ 
+    Color operator*=(Color color) {
+        _color *= color.color();
+
+        return _color;
     }
 
     __host__ __device__ 
     Color operator*(float factor) {
-        return Color(make_float3(this->r() * factor, this->g() * factor, this->b() * factor));
+        return Color(_color *factor);
     }
 
 };

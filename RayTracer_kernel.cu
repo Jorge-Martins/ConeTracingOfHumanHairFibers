@@ -128,99 +128,144 @@ float3 computeTransmissionDir(float3 inDir, float3 normal, float beforeIOR, floa
 }
 
 __device__
-Color rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightSize, Color backcolor, Ray ray, float ior) {
+float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightSize, Color backcolor, 
+                 float3 rayOrigin, float3 rayDirection, float MediumIor) {
 
-    Ray refractedRay = Ray();
-    Ray reflectedRay = Ray();
     Ray feeler = Ray();
+    
+    //size reflection and refraction arrays 
+    int const sizeRR = (2 << (MAX_DEPTH - 1)) - 1;
 
-    float3 locals[MAX_DEPTH];
-    float3 reflectionCols[MAX_DEPTH];
-    float3 refractionCols[MAX_DEPTH];
+    //size local and ray arrays 
+    int const sizeLR = (2 << MAX_DEPTH) - 1;
+
+    Color locals[sizeLR];
+
+    Color reflectionCols[sizeLR];
+    Color refractionCols[sizeLR];
+
+    Ray reflectedRay, refractedRay;
+
+    //rays
+    Ray ray[sizeLR];
+    ray[0].update(rayOrigin, rayDirection);
+
+    float ior[sizeLR];
+    ior[0] = MediumIor;
 
     RayIntersection intersect;
-    Ray activeRay;
+    int level;
+    Color blackColor = Color();
 
-    for(int depth = 0; depth < MAX_DEPTH; depth++) {
+    for(int rayN = 0; rayN < sizeLR; rayN++) {
+        //skip secundary rays that don't exist
+        while(!ray[rayN].exists() && rayN < sizeRR) {
+            level = 2 * rayN;
+            ray[level + 1].setState(false);
+            ray[level + 2].setState(false);
+            rayN++;
+        }
 
-	    bool foundIntersect = nearestIntersect(shapes, shapeSize, ray, &intersect);
+	    bool foundIntersect = nearestIntersect(shapes, shapeSize, ray[rayN], &intersect);
 
 	    if (!foundIntersect) {
-		    return backcolor;
-        }
+		    locals[rayN] = backcolor;
 
-        Material mat = intersect._shape->material();
-    
-        // local illumination
-	    locals[depth] = make_float3(0.0f);
-	    for(size_t li = 0; li < lightSize; li++) {
-		    float3 feelerDir = normalize(lights[li].position() - intersect._point);
-		    feeler.update(intersect._point, feelerDir);
-		    compensatePrecision(feeler);
+            if(rayN == 0) {
+                break;
+            }
 
-		    bool inShadow = false;
-		    for(size_t si = 0; si < shapeSize; si++) {
-			    if (shapes[si].intersection(feeler, nullptr)) {
-				    inShadow = true;
-				    break;
-			    }
-		    }
-		    if(!inShadow) {
-			    float diff = fmax(dot(feelerDir, intersect._normal), 0.0f);
-			    float3 reflectDir = reflect(-feelerDir, intersect._normal);
-			    float spec = powf(fmax(dot(reflectDir, -ray.direction()), 0.0f), mat.shininess());
-
-			    float3 seenColor = mat.color().color() * lights[li].color().color();
-			    locals[depth] += seenColor * (diff * mat.diffuse() + spec * mat.specular());
-		    }
-	    }
-    
-
-        if(depth < MAX_DEPTH) {
-	        // reflection
-	        if(mat.specular() > 0.0f) {
-		        reflectedRay.update(intersect._point, reflect(ray.direction(), intersect._normal));
-		        compensatePrecision(reflectedRay);
-
-                reflectionCols[depth] = mat.color().color() * mat.specular();
-                //rayTracing(shapes, shapeSize, lights, lightSize, backcolor, reflectedRay, depth - 1, mat.refraction());
-	        }
-
-	        // transmission
-	        if(mat.transparency() > 0.0f) {
-		        float ior1, ior2;
-		        if(intersect._isEntering) {
-			        ior1 = 1.0f;
-			        ior2 = mat.refraction();
-		        }
-		        else {
-			        ior1 = mat.refraction();
-			        ior2 = 1.0f;
-		        }
-		        float3 refractionDir = computeTransmissionDir(ray.direction(), intersect._normal, ior1, ior2);
-		        if (!equal(length(refractionDir), 0.0f)) {
-			        refractedRay.update(intersect._point, refractionDir);
-			        compensatePrecision(refractedRay);
-			        
-                    refractionCols[depth] = mat.color().color() * mat.transparency();
-                    //rayTracing(shapes, shapeSize, lights, lightSize, backcolor, refractedRay, depth - 1, mat.refraction());
-		        }
-	        }
-
+            if(rayN < sizeRR) {
+                level = 2 * rayN;
+                ray[level + 1].setState(false);
+                ray[level + 2].setState(false);
+            }
+            
+        
         } else {
-            reflectionCols[depth] = refractionCols[depth] = make_float3(0.0f);
+            Material mat = intersect._shape->material();
+    
+            // local illumination
+	        //locals[rayN] = make_float3(0.0f);
+	        for(size_t li = 0; li < lightSize; li++) {
+		        float3 feelerDir = normalize(lights[li].position() - intersect._point);
+		        feeler.update(intersect._point, feelerDir);
+		        compensatePrecision(feeler);
+
+		        bool inShadow = false;
+		        for(size_t si = 0; si < shapeSize; si++) {
+			        if (shapes[si].intersection(feeler, nullptr)) {
+				        inShadow = true;
+				        break;
+			        }
+		        }
+		        if(!inShadow) {
+			        float diff = fmax(dot(feelerDir, intersect._normal), 0.0f);
+			        float3 reflectDir = reflect(-feelerDir, intersect._normal);
+			        float spec = powf(fmax(dot(reflectDir, -ray[rayN].direction()), 0.0f), mat.shininess());
+
+			        float3 seenColor = mat.color().color() * lights[li].color().color();
+			        locals[rayN] += Color(seenColor * (diff * mat.diffuse() + spec * mat.specular()));
+		        }
+	        }
+    
+
+            if(rayN < sizeRR) {
+	            // reflection
+                level = 2 * rayN + 1;
+	            if(mat.specular() > 0.0f) {
+		            ray[level].update(intersect._point, reflect(ray[rayN].direction(), intersect._normal));
+		            compensatePrecision(ray[level]);
+
+                    reflectionCols[rayN] = mat.color() * mat.specular();
+                    ior[level] = mat.refraction();
+	        
+                } else {
+                    //reflectionCols[rayN] = blackColor;
+                    ray[level].setState(false);
+                }
+
+	            // transmission
+                level = 2 * rayN + 2;
+	            if(mat.transparency() > 0.0f) {
+		            float ior1, ior2;
+		            if(intersect._isEntering) {
+			            ior1 = ior[rayN];
+			            ior2 = mat.refraction();
+		            }
+		            else {
+			            ior1 = mat.refraction();
+			            ior2 = ior[rayN];
+		            }
+		            float3 refractionDir = computeTransmissionDir(ray[rayN].direction(), intersect._normal, ior1, ior2);
+		            
+                    
+                    if (!equal(length(refractionDir), 0.0f)) {
+			            ray[level].update(intersect._point, refractionDir);
+			            compensatePrecision(ray[level]);
+			        
+                        refractionCols[rayN] = mat.color() * mat.transparency();
+                        ior[level] = mat.refraction();
+		        
+                    } else {
+                        //refractionCols[rayN] = blackColor;
+                        ray[level].setState(false);
+                    }
+	            }
+            } 
         }
     }
 
-    int i = MAX_DEPTH - 1;
-    //locals[i] += reflectionCols[i] + refractionCols[i];
-
-    for(int i = MAX_DEPTH - 2; i >= 0; i--) {
-        locals[i] += reflectionCols[i] + refractionCols[i];
-        locals[i] += locals[i+1];
+    int startLevel = (2 << (MAX_DEPTH - 1)) - 2;
+    for(int i = startLevel; i >= 0; i--) {
+        locals[2 * i + 1] = locals[2 * i + 1] + reflectionCols[2 * i + 1] + refractionCols[2 * i + 1];
+        locals[2 * i + 2] = locals[2 * i + 2] + reflectionCols[2 * i + 2] + refractionCols[2 * i + 2];
+        
+        reflectionCols[i] *= locals[2 * i + 1];
+        refractionCols[i] *= locals[2 * i + 2];
     }
 
-	return Color(locals[0]);
+    return (locals[0] + reflectionCols[0] + refractionCols[0]).color();
 }
 
 
@@ -237,12 +282,10 @@ void drawScene(Sphere *shapes, size_t shapeSize, Light* lights, size_t lightSize
 	float xeFactor = width * ((x + 0.5f) / resX - 0.5f);
 
 	float3 direction = normalize(zeFactor * ze + yeFactor * ye + xeFactor * xe);
-	Ray ray = Ray(from, direction);
+	
+    float3 color = rayTracing(shapes, shapeSize, lights, lightSize, backcolor, from, direction, 1.0);
 
-    Color color = rayTracing(shapes, shapeSize, lights, lightSize, backcolor, ray, 1.0);
-
-    d_output[y * resX + x] = normalize(color.color());
-
+    d_output[y * resX + x] = color;
 }
 
 void deviceDrawScene(Sphere *shapes, size_t shapeSize, Light* lights, size_t lightSize, Color backcolor, 
