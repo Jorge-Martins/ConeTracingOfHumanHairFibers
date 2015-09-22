@@ -11,10 +11,10 @@
 #define iDivUp(a, b) (a % b != 0) ? (a / b + 1) : (a / b)
 
 
-Scene *scene;
-Camera *camera;
-Ray *d_rays;
-Color *d_locals, *d_reflectionCols, *d_refractionCols;
+Scene *scene = 0;
+Camera *camera = 0;
+Ray *d_rays = 0;
+Color *d_locals = 0, *d_reflectionCols = 0, *d_refractionCols = 0;
 
 int fpsCount = 0;
 int fpsLimit = 1;        // FPS limit for sampling
@@ -61,10 +61,10 @@ void cleanup() {
     delete scene;
     delete camera;
 
-    cudaFree(d_rays);
-    cudaFree(d_locals);
-    cudaFree(d_reflectionCols);
-    cudaFree(d_refractionCols);
+    checkCudaErrors(cudaFree(d_rays));
+    checkCudaErrors(cudaFree(d_locals));
+    checkCudaErrors(cudaFree(d_reflectionCols));
+    checkCudaErrors(cudaFree(d_refractionCols));
 
 
     sdkDeleteTimer(&timer);
@@ -97,11 +97,21 @@ void computeFPS() {
 }
 
 void cudaInit() {
-    int sizeRR = (2 << (MAX_DEPTH - 1)) - 1;
+    clock_t start = clock();
+    if(d_rays) {
+        checkCudaErrors(cudaFree(d_rays));
+        checkCudaErrors(cudaFree(d_locals));
+        checkCudaErrors(cudaFree(d_reflectionCols));
+        checkCudaErrors(cudaFree(d_refractionCols));
+    }
 
     //size local and ray arrays 
     int raysPerPixel = (2 << MAX_DEPTH) - 1;
     int totalRays = RES_X * RES_Y * raysPerPixel;
+    
+    //size reflection and refraction arrays 
+    int sizeRRArrays =  RES_X * RES_Y * ((2 << (MAX_DEPTH - 1)) - 1);
+    
 
     Ray *rays = new Ray[totalRays]; 
     Color *colors = new Color[totalRays];
@@ -114,6 +124,8 @@ void cudaInit() {
     size = totalRays * sizeof(Color);
     checkCudaErrors(cudaMalloc((void**) &d_locals, size));
     checkCudaErrors(cudaMemcpy(d_locals, colors, size, cudaMemcpyHostToDevice));
+
+    size = sizeRRArrays * sizeof(Color);
     checkCudaErrors(cudaMalloc((void**) &d_reflectionCols, size));
     checkCudaErrors(cudaMemcpy(d_reflectionCols, colors, size, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMalloc((void**) &d_refractionCols, size));
@@ -121,6 +133,8 @@ void cudaInit() {
 
     delete[] rays;
     delete[] colors;
+    clock_t end = clock();
+    std::cout << "cuda init time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
 }
 
 void initPixelBuffer() {
@@ -162,7 +176,7 @@ void render() {
 
     // call CUDA kernel, writing results to PBO
     deviceDrawScene(scene->getDShapes(), scene->getDShapesSize(), scene->getDLights(), scene->getDLightsSize(), 
-                    scene->backcolor(), RES_X, RES_Y, camera->width(), camera->height(), camera->atDistance(), 
+                    scene->getBackcolor(), RES_X, RES_Y, camera->width(), camera->height(), camera->atDistance(), 
                     camera->xe(), camera->ye(), camera->ze(), camera->from(), d_output, gridSize, blockSize, 
                     d_rays, d_locals, d_reflectionCols, d_refractionCols);
 
@@ -181,9 +195,12 @@ void reshape(int w, int h) {
 
     // calculate new grid size
     gridSize = dim3(iDivUp(RES_X, blockSize.x), iDivUp(RES_Y, blockSize.y));
-
+    
     camera->update(RES_X / (float)RES_Y);
+
+    cudaInit();
     initPixelBuffer();
+    
 
     glViewport(0, 0, RES_X, RES_Y);
 
@@ -232,7 +249,7 @@ void drawScene() {
     glDisable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    glutSwapBuffers();
+    //glutSwapBuffers();
     glutReportErrors();
 
     sdkStopTimer(&timer);
@@ -240,9 +257,9 @@ void drawScene() {
 }
 
 void mouseMove(int x, int y) { 	
-    float ystep = 0.001f;
-    float xstep = 0.001f;
-    float zstep = 0.001f;
+    float ystep = 0.002f;
+    float xstep = 0.002f;
+    float zstep = 0.002f;
 
     if (dragging == 1) {
         longitude += (-x + xDragStart) * xstep;
@@ -304,9 +321,9 @@ int main(int argc, char *argv[]) {
 
     scene = new Scene();
     
-    radius = 80;//3;
-    longitude = 135.f;//32;
-    latitude = 55;//55;
+    radius = 100.f;//3;
+    longitude = 32.f;//132;
+    latitude = 55.f;//55;
     
     float3 from = computeFromCoordinates();
     float3 up = make_float3(0.0f , 0.0f, 1.0f);
@@ -325,10 +342,9 @@ int main(int argc, char *argv[]) {
         std::cerr << "Could not find scene file." << std::endl;
 		return -1;
 	}
-    cudaInit();
 
 	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
+	glutInitDisplayMode(GLUT_RGB | GLUT_SINGLE);
 
 	glutInitWindowSize(RES_X, RES_Y);
 	glutInitWindowPosition(100, 100);
@@ -349,9 +365,6 @@ int main(int argc, char *argv[]) {
     glutIdleFunc(idle);
     glutCloseFunc(cleanup);
 	glDisable(GL_DEPTH_TEST);
-
-
-    initPixelBuffer();
 
 	std::cout << std::endl << "CONTEXT: OpenGL v" << glGetString(GL_VERSION) << std::endl;
 
