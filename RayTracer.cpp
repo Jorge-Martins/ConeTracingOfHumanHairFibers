@@ -14,7 +14,7 @@
 Scene *scene = 0;
 Camera *camera = 0;
 Ray *d_rays = 0;
-Color *d_locals = 0, *d_reflectionCols = 0, *d_refractionCols = 0;
+float3 *d_locals = 0, *d_reflectionCols = 0, *d_refractionCols = 0;
 
 int fpsCount = 0;
 int fpsLimit = 1;        // FPS limit for sampling
@@ -27,7 +27,7 @@ float latitude, longitude, radius;
 int xDragStart, yDragStart, dragging, zooming;
 
 
-bool drawing = false;
+bool stopRender = false;
 
 // OpenGL pixel buffer object
 GLuint pbo;
@@ -42,10 +42,10 @@ StopWatchInterface *timer = NULL;
 
 const char* windowTitle = "Msc Ray Tracing";
 
-extern void deviceDrawScene(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightSize, Color backcolor, 
+extern void deviceDrawScene(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightSize, float3 backcolor, 
                             int resX, int resY, float width, float height, float atDistance, float3 xe, 
                             float3 ye, float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize,
-                            Ray* d_rays, Color* d_locals, Color* d_reflectionCols, Color* d_refractionCols);
+                            Ray* d_rays, float3* d_locals, float3* d_reflectionCols, float3* d_refractionCols);
 
 
 float3 computeFromCoordinates(){
@@ -114,18 +114,17 @@ void cudaInit() {
     
 
     Ray *rays = new Ray[totalRays]; 
-    Color *colors = new Color[totalRays];
+    float3 *colors = new float3[totalRays];
 
     int size = totalRays * sizeof(Ray);
 
     checkCudaErrors(cudaMalloc((void**) &d_rays, size));
     checkCudaErrors(cudaMemcpy(d_rays, rays, size, cudaMemcpyHostToDevice));
 
-    size = totalRays * sizeof(Color);
+    size = totalRays * sizeof(float3);
     checkCudaErrors(cudaMalloc((void**) &d_locals, size));
     checkCudaErrors(cudaMemcpy(d_locals, colors, size, cudaMemcpyHostToDevice));
 
-    size = sizeRRArrays * sizeof(Color);
     checkCudaErrors(cudaMalloc((void**) &d_reflectionCols, size));
     checkCudaErrors(cudaMemcpy(d_reflectionCols, colors, size, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMalloc((void**) &d_refractionCols, size));
@@ -213,8 +212,6 @@ void reshape(int w, int h) {
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 
-    
-    
 }
 
 // Draw function by primary ray casting from the eye towards the scene's objects 
@@ -321,7 +318,7 @@ int main(int argc, char *argv[]) {
 
     scene = new Scene();
     
-    radius = 100.f;//3;
+    radius = 3.f;//3;
     longitude = 32.f;//132;
     latitude = 55.f;//55;
     
@@ -333,7 +330,7 @@ int main(int argc, char *argv[]) {
     // calculate new grid size
     gridSize = dim3(iDivUp(RES_X, blockSize.x), iDivUp(RES_Y, blockSize.y));
 
-    camera = new Camera(from, at, up, fov, RES_X / (float)RES_Y);
+    camera = new Camera(from, at, up, fov, (float)RES_X / (float)RES_Y);
 
     //Explicitly set device 0 
     cudaSetDevice(0); 

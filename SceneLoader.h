@@ -54,9 +54,9 @@ private:
 	
 	void computeHitherDimensions() {
 	    float atDist = length(_at - _from);
-        float h = 2 * tanf(_aspect * DEG2RAD*0.5f) * atDist;
+        float h = 2 * tanf(_fov * DEG2RAD * 0.5f) * atDist;
 	    float w = _aspect * h;
-
+        
 	    _atDistance = atDist;
 	    _width = w;
 	    _height = h;
@@ -105,13 +105,13 @@ public:
         computeFrame();
 	    computeHitherDimensions();
     }
-
+    //move
     void update(float3 from) {
         _from = from;
         computeFrame();
 	    computeHitherDimensions();
     }
-
+    //reshape
     void update(float aspect) {
         _aspect = aspect;
 	    computeHitherDimensions();

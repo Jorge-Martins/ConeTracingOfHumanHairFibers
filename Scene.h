@@ -16,7 +16,7 @@
 #include <sstream>
 
 #define SUPER_SAMPLING 1
-#define MAX_DEPTH 2
+#define MAX_DEPTH 1
 
 //====================================  device ========================
 struct Sphere;
@@ -83,7 +83,7 @@ struct RayIntersection{
 };
 
 
-struct Color {
+/*struct Color {
 private:
     float3 _color;
 
@@ -157,25 +157,25 @@ public:
         return Color(_color *factor);
     }
 
-};
+};*/
 
 struct Material {
-    Color color;
+    float3 color;
     float diffuse;
     float specular;
     float shininess;
     float transparency;
     float ior;
 
-    __host__ __device__ 
+    __host__ 
     Material() {
-        this->color = Color();
-        this->diffuse = this->specular = this->shininess = this->transparency = this->ior = 0.0f;
+        color = make_float3(0.0f);
+        diffuse = specular = shininess = transparency = ior = 0.0f;
     }
 
-    __host__ __device__ 
+    __host__ 
     Material(float3 color, float diffuse, float specular, float shininess, float transparency, float ior) {
-        this->color = Color(color);
+        this->color = color;
         this->diffuse = diffuse;
         this->specular = specular;
         this->shininess = shininess;
@@ -185,31 +185,31 @@ struct Material {
 };
 
 struct Light {
-    Color color;
+    float3 color;
     float3 position;
 
     __host__
     Light() {
-        position = make_float3(0.0f);
-        color = Color(make_float3(1.0f));
+        color = position = make_float3(0.0f);
+        color = make_float3(1.0f);
     }
 
     __host__
     Light(float3 position) {
         this->position = position;
-        color = Color(make_float3(1.0f));
+        color = make_float3(1.0f);
     }
 
     __host__
     Light(float3 position, float3 color) {
         this->position = position;
-        this->color = Color(color);
+        this->color = color;
     }
 
     __host__
     std::string print() {
         std::ostringstream os;
-        os << "Color: " << color.r() << " " << color.g() << " " << color.b() << std::endl <<
+        os << "Color: " << color.x << " " << color.y << " " << color.z << std::endl <<
             "Position: " << position.x << " " << position.y << " " << position.z;
         
         return os.str();
@@ -218,35 +218,30 @@ struct Light {
 
 
 struct Sphere {
-	float x, y, z, r;
+	float3 center;
+    float r;
     Material material;
 
     __host__
 	Sphere() {
-        x = y = z = 0.0f;
+        center = make_float3(0.0f);
         r = 1.0f;
     }
 
     __host__
 	Sphere(float x, float y, float z, float r) {
-        this->x = x;
-        this->y = y;
-        this->z = z;
+        center = make_float3(x, y, z);
         this->r = r;
     }
     
-    __host__
+    /*__host__
     std::string print() {
         std::ostringstream os;
 
         os << "Sphere: " << x << " " << y << " " << z << " " << r << std::endl;
 
         return os.str();
-    }
-
-    __device__
-	bool intersection(Ray ray, RayIntersection *out);
-
+    }*/
 };
 
 struct Cylinder {
@@ -269,15 +264,12 @@ struct Cylinder {
         return os.str();
     }
 
-    __device__
-	bool intersection(Ray ray, RayIntersection *out);
-
 };
 
 
 struct Scene {
 private:
-    Color backcolor;
+    float3 backcolor;
     Material material;
     std::vector<Sphere> h_shapes;
 	std::vector<Light> h_lights;
@@ -295,8 +287,8 @@ public:
 
     __host__
 	~Scene() {
-        cudaFree(d_shapes);
-        cudaFree(d_lights);
+        checkCudaErrors(cudaFree(d_shapes));
+        checkCudaErrors(cudaFree(d_lights));
     }
 
     __host__
@@ -371,14 +363,14 @@ public:
 	    h_lights.push_back(Light(pos, color));
     }
 
-    __host__ __device__
-    Color getBackcolor() {
+    __host__
+    float3 getBackcolor() {
         return backcolor;
     }
 
     __host__
     void setBackcolor(float3 color) {
-        backcolor = Color(color);
+        backcolor = color;
     }
     __host__
     void setMaterial(float3 color, float diffuse, float specular, float shine, float trans, float ior) {

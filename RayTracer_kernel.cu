@@ -11,8 +11,7 @@
 
 #include "Scene.h"
 
-__device__ float FLOAT_EPSILON = 1E-4f;
-__device__ float ACNE_EPSILON = 5E-2f;
+__device__ float EPSILON = 1E-5f;
 
 //size reflection and refraction arrays 
 __device__ int const sizeRRArrays = (2 << (MAX_DEPTH - 1)) - 1;
@@ -23,23 +22,43 @@ __device__ int const raysPerPixel = (2 << MAX_DEPTH) - 1;
 __device__
 bool equal(float f1, float f2) {
 	float diffAbs = abs(f1 - f2);
-	return diffAbs < FLOAT_EPSILON;
+	return diffAbs < EPSILON;
 }
 
 
 __device__
-bool Sphere::intersection(Ray ray, RayIntersection *out) {
-    float d_2, r_2, b, c, t;
+bool intersection(Ray ray, RayIntersection *out, Sphere sphere) {
+    float d_2, r_2, b, root, t;
 
-	float3 rayOrig = ray.origin;
-	float xs_xr = x - rayOrig.x;
-	float ys_yr = y - rayOrig.y;
-	float zs_zr = z - rayOrig.z;
+    float3 s_r = sphere.center - ray.origin;
+    
+    r_2 = sphere.r * sphere.r;
+    d_2 = dot(s_r, s_r);
+    b = dot(ray.direction, s_r);
+    //
+    if (d_2 >= r_2) {
+        // ray origin is outside of sphere
+        if (b < 0) {
+            // ray direction is away from sphere
+            return false; // No hit
+        }
+        root = b*b - d_2 + r_2;
+        if (root <= 0) {
+            // no real roots
+            return false; // No hit
+        }
+    } else {
+        root = b*b - d_2 + r_2;
+    }
+    root = sqrtf(root);
 
-	r_2 = r * r;
-	d_2 = (xs_xr * xs_xr) + (ys_yr * ys_yr) + (zs_zr * zs_zr);
+    t = min(b - sqrtf(root), b + sqrtf(root));
 
-	if (equal(d_2, r_2)) {
+
+    return true;
+
+
+	/*if (equal(d_2, r_2)) {
 		return false;
 	}
 	else {
@@ -62,50 +81,46 @@ bool Sphere::intersection(Ray ray, RayIntersection *out) {
 		else {
 			t = b + sqrtf(c);
 		}
+
+        
 		if (out != nullptr) {
 			out->point = make_float3(rayOrig.x + rayDir.x * t,
 				                        rayOrig.y + rayDir.y * t,
 				                        rayOrig.z + rayDir.z * t);
 
-			out->normal = make_float3((out->point.x - x) / r,
-				                        (out->point.y - y) / r,
-				                        (out->point.z - z) / r);
+			out->normal = make_float3((out->point.x - sphere.x) / sphere.r,
+				                        (out->point.y - sphere.y) / sphere.r,
+				                        (out->point.z - sphere.z) / sphere.r);
 
 			bool entering = true;
 			if (d_2 < r_2) {
 				out->normal = out->normal * -1.0f;
 				entering = false;
 			}
-			out->shape = this;
+			out->shape = &sphere;
 			out->distance = t;
 			out->isEntering = entering;
 		}
 		return true;
-	}
-}
-
-__device__
-bool Cylinder::intersection(Ray ray, RayIntersection *out) {
-    //TODO
-    return false;
+	}*/
 }
 
 
 __device__
 bool nearestIntersect(Sphere *shapes, size_t shapeSize, Ray ray, RayIntersection *out) {
-	RayIntersection minIntersect((float)FLT_MAX, make_float3(0.0f), make_float3(0.0f));
+	RayIntersection minIntersect(FLT_MAX, make_float3(0.0f), make_float3(0.0f));
 	bool intersectionFound = false;
 
 	RayIntersection curr = minIntersect;
     for (size_t i = 0; i < shapeSize; i++) {
-		if (shapes[i].intersection(ray, &curr)) {
+		if (intersection(ray, &curr, shapes[i])) {
+            intersectionFound = true;
             if (curr.distance < minIntersect.distance) {
-				intersectionFound = true;
 				minIntersect = curr;
 			}
 		}
 	}
-
+    //
 	if (intersectionFound) {
 		*out = minIntersect;
 	}
@@ -114,7 +129,7 @@ bool nearestIntersect(Sphere *shapes, size_t shapeSize, Ray ray, RayIntersection
 
 __device__
 void compensatePrecision(Ray &ray) {
-	ray.origin += ray.direction * ACNE_EPSILON;
+	ray.origin += ray.direction * EPSILON;
 }
 
 __device__
@@ -136,15 +151,15 @@ float3 computeTransmissionDir(float3 inDir, float3 normal, float beforeIOR, floa
 }
 
 __device__
-float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightSize, Color backcolor, 
-                 float3 rayOrigin, float3 rayDirection, float MediumIor, Ray *ray, Color* locals,
-                 Color* reflectionCols, Color* refractionCols, int offset) {
+float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightSize, float3 backcolor, 
+                 float3 rayOrigin, float3 rayDirection, float MediumIor, Ray *ray, float3* locals,
+                 float3* reflectionCols, float3* refractionCols, int offset) {
 
-
+                     
     int rayOffset = offset * raysPerPixel;
-    int rrOffset = offset * sizeRRArrays;
+    int rrOffset = offset * raysPerPixel;
     Ray feeler = Ray();
-
+    
     ray[rayOffset].update(rayOrigin, rayDirection);
 
     float ior[raysPerPixel];
@@ -152,8 +167,9 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
 
     RayIntersection intersect;
     int level;
-    Color blackColor = Color();
-
+    float3 blackColor = make_float3(0.0f);
+    //isto só há um primário aqui
+    //para todos os raios que tenho de processar...
     for(int rayN = 0; rayN < raysPerPixel; rayN++) {
         //skip secundary rays that don't exist
         while(!ray[rayOffset + rayN].exists && rayN < sizeRRArrays) {
@@ -162,22 +178,19 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
             ray[rayOffset + level + 2].exists = false;
             rayN++;
         }
-
+        
 	    bool foundIntersect = nearestIntersect(shapes, shapeSize, ray[rayOffset + rayN], &intersect);
 
 	    if (!foundIntersect) {
             locals[rayOffset + rayN] = backcolor;
+            reflectionCols[rrOffset + rayN] = blackColor;
+            refractionCols[rrOffset + rayN] = blackColor;
 
             if(rayN == 0) {
-                reflectionCols[rrOffset + rayN] = blackColor;
-                refractionCols[rrOffset + rayN] = blackColor;
                 break;
             }
 
             if(rayN < sizeRRArrays) {
-                reflectionCols[rrOffset + rayN] = blackColor;
-                refractionCols[rrOffset + rayN] = blackColor;
-
                 level = 2 * rayN;
                 ray[rayOffset + level + 1].exists = false;
                 ray[rayOffset + level + 2].exists = false;
@@ -185,39 +198,41 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
             
         
         } else {
-            Material mat = intersect.shape->material;
+            //Material mat = intersect.shape->material;
     
             // local illumination
-	        locals[rayOffset + rayN] = blackColor;
-	        for(size_t li = 0; li < lightSize; li++) {
+	        locals[rayOffset + rayN] = make_float3(1.0f);
+	        /*for(size_t li = 0; li < lightSize; li++) {
 		        float3 feelerDir = normalize(lights[li].position - intersect.point);
 		        feeler.update(intersect.point, feelerDir);
 		        compensatePrecision(feeler);
 
 		        bool inShadow = false;
 		        for(size_t si = 0; si < shapeSize; si++) {
-			        if (shapes[si].intersection(feeler, nullptr)) {
+			        if (intersection(feeler, nullptr, shapes[si])) {
 				        inShadow = true;
 				        break;
 			        }
 		        }
+                
 		        if(!inShadow) {
 			        float diff = fmax(dot(feelerDir, intersect.normal), 0.0f);
 			        float3 reflectDir = reflect(-feelerDir, intersect.normal);
 			        float spec = powf(fmax(dot(reflectDir, -ray[rayOffset + rayN].direction), 0.0f), mat.shininess);
 
-			        Color seenColor = mat.color * lights[li].color;
+			        float3 seenColor = mat.color * lights[li].color;
 			        locals[rayOffset + rayN] += seenColor * (diff * mat.diffuse + spec * mat.specular);
 		        }
-	        }
+	        }*/
     
             level = 2 * rayN;
             ray[rayOffset + level + 1].exists = false;
             ray[rayOffset + level + 2].exists = false;
-            if(rayN < sizeRRArrays) {
+            reflectionCols[rrOffset + rayN] = blackColor;
+            refractionCols[rrOffset + rayN] = blackColor;
+            /*if(rayN < sizeRRArrays) {
                 // reflection
                 level = 2 * rayN + 1;
-                reflectionCols[rrOffset + rayN] = blackColor;
 	            if(mat.specular > 0.0f) {
 		            ray[rayOffset + level].update(intersect.point, reflect(ray[rayOffset + rayN].direction, intersect.normal));
 		            compensatePrecision(ray[rayOffset + level]);
@@ -229,7 +244,6 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
 
 	            // transmission
                 level = 2 * rayN + 2;
-                refractionCols[rrOffset + rayN] = blackColor;
 	            if(mat.transparency > 0.0f) {
 		            float ior1, ior2;
 		            if(intersect.isEntering) {
@@ -251,51 +265,43 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
 		        
                     }
 	            }
-            } 
+            }*/ 
         }
     }
 
     int startLevel = (2 << (MAX_DEPTH - 1)) - 2;
-    int rrLevel = (2 << (MAX_DEPTH - 2)) - 2;
 
-    for(int i = startLevel; i >= 0 && i > rrLevel; i--) {
-        level = 2 * i + 1;       
-        reflectionCols[rrOffset + i] *= locals[rayOffset + level];
-        
-        level = 2 * i + 2;
-        refractionCols[rrOffset + i] *= locals[rayOffset + level];
-    }
-
-
-    
-    for(int i = rrLevel; i >= 0; i--) {
+    for(int i = startLevel; i >= 0; i--) {
         level = 2 * i + 1;
-        locals[rayOffset + level] += reflectionCols[rrOffset + level] + refractionCols[rrOffset + level];
+        locals[rayOffset + level] += (reflectionCols[rrOffset + level] + refractionCols[rrOffset + level]);
         reflectionCols[rrOffset + i] *= locals[rayOffset + level];
         
         level = 2 * i + 2;
-        locals[rayOffset + level] += reflectionCols[rrOffset + level] + refractionCols[rrOffset + level];
+        locals[rayOffset + level] += (reflectionCols[rrOffset + level] + refractionCols[rrOffset + level]);
         refractionCols[rrOffset + i] *= locals[rayOffset + level];
     }
 
-    return (locals[rayOffset] + reflectionCols[rrOffset] + refractionCols[rrOffset]).color();
+    return locals[rayOffset] + reflectionCols[rrOffset] + refractionCols[rrOffset];
 }
 
 
 __global__
-void drawScene(Sphere *shapes, size_t shapeSize, Light* lights, size_t lightSize, Color backcolor, int resX,
+void drawScene(Sphere *shapes, size_t shapeSize, Light* lights, size_t lightSize, float3 backcolor, int resX,
                int resY, float width, float height, float atDistance, float3 xe, float3 ye, 
-               float3 ze, float3 from, float3 *d_output, Ray* ray, Color* d_locals, 
-               Color* d_reflectionCols, Color* d_refractionCols) {
+               float3 ze, float3 from, float3 *d_output, Ray* ray, float3* d_locals, 
+               float3* d_reflectionCols, float3* d_refractionCols) {
 
     uint x = blockIdx.x * blockDim.x + threadIdx.x;
     uint y = blockIdx.y * blockDim.y + threadIdx.y;
 
     int index = y * resX + x;
-
+    //testemos
     float zeFactor = atDistance;
-	float yeFactor = height * ((y + 0.5f) / resY - 0.5f);
-	float xeFactor = width * ((x + 0.5f) / resX - 0.5f);
+	/*float yeFactor = height * ((y + 0.5f) / resY - 0.5f);*/
+	float xeFactor = width * ((x + 0.5f) / (float)resX - 0.5f);
+
+    float yeFactor = 1.0f - height * ((y + 0.5f) / (float)resY);
+    
 
 	float3 direction = normalize(zeFactor * ze + yeFactor * ye + xeFactor * xe);
 	
@@ -305,10 +311,10 @@ void drawScene(Sphere *shapes, size_t shapeSize, Light* lights, size_t lightSize
     d_output[index] = color;
 }
 
-void deviceDrawScene(Sphere *shapes, size_t shapeSize, Light* lights, size_t lightSize, Color backcolor, 
+void deviceDrawScene(Sphere *shapes, size_t shapeSize, Light* lights, size_t lightSize, float3 backcolor, 
                      int resX, int resY, float width, float height, float atDistance, float3 xe, float3 ye, 
                      float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize, Ray* ray,
-                     Color* d_locals, Color* d_reflectionCols, Color* d_refractionCols) {
+                     float3* d_locals, float3* d_reflectionCols, float3* d_refractionCols) {
 
     drawScene<<<gridSize, blockSize>>>(shapes, shapeSize, lights, lightSize, backcolor, resX, resY,
                                        width, height, atDistance, xe, ye, ze, from, d_output, ray,
