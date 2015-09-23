@@ -175,8 +175,8 @@ void render() {
 
     // call CUDA kernel, writing results to PBO
     deviceDrawScene(scene->getDShapes(), scene->getDShapesSize(), scene->getDLights(), scene->getDLightsSize(), 
-                    scene->getBackcolor(), RES_X, RES_Y, camera->width(), camera->height(), camera->atDistance(), 
-                    camera->xe(), camera->ye(), camera->ze(), camera->from(), d_output, gridSize, blockSize, 
+                    scene->getBackcolor(), RES_X, RES_Y, camera->width, camera->height, camera->atDistance, 
+                    camera->xe, camera->ye, camera->ze, camera->from, d_output, gridSize, blockSize, 
                     d_rays, d_locals, d_reflectionCols, d_refractionCols);
 
     cudaError_t error = cudaGetLastError();
@@ -233,12 +233,16 @@ void drawScene() {
     // draw textured quad
     glEnable(GL_TEXTURE_2D);
     glBegin(GL_QUADS);
+    
     glTexCoord2f(0, 0);
     glVertex2f(0, 0);
+
     glTexCoord2f(1, 0);
     glVertex2f(1, 0);
+
     glTexCoord2f(1, 1);
     glVertex2f(1, 1);
+
     glTexCoord2f(0, 1);
     glVertex2f(0, 1);
     glEnd();
@@ -318,7 +322,7 @@ int main(int argc, char *argv[]) {
 
     scene = new Scene();
     
-    radius = 3.f;//3;
+    radius = 3.0f;//3;
     longitude = 32.f;//132;
     latitude = 55.f;//55;
     

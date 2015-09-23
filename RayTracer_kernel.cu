@@ -34,75 +34,40 @@ bool intersection(Ray ray, RayIntersection *out, Sphere sphere) {
     
     r_2 = sphere.r * sphere.r;
     d_2 = dot(s_r, s_r);
-    b = dot(ray.direction, s_r);
-    //
-    if (d_2 >= r_2) {
-        // ray origin is outside of sphere
-        if (b < 0) {
-            // ray direction is away from sphere
-            return false; // No hit
-        }
-        root = b*b - d_2 + r_2;
-        if (root <= 0) {
-            // no real roots
-            return false; // No hit
-        }
-    } else {
-        root = b*b - d_2 + r_2;
+
+    if(equal(d_2, r_2)) {
+        return false;
     }
-    root = sqrtf(root);
+    b = dot(ray.direction, s_r);
+
+    if (d_2 > r_2 && b < 0.0f) {
+        return false; 
+    }
+
+    root = b*b - d_2 + r_2;
+    if(root < 0.0f) {
+        return false;
+    }
 
     t = min(b - sqrtf(root), b + sqrtf(root));
 
+    if (out != nullptr) {
+        out->point = ray.origin + ray.direction * t;
+		out->normal = normalize((out->point - sphere.center) / sphere.r);
+
+		bool entering = true;
+		if (d_2 < r_2) {
+			out->normal *= -1.0f;
+			entering = false;
+		}
+        
+        out->point += out->normal * EPSILON;
+		out->shape = &sphere;
+		out->distance = t;
+        out->isEntering = entering;
+	}
 
     return true;
-
-
-	/*if (equal(d_2, r_2)) {
-		return false;
-	}
-	else {
-		float3 rayDir = ray.direction;
-		b = rayDir.x * xs_xr + rayDir.y * ys_yr + rayDir.z * zs_zr;
-
-		if (d_2 > r_2 && b < 0.0f) {		
-			return false;
-		}
-
-		c = b*b - d_2 + r_2;
-
-		if (c < 0.0f) {
-			return false;
-		}
-
-		if (d_2 > r_2) {
-			t = b - sqrtf(c);
-		}
-		else {
-			t = b + sqrtf(c);
-		}
-
-        
-		if (out != nullptr) {
-			out->point = make_float3(rayOrig.x + rayDir.x * t,
-				                        rayOrig.y + rayDir.y * t,
-				                        rayOrig.z + rayDir.z * t);
-
-			out->normal = make_float3((out->point.x - sphere.x) / sphere.r,
-				                        (out->point.y - sphere.y) / sphere.r,
-				                        (out->point.z - sphere.z) / sphere.r);
-
-			bool entering = true;
-			if (d_2 < r_2) {
-				out->normal = out->normal * -1.0f;
-				entering = false;
-			}
-			out->shape = &sphere;
-			out->distance = t;
-			out->isEntering = entering;
-		}
-		return true;
-	}*/
 }
 
 
@@ -114,13 +79,13 @@ bool nearestIntersect(Sphere *shapes, size_t shapeSize, Ray ray, RayIntersection
 	RayIntersection curr = minIntersect;
     for (size_t i = 0; i < shapeSize; i++) {
 		if (intersection(ray, &curr, shapes[i])) {
-            intersectionFound = true;
             if (curr.distance < minIntersect.distance) {
 				minIntersect = curr;
+                intersectionFound = true;
 			}
 		}
 	}
-    //
+    
 	if (intersectionFound) {
 		*out = minIntersect;
 	}
@@ -168,8 +133,7 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
     RayIntersection intersect;
     int level;
     float3 blackColor = make_float3(0.0f);
-    //isto só há um primário aqui
-    //para todos os raios que tenho de processar...
+    
     for(int rayN = 0; rayN < raysPerPixel; rayN++) {
         //skip secundary rays that don't exist
         while(!ray[rayOffset + rayN].exists && rayN < sizeRRArrays) {
@@ -198,14 +162,14 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
             
         
         } else {
-            //Material mat = intersect.shape->material;
+            Material mat = intersect.shape->material;
     
             // local illumination
-	        locals[rayOffset + rayN] = make_float3(1.0f);
-	        /*for(size_t li = 0; li < lightSize; li++) {
+	        locals[rayOffset + rayN] = blackColor;
+	        for(size_t li = 0; li < lightSize; li++) {
 		        float3 feelerDir = normalize(lights[li].position - intersect.point);
-		        feeler.update(intersect.point, feelerDir);
-		        compensatePrecision(feeler);
+                feeler.update(intersect.point, feelerDir);
+                compensatePrecision(feeler);
 
 		        bool inShadow = false;
 		        for(size_t si = 0; si < shapeSize; si++) {
@@ -216,21 +180,25 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
 		        }
                 
 		        if(!inShadow) {
-			        float diff = fmax(dot(feelerDir, intersect.normal), 0.0f);
-			        float3 reflectDir = reflect(-feelerDir, intersect.normal);
-			        float spec = powf(fmax(dot(reflectDir, -ray[rayOffset + rayN].direction), 0.0f), mat.shininess);
+                    float spec = 0.0f;
+                    float diff = fmax(dot(feelerDir, intersect.normal), 0.0f);
+                    float3 reflectDir = reflect(-feelerDir, intersect.normal);
+                    
+                    if(diff > 0.0f) {
+                        spec = powf(fmax(dot(reflectDir, ray[rayOffset + rayN].direction), 0.0f), mat.shininess);
+                    }
 
 			        float3 seenColor = mat.color * lights[li].color;
 			        locals[rayOffset + rayN] += seenColor * (diff * mat.diffuse + spec * mat.specular);
 		        }
-	        }*/
+	        }
     
             level = 2 * rayN;
             ray[rayOffset + level + 1].exists = false;
             ray[rayOffset + level + 2].exists = false;
             reflectionCols[rrOffset + rayN] = blackColor;
             refractionCols[rrOffset + rayN] = blackColor;
-            /*if(rayN < sizeRRArrays) {
+            if(rayN < sizeRRArrays) {
                 // reflection
                 level = 2 * rayN + 1;
 	            if(mat.specular > 0.0f) {
@@ -259,13 +227,13 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
                     if (!equal(length(refractionDir), 0.0f)) {
 			            ray[rayOffset + level].update(intersect.point, refractionDir);
 			            compensatePrecision(ray[rayOffset + level]);
-			        
+
                         refractionCols[rrOffset + rayN] = mat.color * mat.transparency;
                         ior[level] = mat.ior;
 		        
                     }
 	            }
-            }*/ 
+            }
         }
     }
 
@@ -273,11 +241,11 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
 
     for(int i = startLevel; i >= 0; i--) {
         level = 2 * i + 1;
-        locals[rayOffset + level] += (reflectionCols[rrOffset + level] + refractionCols[rrOffset + level]);
+        locals[rayOffset + level] += reflectionCols[rrOffset + level] + refractionCols[rrOffset + level];
         reflectionCols[rrOffset + i] *= locals[rayOffset + level];
         
         level = 2 * i + 2;
-        locals[rayOffset + level] += (reflectionCols[rrOffset + level] + refractionCols[rrOffset + level]);
+        locals[rayOffset + level] += reflectionCols[rrOffset + level] + refractionCols[rrOffset + level];
         refractionCols[rrOffset + i] *= locals[rayOffset + level];
     }
 
@@ -295,15 +263,12 @@ void drawScene(Sphere *shapes, size_t shapeSize, Light* lights, size_t lightSize
     uint y = blockIdx.y * blockDim.y + threadIdx.y;
 
     int index = y * resX + x;
-    //testemos
-    float zeFactor = atDistance;
-	/*float yeFactor = height * ((y + 0.5f) / resY - 0.5f);*/
-	float xeFactor = width * ((x + 0.5f) / (float)resX - 0.5f);
 
-    float yeFactor = 1.0f - height * ((y + 0.5f) / (float)resY);
-    
+    float3 zeFactor = -ze * atDistance; 
+	float3 yeFactor = ye * height * ((y + 0.5f) / (float)resY - 0.5f);
+	float3 xeFactor = xe * width * ((x + 0.5f) / (float)resX - 0.5f);
 
-	float3 direction = normalize(zeFactor * ze + yeFactor * ye + xeFactor * xe);
+	float3 direction = normalize(zeFactor + yeFactor + xeFactor);
 	
     float3 color = rayTracing(shapes, shapeSize, lights, lightSize, backcolor, from, direction, 1.0, 
                               ray, d_locals, d_reflectionCols, d_refractionCols, index);
