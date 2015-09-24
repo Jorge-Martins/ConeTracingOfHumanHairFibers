@@ -136,23 +136,25 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
     
     for(int rayN = 0; rayN < raysPerPixel; rayN++) {
         //skip secundary rays that don't exist
-        while(!ray[rayOffset + rayN].exists && rayN < raysPerPixel) {
+        if(!ray[rayOffset + rayN].exists) {
             reflectionCols[rrOffset + rayN] = blackColor;
             refractionCols[rrOffset + rayN] = blackColor;
 
-            level = 2 * rayN;
-            ray[rayOffset + level + 1].exists = false;
-            ray[rayOffset + level + 2].exists = false;
-            rayN++;
+            if(rayN < sizeRRArrays) {
+                level = 2 * rayN;
+                ray[rayOffset + level + 1].exists = false;
+                ray[rayOffset + level + 2].exists = false;
+            }
+            continue;
         }
 
-        if(rayN >= raysPerPixel) {
-            break;
-        }
-        
 	    bool foundIntersect = nearestIntersect(shapes, shapeSize, ray[rayOffset + rayN], &intersect);
 
 	    if (!foundIntersect) {
+            if(rayN == 0) {
+                return backcolor;
+            }
+
             locals[rayOffset + rayN] = backcolor;
             reflectionCols[rrOffset + rayN] = blackColor;
             refractionCols[rrOffset + rayN] = blackColor;

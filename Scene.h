@@ -16,7 +16,7 @@
 #include <sstream>
 
 #define SUPER_SAMPLING 1
-#define MAX_DEPTH 2
+#define MAX_DEPTH 3
 
 //====================================  device ========================
 struct Sphere;
@@ -81,83 +81,6 @@ struct RayIntersection{
         this->isEntering = isEntering;
     }
 };
-
-
-/*struct Color {
-private:
-    float3 _color;
-
-public:
-    __host__ __device__ 
-    Color() {
-        _color = make_float3(0.0f);
-    }
-
-    __host__ __device__
-    Color(float3 color) {
-        _color = color;
-    }
-
-    __host__ __device__ 
-    float r() {
-        return _color.x;
-    }
-
-    __host__ __device__
-    float g() {
-        return _color.y;
-    }
-
-    __host__ __device__
-    float b() {
-        return _color.z;
-    }
-    
-    __host__ __device__
-    float3 color() {
-        return _color;
-    }
-
-    __host__ __device__
-    void setColor(Color color) {
-        _color = make_float3(color.r(), color.g(), color.b()); 
-    }
-
-    __host__ __device__
-    void setColor(float3 color) {
-        _color = color;
-    }
-
-    __host__ __device__ 
-    Color operator+(Color color) {
-        return Color(_color + color.color());
-    }
-
-    __host__ __device__ 
-    Color operator*(Color color) {
-        return Color(_color * color.color());
-    }
-
-    __host__ __device__ 
-    Color operator+=(Color color) {
-        _color += color.color();
-
-        return _color;
-    }
-
-    __host__ __device__ 
-    Color operator*=(Color color) {
-        _color *= color.color();
-
-        return _color;
-    }
-
-    __host__ __device__ 
-    Color operator*(float factor) {
-        return Color(_color *factor);
-    }
-
-};*/
 
 struct Material {
     float3 color;

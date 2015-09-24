@@ -285,6 +285,12 @@ void mouseMove(int x, int y) {
     if(zooming == 1) {
         fov += (y - yDragStart) * zstep;
 
+        if(fov > 179){
+            fov = 179;
+        } else if(fov < 1) {
+            fov = 1;
+        }
+
         camera->update(computeFromCoordinates(), fov);
         //std::cout<< "From: " << camera->from().x << " " << camera->from().y << " " << camera->from().z << std::endl;
         //std::cout<< "radius: " << radius << std::endl;
