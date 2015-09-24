@@ -105,23 +105,22 @@ void cudaInit() {
         checkCudaErrors(cudaFree(d_refractionCols));
     }
 
-    //size local and ray arrays 
-    int raysPerPixel = (2 << MAX_DEPTH) - 1;
-    int totalRays = RES_X * RES_Y * raysPerPixel;
-    
+    //size local array
+    int localsSize = RES_X * RES_Y * ((2 << MAX_DEPTH) - 1);
+
     //size reflection and refraction arrays 
     int sizeRRArrays =  RES_X * RES_Y * ((2 << (MAX_DEPTH - 1)) - 1);
     
+    int raysSize = RES_X * RES_Y * (2 << (MAX_DEPTH - 1));
 
-    Ray *rays = new Ray[totalRays]; 
-    float3 *colors = new float3[totalRays];
+    Ray *rays = new Ray[raysSize]; 
+    float3 *colors = new float3[localsSize];
 
-    int size = totalRays * sizeof(Ray);
-
+    int size = raysSize * sizeof(Ray);
     checkCudaErrors(cudaMalloc((void**) &d_rays, size));
     checkCudaErrors(cudaMemcpy(d_rays, rays, size, cudaMemcpyHostToDevice));
 
-    size = totalRays * sizeof(float3);
+    size = localsSize * sizeof(float3);
     checkCudaErrors(cudaMalloc((void**) &d_locals, size));
     checkCudaErrors(cudaMemcpy(d_locals, colors, size, cudaMemcpyHostToDevice));
 

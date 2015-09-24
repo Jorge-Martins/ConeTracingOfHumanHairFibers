@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "marchingCubes", "marchingCubes_vs2010.vcxproj", "{D91F0D18-F5F9-82E8-5C2E-C846D5AF6FA2}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rayTracer", "rayTracer_vs2010.vcxproj", "{D91F0D18-F5F9-82E8-5C2E-C846D5AF6FA2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

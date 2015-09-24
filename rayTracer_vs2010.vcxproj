@@ -15,7 +15,7 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{D91F0D18-F5F9-82E8-5C2E-C846D5AF6FA2}</ProjectGuid>
-    <RootNamespace>marchingCubes_vs2010</RootNamespace>
+    <RootNamespace>rayTracer_vs2010</RootNamespace>
     <ProjectName>rayTracer</ProjectName>
     <CudaToolkitCustomDir />
   </PropertyGroup>
