@@ -125,6 +125,7 @@ void cudaInit() {
     checkCudaErrors(cudaMalloc((void**) &d_locals, size));
     checkCudaErrors(cudaMemcpy(d_locals, colors, size, cudaMemcpyHostToDevice));
 
+    size = sizeRRArrays * sizeof(float3);
     checkCudaErrors(cudaMalloc((void**) &d_reflectionCols, size));
     checkCudaErrors(cudaMemcpy(d_reflectionCols, colors, size, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMalloc((void**) &d_refractionCols, size));

@@ -122,7 +122,7 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
 
                      
     int rayOffset = offset * raysPerPixel;
-    int rrOffset = offset * raysPerPixel;
+    int rrOffset = offset * sizeRRArrays;
     Ray feeler = Ray();
 
     ray[rayOffset].update(rayOrigin, rayDirection);
@@ -137,10 +137,9 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
     for(int rayN = 0; rayN < raysPerPixel; rayN++) {
         //skip secundary rays that don't exist
         if(!ray[rayOffset + rayN].exists) {
-            reflectionCols[rrOffset + rayN] = blackColor;
-            refractionCols[rrOffset + rayN] = blackColor;
-
             if(rayN < sizeRRArrays) {
+                reflectionCols[rrOffset + rayN] = blackColor;
+                refractionCols[rrOffset + rayN] = blackColor;
                 level = 2 * rayN;
                 ray[rayOffset + level + 1].exists = false;
                 ray[rayOffset + level + 2].exists = false;
@@ -156,10 +155,10 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
             }
 
             locals[rayOffset + rayN] = backcolor;
-            reflectionCols[rrOffset + rayN] = blackColor;
-            refractionCols[rrOffset + rayN] = blackColor;
 
             if(rayN < sizeRRArrays) {
+                reflectionCols[rrOffset + rayN] = blackColor;
+                refractionCols[rrOffset + rayN] = blackColor;
                 level = 2 * rayN;
                 ray[rayOffset + level + 1].exists = false;
                 ray[rayOffset + level + 2].exists = false;
@@ -198,12 +197,12 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
 		    }
 	    }
     
-        level = 2 * rayN;
-        ray[rayOffset + level + 1].exists = false;
-        ray[rayOffset + level + 2].exists = false;
-        reflectionCols[rrOffset + rayN] = blackColor;
-        refractionCols[rrOffset + rayN] = blackColor;
         if(rayN < sizeRRArrays) {
+            reflectionCols[rrOffset + rayN] = blackColor;
+            refractionCols[rrOffset + rayN] = blackColor;
+            level = 2 * rayN;
+            ray[rayOffset + level + 1].exists = false;
+            ray[rayOffset + level + 2].exists = false;
             // reflection
             level = 2 * rayN + 1;
 	        if(mat.specular > 0.0f) {
@@ -239,12 +238,22 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
                 }
 	        }
         }
-        
     }
 
-    int startLevel = (2 << (MAX_DEPTH - 1)) - 2;
+    int startLevel = sizeRRArrays - 1;
+    int rrLevel = -2;
 
-    for(int i = startLevel; i >= 0; i--) {
+    if(MAX_DEPTH > 2) {
+        rrLevel += 2 << (MAX_DEPTH - 2);
+    }
+
+    for(int i = startLevel; i >= 0 && i > rrLevel; i--) {
+        level = 2 * i;       
+        reflectionCols[rrOffset + i] *= locals[rayOffset + level + 1];
+        refractionCols[rrOffset + i] *= locals[rayOffset + level + 2];
+    }
+
+    for(int i = rrLevel; i >= 0; i--) {
         level = 2 * i;
         locals[rayOffset + level + 1] += reflectionCols[rrOffset + level + 1] + refractionCols[rrOffset + level + 1];
         locals[rayOffset + level + 2] += reflectionCols[rrOffset + level + 2] + refractionCols[rrOffset + level + 2];
