@@ -4,9 +4,12 @@
 #include <GL/freeglut.h> 
 
 #include "SceneLoader.h"
+#include <string>
 
 #include <cuda_gl_interop.h>
 #include <helper_functions.h>
+
+#include <FreeImage.h>
 
 #define iDivUp(a, b) (a % b != 0) ? (a / b + 1) : (a / b)
 
@@ -41,6 +44,8 @@ struct cudaGraphicsResource *cuda_pbo = 0;
 StopWatchInterface *timer = NULL;
 
 const char* windowTitle = "Msc Ray Tracing";
+
+std::string sceneName = "balls_low";
 
 extern void deviceDrawScene(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightSize, float3 backcolor, 
                             int resX, int resY, float width, float height, float atDistance, float3 xe, 
@@ -318,9 +323,43 @@ void mousePressed(int button, int state, int x, int y) {
    }
 }
 
+void initPosition() {
+    radius = 3.0f;//3;
+    longitude = 32.f;//132;
+    latitude = 55.f;//55;
+    fov = 45;
+}
+
+void keyboardKey(unsigned char key, int x, int y) {
+	if (key == 'c'){
+		initPosition();
+        camera->update(computeFromCoordinates(), fov);
+	}
+
+	if (key == 'p'){
+        int size = RES_X * RES_Y * 3;
+		
+        std::string file = "../../resources/" + sceneName + ".png";
+        BYTE* imageData = new BYTE[size];
+
+        glBindTexture(GL_TEXTURE_2D, tex);
+        glGetTexImage(GL_TEXTURE_2D, 0, GL_BGR, GL_UNSIGNED_BYTE, imageData);
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+		FIBITMAP* image = FreeImage_ConvertFromRawBits(imageData, RES_X, RES_Y, RES_X * 3, 24, 0xFF0000, 0x00FF00, 0x0000FF, false);
+        FreeImage_Save(FIF_PNG, image, file.c_str(), 0);
+
+		FreeImage_Unload(image);
+		delete[] imageData;
+
+		std::cout << "Snapshot saved" << std::endl;
+	}
+}
+
 void idle() {
     glutPostRedisplay();
 }
+
 
 int main(int argc, char *argv[]) {
     sdkCreateTimer(&timer);
@@ -328,15 +367,12 @@ int main(int argc, char *argv[]) {
 
     scene = new Scene();
     
-    radius = 3.0f;//3;
-    longitude = 32.f;//132;
-    latitude = 55.f;//55;
+    initPosition();
     
     float3 from = computeFromCoordinates();
     float3 up = make_float3(0.0f , 0.0f, 1.0f);
     float3 at = make_float3(0.0f);
-    fov = 45;
-
+    
     // calculate new grid size
     gridSize = dim3(iDivUp(RES_X, blockSize.x), iDivUp(RES_Y, blockSize.y));
 
@@ -345,7 +381,7 @@ int main(int argc, char *argv[]) {
     //Explicitly set device 0 
     cudaSetDevice(0); 
 
-	if (!load_nff(path + "balls_low", scene)) {
+	if (!load_nff(path + sceneName, scene)) {
         std::cerr << "Could not find scene file." << std::endl;
 		return -1;
 	}
@@ -369,6 +405,7 @@ int main(int argc, char *argv[]) {
 	glutDisplayFunc(drawScene);
 	glutMouseFunc(mousePressed);
     glutMotionFunc(mouseMove);
+    glutKeyboardFunc(keyboardKey);
     glutIdleFunc(idle);
     glutCloseFunc(cleanup);
 	glDisable(GL_DEPTH_TEST);
