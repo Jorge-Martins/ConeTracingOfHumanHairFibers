@@ -16,7 +16,7 @@
 #include <sstream>
 
 #define SUPER_SAMPLING 1
-#define MAX_DEPTH 1
+#define MAX_DEPTH 2
 
 //====================================  device ========================
 struct Sphere;

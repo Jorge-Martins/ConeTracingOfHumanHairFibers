@@ -124,7 +124,7 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
     int rayOffset = offset * raysPerPixel;
     int rrOffset = offset * raysPerPixel;
     Ray feeler = Ray();
-    
+
     ray[rayOffset].update(rayOrigin, rayDirection);
 
     float ior[raysPerPixel];
@@ -136,11 +136,18 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
     
     for(int rayN = 0; rayN < raysPerPixel; rayN++) {
         //skip secundary rays that don't exist
-        while(!ray[rayOffset + rayN].exists && rayN < sizeRRArrays) {
+        while(!ray[rayOffset + rayN].exists && rayN < raysPerPixel) {
+            reflectionCols[rrOffset + rayN] = blackColor;
+            refractionCols[rrOffset + rayN] = blackColor;
+
             level = 2 * rayN;
             ray[rayOffset + level + 1].exists = false;
             ray[rayOffset + level + 2].exists = false;
             rayN++;
+        }
+
+        if(rayN >= raysPerPixel) {
+            break;
         }
         
 	    bool foundIntersect = nearestIntersect(shapes, shapeSize, ray[rayOffset + rayN], &intersect);
@@ -150,103 +157,98 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
             reflectionCols[rrOffset + rayN] = blackColor;
             refractionCols[rrOffset + rayN] = blackColor;
 
-            if(rayN == 0) {
-                break;
-            }
-
             if(rayN < sizeRRArrays) {
                 level = 2 * rayN;
                 ray[rayOffset + level + 1].exists = false;
                 ray[rayOffset + level + 2].exists = false;
             }
-            
-        
-        } else {
-            Material mat = intersect.shape->material;
-    
-            // local illumination
-	        locals[rayOffset + rayN] = blackColor;
-	        for(size_t li = 0; li < lightSize; li++) {
-		        float3 feelerDir = normalize(lights[li].position - intersect.point);
-                feeler.update(intersect.point, feelerDir);
-                compensatePrecision(feeler);
+            continue;
+        } 
 
-		        bool inShadow = false;
-		        for(size_t si = 0; si < shapeSize; si++) {
-			        if (intersection(feeler, nullptr, shapes[si])) {
-				        inShadow = true;
-				        break;
-			        }
-		        }
+        Material mat = intersect.shape->material;
+    
+        // local illumination
+	    locals[rayOffset + rayN] = blackColor;
+	    for(size_t li = 0; li < lightSize; li++) {
+		    float3 feelerDir = normalize(lights[li].position - intersect.point);
+            feeler.update(intersect.point, feelerDir);
+            compensatePrecision(feeler);
+
+		    bool inShadow = false;
+		    for(size_t si = 0; si < shapeSize; si++) {
+			    if (intersection(feeler, nullptr, shapes[si])) {
+				    inShadow = true;
+				    break;
+			    }
+		    }
                 
-		        if(!inShadow) {
-                    float spec = 0.0f;
-                    float diff = fmax(dot(feelerDir, intersect.normal), 0.0f);
-                    float3 reflectDir = reflect(-feelerDir, intersect.normal);
+		    if(!inShadow) {
+                float spec = 0.0f;
+                float diff = fmax(dot(feelerDir, intersect.normal), 0.0f);
+                float3 reflectDir = reflect(-feelerDir, intersect.normal);
                     
-                    if(diff > 0.0f) {
-                        spec = powf(fmax(dot(reflectDir, -ray[rayOffset + rayN].direction), 0.0f), mat.shininess);
-                    }
-
-			        float3 seenColor = mat.color * lights[li].color;
-			        locals[rayOffset + rayN] += seenColor * (diff * mat.diffuse + spec * mat.specular);
-		        }
-	        }
-    
-            level = 2 * rayN;
-            ray[rayOffset + level + 1].exists = false;
-            ray[rayOffset + level + 2].exists = false;
-            reflectionCols[rrOffset + rayN] = blackColor;
-            refractionCols[rrOffset + rayN] = blackColor;
-            if(rayN < sizeRRArrays) {
-                // reflection
-                level = 2 * rayN + 1;
-	            if(mat.specular > 0.0f) {
-		            ray[rayOffset + level].update(intersect.point, reflect(ray[rayOffset + rayN].direction, intersect.normal));
-		            compensatePrecision(ray[rayOffset + level]);
-
-                    reflectionCols[rrOffset + rayN] = mat.color * mat.specular;
-                    ior[level] = mat.ior;
-	        
+                if(diff > 0.0f) {
+                    spec = powf(fmax(dot(reflectDir, -ray[rayOffset + rayN].direction), 0.0f), mat.shininess);
                 }
 
-	            // transmission
-                level = 2 * rayN + 2;
-	            if(mat.transparency > 0.0f) {
-		            float ior1, ior2;
-		            if(intersect.isEntering) {
-			            ior1 = ior[rayN];
-			            ior2 = mat.ior;
-		            }
-		            else {
-			            ior1 = mat.ior;
-			            ior2 = ior[rayN];
-		            }
-		            float3 refractionDir = computeTransmissionDir(ray[rayOffset + rayN].direction, intersect.normal, ior1, ior2);
-		            
-                    if (!equal(length(refractionDir), 0.0f)) {
-			            ray[rayOffset + level].update(intersect.point, refractionDir);
-			            compensatePrecision(ray[rayOffset + level]);
+			    float3 seenColor = mat.color * lights[li].color;
+			    locals[rayOffset + rayN] += seenColor * (diff * mat.diffuse + spec * mat.specular);
+		    }
+	    }
+    
+        level = 2 * rayN;
+        ray[rayOffset + level + 1].exists = false;
+        ray[rayOffset + level + 2].exists = false;
+        reflectionCols[rrOffset + rayN] = blackColor;
+        refractionCols[rrOffset + rayN] = blackColor;
+        if(rayN < sizeRRArrays) {
+            // reflection
+            level = 2 * rayN + 1;
+	        if(mat.specular > 0.0f) {
+		        ray[rayOffset + level].update(intersect.point, reflect(ray[rayOffset + rayN].direction, intersect.normal));
+		        compensatePrecision(ray[rayOffset + level]);
 
-                        refractionCols[rrOffset + rayN] = mat.color * mat.transparency;
-                        ior[level] = mat.ior;
-		        
-                    }
-	            }
+                reflectionCols[rrOffset + rayN] = mat.color * mat.specular;
+                ior[level] = mat.ior;
+	        
             }
+
+	        // transmission
+            level = 2 * rayN + 2;
+	        if(mat.transparency > 0.0f) {
+		        float ior1, ior2;
+		        if(intersect.isEntering) {
+			        ior1 = ior[rayN];
+			        ior2 = mat.ior;
+		        }
+		        else {
+			        ior1 = mat.ior;
+			        ior2 = ior[rayN];
+		        }
+		        float3 refractionDir = computeTransmissionDir(ray[rayOffset + rayN].direction, intersect.normal, ior1, ior2);
+		            
+                if (!equal(length(refractionDir), 0.0f)) {
+			        ray[rayOffset + level].update(intersect.point, refractionDir);
+			        compensatePrecision(ray[rayOffset + level]);
+
+                    refractionCols[rrOffset + rayN] = mat.color * mat.transparency;
+                    ior[level] = mat.ior;
+		        
+                }
+	        }
         }
+        
     }
 
     int startLevel = (2 << (MAX_DEPTH - 1)) - 2;
 
     for(int i = startLevel; i >= 0; i--) {
-        level = 2 * i + 1;
-        locals[rayOffset + level] += reflectionCols[rrOffset + level] + refractionCols[rrOffset + level];
-        reflectionCols[rrOffset + i] *= locals[rayOffset + level];
+        level = 2 * i;
+        locals[rayOffset + level + 1] += reflectionCols[rrOffset + level + 1] + refractionCols[rrOffset + level + 1];
+        locals[rayOffset + level + 2] += reflectionCols[rrOffset + level + 2] + refractionCols[rrOffset + level + 2];
         
-        level = 2 * i + 2;
-        locals[rayOffset + level] += reflectionCols[rrOffset + level] + refractionCols[rrOffset + level];
-        refractionCols[rrOffset + i] *= locals[rayOffset + level];
+        reflectionCols[rrOffset + i] *= locals[rayOffset + level + 1];
+        refractionCols[rrOffset + i] *= locals[rayOffset + level + 2];
     }
 
     return locals[rayOffset] + reflectionCols[rrOffset] + refractionCols[rrOffset];
