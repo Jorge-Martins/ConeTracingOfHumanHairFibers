@@ -185,7 +185,7 @@ float3 rayTracing(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightS
                     float3 reflectDir = reflect(-feelerDir, intersect.normal);
                     
                     if(diff > 0.0f) {
-                        spec = powf(fmax(dot(reflectDir, ray[rayOffset + rayN].direction), 0.0f), mat.shininess);
+                        spec = powf(fmax(dot(reflectDir, -ray[rayOffset + rayN].direction), 0.0f), mat.shininess);
                     }
 
 			        float3 seenColor = mat.color * lights[li].color;

@@ -25,7 +25,7 @@ dim3 gridSize;
 
 float latitude, longitude, radius;
 int xDragStart, yDragStart, dragging, zooming;
-
+float fov;
 
 bool stopRender = false;
 
@@ -279,13 +279,13 @@ void mouseMove(int x, int y) {
             latitude = 1;
         }
 
-        camera->update(computeFromCoordinates());
+        camera->update(computeFromCoordinates(), fov);
 
     }
     if(zooming == 1) {
-        radius += (y - yDragStart) * zstep;
+        fov += (y - yDragStart) * zstep;
 
-        camera->update(computeFromCoordinates());
+        camera->update(computeFromCoordinates(), fov);
         //std::cout<< "From: " << camera->from().x << " " << camera->from().y << " " << camera->from().z << std::endl;
         //std::cout<< "radius: " << radius << std::endl;
     } 
@@ -329,7 +329,7 @@ int main(int argc, char *argv[]) {
     float3 from = computeFromCoordinates();
     float3 up = make_float3(0.0f , 0.0f, 1.0f);
     float3 at = make_float3(0.0f);
-    float fov = 45;
+    fov = 45;
 
     // calculate new grid size
     gridSize = dim3(iDivUp(RES_X, blockSize.x), iDivUp(RES_Y, blockSize.y));

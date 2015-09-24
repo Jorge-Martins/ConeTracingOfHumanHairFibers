@@ -51,7 +51,8 @@ public:
 	    computeHitherDimensions();
     }
     //move
-    void update(float3 from) {
+    void update(float3 from, float fov) {
+        this->fov = fov;
         this->from = from;
         computeFrame();
 	    computeHitherDimensions();
