@@ -11,12 +11,18 @@ MC::MC_Driver::~MC_Driver(){}
 
 MC::MC_Driver::MC_Driver() : _scene(nullptr) {}
 
-MC::MC_Driver::MC_Driver(Scene *scene) : _scene(scene) {}
+MC::MC_Driver::MC_Driver(Scene *scene) : _scene(nullptr), _initRadius(nullptr), _initLongitude(nullptr), 
+                         _initLatitude(nullptr), _initFov(nullptr), _at(nullptr) {}
 
-void MC::MC_Driver::parse( const char *filename ) {
-    assert( filename != nullptr );
-    std::ifstream in_file( filename );
-    if( ! in_file.good() ) exit( EXIT_FAILURE );
+MC::MC_Driver::MC_Driver(Scene *scene, float* initRadius, float* initLongitude, float* initLatitude, 
+                         float* initFov, float3 *at) : _scene(scene), _initRadius(initRadius), 
+                         _initLongitude(initLongitude), _initLatitude(initLatitude), _initFov(initFov),
+                         _at(at) {}
+
+void MC::MC_Driver::parse(const char *filename) {
+    assert(filename != nullptr);
+    std::ifstream in_file(filename);
+    if(!in_file.good()) exit(EXIT_FAILURE);
 
     std::string line;
     std::string::size_type sz;
@@ -262,10 +268,16 @@ void MC::MC_Driver::parse( const char *filename ) {
 }
 
 void
-MC::MC_Driver::add_view(float3 from, float3 at, float3 up, float angle, float hither, int2 res)
+MC::MC_Driver::add_view(float3 from, float3 at, float3 up, float fov, float hither, int2 res)
 {
-	//print("Saw a view");
-	// _scene->add_view(eye, center, upDir, angle, hither, resolution);
+	if(_initRadius != nullptr) {
+        float3 from_2 = from * from;
+        *_initRadius = sqrtf(from_2.x + from_2.y + from_2.z);
+        *_initLatitude = RAD2DEG * acosf(from.z / *_initRadius);
+        *_initLongitude = RAD2DEG * atanf(from.y / from.x);
+        *_initFov = fov;
+        *_at = at;
+    }
 }
 void
 MC::MC_Driver::add_back_col(float3 color)

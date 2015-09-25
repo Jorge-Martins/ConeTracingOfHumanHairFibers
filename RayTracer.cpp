@@ -27,6 +27,8 @@ dim3 blockSize(16, 16);
 dim3 gridSize;
 
 float latitude, longitude, radius;
+float initLatitude = 55.0f, initLongitude = 32.0f, initRadius = 3.0f, initFov = 45;
+
 int xDragStart, yDragStart, dragging, zooming;
 float fov;
 
@@ -56,10 +58,10 @@ extern void deviceDrawScene(Sphere* shapes, size_t shapeSize, Light* lights, siz
 float3 computeFromCoordinates(){
    float phi, theta;
 
-   phi = (float) (latitude * DEG2RAD);
-   theta = (float) (longitude * DEG2RAD);
+   theta = (float) (latitude * DEG2RAD);
+   phi = (float) (longitude * DEG2RAD);
 
-   return make_float3(radius * sin(phi) * cos(theta), radius * sin(phi) * sin(theta), radius * cos(phi));
+   return make_float3(radius * sin(theta) * cos(phi), radius * sin(theta) * sin(phi), radius * cos(theta));
 }
 
 void cleanup() {
@@ -102,6 +104,7 @@ void computeFPS() {
 }
 
 void cudaInit() {
+    size_t size, totalSize = 0;
     clock_t start = clock();
     if(d_rays) {
         checkCudaErrors(cudaFree(d_rays));
@@ -111,25 +114,28 @@ void cudaInit() {
     }
 
     //size local array
-    int localsSize = RES_X * RES_Y * ((2 << MAX_DEPTH) - 1);
+    size_t localsSize = RES_X * RES_Y * ((2 << MAX_DEPTH) - 1);
 
     //size reflection and refraction arrays 
-    int sizeRRArrays =  RES_X * RES_Y * ((2 << (MAX_DEPTH - 1)) - 1);
+    size_t sizeRRArrays =  RES_X * RES_Y * ((2 << (MAX_DEPTH - 1)) - 1);
     
-    int raysSize = RES_X * RES_Y * (2 << (MAX_DEPTH - 1));
+    size_t raysSize = RES_X * RES_Y * (2 << (MAX_DEPTH - 1));
 
     Ray *rays = new Ray[raysSize]; 
     float3 *colors = new float3[localsSize];
 
-    int size = raysSize * sizeof(Ray);
+    size = raysSize * sizeof(Ray);
+    totalSize += size; 
     checkCudaErrors(cudaMalloc((void**) &d_rays, size));
     checkCudaErrors(cudaMemcpy(d_rays, rays, size, cudaMemcpyHostToDevice));
 
     size = localsSize * sizeof(float3);
+    totalSize += size;
     checkCudaErrors(cudaMalloc((void**) &d_locals, size));
     checkCudaErrors(cudaMemcpy(d_locals, colors, size, cudaMemcpyHostToDevice));
 
     size = sizeRRArrays * sizeof(float3);
+    totalSize += size * 2;
     checkCudaErrors(cudaMalloc((void**) &d_reflectionCols, size));
     checkCudaErrors(cudaMemcpy(d_reflectionCols, colors, size, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMalloc((void**) &d_refractionCols, size));
@@ -138,7 +144,11 @@ void cudaInit() {
     delete[] rays;
     delete[] colors;
     clock_t end = clock();
-    std::cout << "cuda init time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
+
+    //debug info
+    std::cout << "cuda init" << std::endl;
+    std::cout << "size: " << scene->printSize(totalSize) << std::endl;
+    std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
 }
 
 void initPixelBuffer() {
@@ -324,10 +334,10 @@ void mousePressed(int button, int state, int x, int y) {
 }
 
 void initPosition() {
-    radius = 3.0f;//3;
-    longitude = 32.f;//132;
-    latitude = 55.f;//55;
-    fov = 45;
+    radius = initRadius;
+    longitude = initLongitude;
+    latitude = initLatitude;
+    fov = initFov;
 }
 
 void keyboardKey(unsigned char key, int x, int y) {
@@ -366,25 +376,29 @@ int main(int argc, char *argv[]) {
 	std::string path = "../../resources/nffFiles/";
 
     scene = new Scene();
-    
+
+    //Explicitly set device 0 
+    cudaSetDevice(0); 
+
+    float3 at = make_float3(0.0f);
+
+	if (!load_nff(path + sceneName, scene, &initRadius, &initLongitude, &initLatitude, &initFov, &at)) {
+        std::cerr << "Could not find scene file " << sceneName << std::endl;
+        delete scene;
+		return -1;
+	}
+
     initPosition();
     
     float3 from = computeFromCoordinates();
     float3 up = make_float3(0.0f , 0.0f, 1.0f);
-    float3 at = make_float3(0.0f);
     
     // calculate new grid size
     gridSize = dim3(iDivUp(RES_X, blockSize.x), iDivUp(RES_Y, blockSize.y));
 
     camera = new Camera(from, at, up, fov, (float)RES_X / (float)RES_Y);
 
-    //Explicitly set device 0 
-    cudaSetDevice(0); 
-
-	if (!load_nff(path + sceneName, scene)) {
-        std::cerr << "Could not find scene file." << std::endl;
-		return -1;
-	}
+    
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGB | GLUT_SINGLE);
@@ -410,7 +424,7 @@ int main(int argc, char *argv[]) {
     glutCloseFunc(cleanup);
 	glDisable(GL_DEPTH_TEST);
 
-	std::cout << std::endl << "CONTEXT: OpenGL v" << glGetString(GL_VERSION) << std::endl;
+	//std::cout << std::endl << "CONTEXT: OpenGL v" << glGetString(GL_VERSION) << std::endl;
 
 	glutMainLoop();
 

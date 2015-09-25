@@ -7,28 +7,27 @@
 #include <time.h>
 #include "parsing/mc_driver.hpp"
 
-#define PI 3.14159265359f
-#define DEG2RAD (PI/180.0f)
-
-bool load_nff(std::string filePath, Scene *sc) {
+bool load_nff(std::string filePath, Scene *sc, float *initRadius, float *initLongitude, 
+              float *initLatitude, float *initFov, float3 *at) {
     clock_t start, end;
 
     filePath += ".nff";
 	std::cout << "Loading: " << filePath << std::endl;
 
     start = clock();
-	MC::MC_Driver driver(sc);
+	MC::MC_Driver driver(sc, initRadius, initLongitude, initLatitude, initFov, at);
 	driver.parse(filePath.c_str());
     end = clock();
 
     std::cout << "Build time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
 
+    std::cout << "Transfer" << std::endl;
 
     start = clock();
     sc->copyToDevice();
     end = clock();
 
-    std::cout << "Transfer time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl;
+    std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl;
 	return true;
 }
 

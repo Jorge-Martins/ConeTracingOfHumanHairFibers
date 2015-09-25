@@ -18,6 +18,10 @@
 #define SUPER_SAMPLING 1
 #define MAX_DEPTH 3
 
+#define KB 1000
+#define MB (1000 * KB)
+#define GB (1000 * MB)
+
 //====================================  device ========================
 struct Sphere;
 
@@ -157,14 +161,14 @@ struct Sphere {
         this->r = r;
     }
     
-    /*__host__
+    __host__
     std::string print() {
         std::ostringstream os;
 
-        os << "Sphere: " << x << " " << y << " " << z << " " << r << std::endl;
+        os << "Sphere: " << center.x << " " << center.y << " " << center.z << " " << r << std::endl;
 
         return os.str();
-    }*/
+    }
 };
 
 struct Cylinder {
@@ -240,8 +244,32 @@ public:
     }
 
     __host__
+    std::string printSize(size_t size) {
+        std::ostringstream os;
+        float out;
+        std::string s;
+
+        if(size > MB) {
+            if(size > GB) {
+                out = (float) size / (float)GB;
+                s = "GB";
+            } else {
+                out = (float) size / (float)MB;
+                s = "MB";
+            }
+        } else {
+            out = (float) size / (float)KB;
+            s = "KB";
+        }
+
+        os << out << s;
+        return os.str();
+    }
+
+    __host__
     bool copyToDevice() {
-        size_t size;
+        size_t size, sceneSize = 0;
+
         Light *ltVector = new Light[h_lights.size()];
         Sphere *spVector = new Sphere[h_shapes.size()];
 
@@ -259,14 +287,14 @@ public:
         
 
         size = h_lights.size() * sizeof(Light);
-        //std::cout << "Lights size " << size << std::endl;
+        sceneSize += size;
 
         checkCudaErrors(cudaMalloc((void**) &d_lights, size));
         checkCudaErrors(cudaMemcpy(d_lights, ltVector, size, cudaMemcpyHostToDevice));
         
 
         size = h_shapes.size() * sizeof(Sphere);
-        //std::cout << "Shapes size " << size << std::endl;
+        sceneSize += size;
 
         checkCudaErrors(cudaMalloc((void**) &d_shapes, size));
         checkCudaErrors(cudaMemcpy(d_shapes, spVector, size, cudaMemcpyHostToDevice));
@@ -277,6 +305,8 @@ public:
 
         h_shapes.clear();
         h_lights.clear();
+
+        std::cout << "size: " << printSize(sceneSize) << std::endl;
 
         return true;
     }
