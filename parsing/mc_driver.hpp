@@ -31,7 +31,7 @@ public:
 
    virtual ~MC_Driver();
 
-   void parse(const char *filename);
+   bool parse(const char *filename);
   
 private:
     void add_view(float3, float3, float3, float, float, int2);

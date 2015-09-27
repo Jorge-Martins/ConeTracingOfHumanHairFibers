@@ -16,7 +16,9 @@ bool load_nff(std::string filePath, Scene *sc, float *initRadius, float *initLon
 
     start = clock();
 	MC::MC_Driver driver(sc, initRadius, initLongitude, initLatitude, initFov, at);
-	driver.parse(filePath.c_str());
+	if(!driver.parse(filePath.c_str())) {
+        return false;
+    }
     end = clock();
 
     std::cout << "Build time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
@@ -27,7 +29,7 @@ bool load_nff(std::string filePath, Scene *sc, float *initRadius, float *initLon
     sc->copyToDevice();
     end = clock();
 
-    std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl;
+    std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
 	return true;
 }
 

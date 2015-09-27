@@ -19,10 +19,13 @@ MC::MC_Driver::MC_Driver(Scene *scene, float* initRadius, float* initLongitude, 
                          _initLongitude(initLongitude), _initLatitude(initLatitude), _initFov(initFov),
                          _at(at) {}
 
-void MC::MC_Driver::parse(const char *filename) {
+bool MC::MC_Driver::parse(const char *filename) {
     assert(filename != nullptr);
     std::ifstream in_file(filename);
-    if(!in_file.good()) exit(EXIT_FAILURE);
+    if(!in_file.good()) {
+        std::cout << "Error while openning file " << filename << std::endl;
+        return false;    
+    }
 
     std::string line;
     std::string::size_type sz;
@@ -265,6 +268,7 @@ void MC::MC_Driver::parse(const char *filename) {
     }
 
     in_file.close();
+    return true;
 }
 
 void

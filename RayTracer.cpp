@@ -16,6 +16,7 @@
 
 Scene *scene = 0;
 Camera *camera = 0;
+
 Ray *d_rays = 0;
 float3 *d_locals = 0, *d_reflectionCols = 0, *d_refractionCols = 0;
 
@@ -49,10 +50,10 @@ const char* windowTitle = "Msc Ray Tracing";
 
 std::string sceneName = "balls_low";
 
-extern void deviceDrawScene(Sphere* shapes, size_t shapeSize, Light* lights, size_t lightSize, float3 backcolor, 
+extern void deviceDrawScene(int **d_shapes, size_t *d_shapeSizes, Light *lights, size_t lightSize, float3 backcolor, 
                             int resX, int resY, float width, float height, float atDistance, float3 xe, 
                             float3 ye, float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize,
-                            Ray* d_rays, float3* d_locals, float3* d_reflectionCols, float3* d_refractionCols);
+                            Ray *d_rays, float3 *d_locals, float3 *d_reflectionCols, float3 *d_refractionCols);
 
 
 float3 computeFromCoordinates(){
@@ -68,11 +69,12 @@ void cleanup() {
     delete scene;
     delete camera;
 
-    checkCudaErrors(cudaFree(d_rays));
-    checkCudaErrors(cudaFree(d_locals));
-    checkCudaErrors(cudaFree(d_reflectionCols));
-    checkCudaErrors(cudaFree(d_refractionCols));
-
+    if(d_rays) {
+        checkCudaErrors(cudaFree(d_rays));
+        checkCudaErrors(cudaFree(d_locals));
+        checkCudaErrors(cudaFree(d_reflectionCols));
+        checkCudaErrors(cudaFree(d_refractionCols));
+    }
 
     sdkDeleteTimer(&timer);
 
@@ -117,7 +119,7 @@ void cudaInit() {
     size_t localsSize = RES_X * RES_Y * ((2 << MAX_DEPTH) - 1);
 
     //size reflection and refraction arrays 
-    size_t sizeRRArrays =  RES_X * RES_Y * ((2 << (MAX_DEPTH - 1)) - 1);
+    size_t sizeRRArrays = RES_X * RES_Y * ((2 << (MAX_DEPTH - 1)) - 1);
     
     size_t raysSize = RES_X * RES_Y * (2 << (MAX_DEPTH - 1));
 
@@ -200,13 +202,12 @@ void render() {
     }
     
     checkCudaErrors(cudaGraphicsUnmapResources(1, &cuda_pbo, 0));
-    
 }
 
 void reshape(int w, int h) {
     RES_X = w;
     RES_Y = h;
-
+    
     // calculate new grid size
     gridSize = dim3(iDivUp(RES_X, blockSize.x), iDivUp(RES_Y, blockSize.y));
     
@@ -265,7 +266,7 @@ void drawScene() {
     glDisable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    //glutSwapBuffers();
+    glutSwapBuffers();
     glutReportErrors();
 
     sdkStopTimer(&timer);
@@ -383,8 +384,9 @@ int main(int argc, char *argv[]) {
     float3 at = make_float3(0.0f);
 
 	if (!load_nff(path + sceneName, scene, &initRadius, &initLongitude, &initLatitude, &initFov, &at)) {
-        std::cerr << "Could not find scene file " << sceneName << std::endl;
         delete scene;
+
+        getchar();
 		return -1;
 	}
 
@@ -398,13 +400,10 @@ int main(int argc, char *argv[]) {
 
     camera = new Camera(from, at, up, fov, (float)RES_X / (float)RES_Y);
 
-    
-
 	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_RGB | GLUT_SINGLE);
+	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
 
 	glutInitWindowSize(RES_X, RES_Y);
-	glutInitWindowPosition(100, 100);
 	glutCreateWindow(windowTitle);
 	glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -415,6 +414,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_SUCCESS);
     }
 
+    glDisable(GL_DEPTH_TEST);
 	glutReshapeFunc(reshape);
 	glutDisplayFunc(drawScene);
 	glutMouseFunc(mousePressed);
@@ -422,11 +422,8 @@ int main(int argc, char *argv[]) {
     glutKeyboardFunc(keyboardKey);
     glutIdleFunc(idle);
     glutCloseFunc(cleanup);
-	glDisable(GL_DEPTH_TEST);
-
-	//std::cout << std::endl << "CONTEXT: OpenGL v" << glGetString(GL_VERSION) << std::endl;
-
+	
 	glutMainLoop();
-
+    
 	return 0;
 }
