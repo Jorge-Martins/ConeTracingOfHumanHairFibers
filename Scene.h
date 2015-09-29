@@ -219,10 +219,10 @@ struct Plane {
     }
 
     __host__
-	Plane(float3 v1, float3 v2, float3 v3) {
-        float3 v12 = v2 - v1;
-        float3 v23 = v3 - v2;
-	    normal = normalize(cross(v12, v23));
+	Plane(float3 v0, float3 v1, float3 v2) {
+        float3 e1 = v1 - v0;
+        float3 e2 = v2 - v1;
+	    normal = normalize(cross(e1, e2));
 	    float nDOTapoint = dot(normal, v1);
 	    distance = -nDOTapoint;
     }
@@ -247,9 +247,9 @@ struct Triangle {
 
     __host__
 	Triangle(std::vector<float3> vertices) {
-        vertices[0] = vertices[0];
-        vertices[1] = vertices[1];
-        vertices[2] = vertices[2];
+        this->vertices[0] = vertices[0];
+        this->vertices[1] = vertices[1];
+        this->vertices[2] = vertices[2];
 
 	    e1 = vertices[1] - vertices[0];
 	    e2 = vertices[2] - vertices[0];

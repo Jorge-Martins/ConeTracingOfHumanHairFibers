@@ -57,41 +57,38 @@ bool intersection(Ray ray, RayIntersection *out, Plane plane) {
 
 __device__
 bool intersection(Ray ray, RayIntersection *out, Triangle tri) {
-      float uu = dot(tri.e1, tri.e1);
-      float uv = dot(tri.e1, tri.e2);
-      float vv = dot(tri.e2, tri.e2);
+    float normalDOTray = dot(tri.normal, ray.direction); 
+    
+    float3 h = cross(ray.direction, tri.e2);
+	float a = dot(tri.e1, h);
 
-      float normalDOTray = dot(tri.normal, ray.direction);
-      float3 w0 = ray.origin - tri.vertices[0];
-      float a = -dot(tri.normal, w0);
-          
-      float t = a / normalDOTray;
-      float3 p = ray.origin + t * ray.direction;
-      
-      float3 w = p - tri.vertices[0];
+    if (a > -EPSILON && a < EPSILON) {
+		return false;
+    }
+	float f = 1.0f / a;
+	float3 s = ray.origin - tri.vertices[0];
+	float u = f * dot(s, h);
 
-      float wu = dot(w, tri.e1);
-      float wv = dot(w, tri.e2);
+	if (u < 0.0 || u > 1.0) {
+		return false;
+    }
+	float3 q = cross(s, tri.e1);
+	float v = f * dot(ray.direction, q);
 
-      float inverseD = 1.0f / (uv * uv - uu * vv);
+	if (v < 0.0 || u + v > 1.0) {
+		return false;
+    }
+	
+	float t = f * dot(tri.e2, q);
 
-      float u = (uv * wv - vv * wu) * inverseD;
-
-      if (u < 0.0f || u > 1.0f) {
-          return false;
-      }
-
-      float v = (uv * wu - uu * wv) * inverseD;
-
-      if (v < 0.0f || (u + v) > 1.0f) {
-          return false;
-      }
-
+	if (t < 0) {
+		return false;
+    }
 
 	if (out != nullptr) {
 		out->distance = t;
 		out->normal = tri.normal;
-		out->point = p;
+		out->point = ray.origin + t * ray.direction;
         out->shapeMaterial = tri.material;
 		out->isEntering = normalDOTray < 0.0f;
 
