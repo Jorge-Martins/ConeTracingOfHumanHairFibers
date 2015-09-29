@@ -11,13 +11,13 @@ MC::MC_Driver::~MC_Driver(){}
 
 MC::MC_Driver::MC_Driver() : _scene(nullptr) {}
 
-MC::MC_Driver::MC_Driver(Scene *scene) : _scene(nullptr), _initRadius(nullptr), _initLongitude(nullptr), 
-                         _initLatitude(nullptr), _initFov(nullptr), _at(nullptr) {}
+MC::MC_Driver::MC_Driver(Scene *scene) : _scene(nullptr), _initRadius(nullptr), _initVerticalAngle(nullptr), 
+                         _initHorizontalAngle(nullptr), _initFov(nullptr), _at(nullptr), _up(nullptr) {}
 
-MC::MC_Driver::MC_Driver(Scene *scene, float* initRadius, float* initLongitude, float* initLatitude, 
-                         float* initFov, float3 *at) : _scene(scene), _initRadius(initRadius), 
-                         _initLongitude(initLongitude), _initLatitude(initLatitude), _initFov(initFov),
-                         _at(at) {}
+MC::MC_Driver::MC_Driver(Scene *scene, float* initRadius, float* initVerticalAngle, float* initHorizontalAngle, 
+                         float* initFov, float3 *at, float3 *up) : _scene(scene), _initRadius(initRadius), 
+                         _initVerticalAngle(initVerticalAngle), _initHorizontalAngle(initHorizontalAngle), 
+                         _initFov(initFov), _at(at), _up(up) {}
 
 bool MC::MC_Driver::parse(const char *filename) {
     assert(filename != nullptr);
@@ -271,57 +271,77 @@ bool MC::MC_Driver::parse(const char *filename) {
     return true;
 }
 
-void
-MC::MC_Driver::add_view(float3 from, float3 at, float3 up, float fov, float hither, int2 res)
-{
+void MC::MC_Driver::add_view(float3 from, float3 at, float3 up, float fov, float hither, int2 res) {
+    float ha, va;
+
 	if(_initRadius != nullptr) {
         float3 from_2 = from * from;
         *_initRadius = sqrtf(from_2.x + from_2.y + from_2.z);
-        *_initLatitude = RAD2DEG * acosf(from.z / *_initRadius);
-        *_initLongitude = RAD2DEG * atanf(from.y / from.x);
         *_initFov = fov;
         *_at = at;
+        *_up = up;
+
+        if(up.x > 0) {
+            ha = RAD2DEG * atanf(from.z / from.y);
+            va = RAD2DEG * acosf(from.x / *_initRadius);
+
+        } else if(up.y > 0) {
+            ha = RAD2DEG * atanf(from.x / from.z);
+            va = RAD2DEG * acosf(from.y / *_initRadius);
+
+        } else {
+            ha = RAD2DEG * atanf(from.y / from.x);
+            va = RAD2DEG * acosf(from.z / *_initRadius);
+        }
+
+        if(ha > 180) {
+            ha -= 180;
+        } else if(ha < 0) {
+            ha += 180;
+        }
+
+        if(va > 360){
+            va -= 360;
+        } else if(va < 0) {
+            va += 360;
+        }
+
+        *_initHorizontalAngle = ha;
+        *_initVerticalAngle = va;
     }
 }
-void
-MC::MC_Driver::add_back_col(float3 color)
-{
+
+void MC::MC_Driver::add_back_col(float3 color) {
 	//print("Saw background");
 	_scene->setBackcolor(color);
 }
-void
-MC::MC_Driver::add_light(float3 position)
-{
+
+void MC::MC_Driver::add_light(float3 position) {
 	//print("Saw light");
 	_scene->addLight(position);
 }
-void
-MC::MC_Driver::add_light(float3 position, float3 color)
-{
+
+void MC::MC_Driver::add_light(float3 position, float3 color) {
 	//print("Saw ligh + col");
 	_scene->addLight(position, color);
 }
-void
-MC::MC_Driver::add_material(float3 color, float diff, float spec, float shine, float t, float ior)
-{
+
+void MC::MC_Driver::add_material(float3 color, float diff, float spec, float shine, float t, float ior) {
 	//print("Saw material");
 	_scene->setMaterial(color, diff, spec, shine, t, ior);
 }
-void
-MC::MC_Driver::add_cylinder(float4 base, float4 top)
-{
+
+void MC::MC_Driver::add_cylinder(float4 base, float4 top) {
 	//print("Saw cylinder");
 	_scene->addCylinder(base,top);
 }
-void
-MC::MC_Driver::add_sphere(float3 center, float radius)
-{
+
+void MC::MC_Driver::add_sphere(float3 center, float radius) {
 	//print("Saw sphere");
 	_scene->addSphere(center, radius);
 }
-void
-MC::MC_Driver::add_poly(int nVerts, std::vector<float3> verts)
-{
+
+void MC::MC_Driver::add_poly(int nVerts, std::vector<float3> verts) {
 	//print("Saw poly");
 	if (nVerts == verts.size()) {
         if(nVerts == 3) {
@@ -335,9 +355,8 @@ MC::MC_Driver::add_poly(int nVerts, std::vector<float3> verts)
 		print("Num verts did not match... :(");
 	}
 }
-void
-MC::MC_Driver::add_poly_patch(int nVerts, std::vector<float3> verts, std::vector<float3> normals)
-{
+
+void MC::MC_Driver::add_poly_patch(int nVerts, std::vector<float3> verts, std::vector<float3> normals) {
 	//print("Saw poly patch");
 	if (verts.size() == normals.size() && verts.size() == nVerts) {
 		_scene->addPolyPatch(nVerts, verts, normals);
@@ -346,15 +365,12 @@ MC::MC_Driver::add_poly_patch(int nVerts, std::vector<float3> verts, std::vector
 		print("Num verts did not match... :(");
 	}
 }
-void
-MC::MC_Driver::add_plane(float3 v1, float3 v2, float3 v3)
-{
+
+void MC::MC_Driver::add_plane(float3 v1, float3 v2, float3 v3) {
 	//print("Saw plane");
 	_scene->addPlane(v1, v2, v3);
 }
 
-void
-MC::MC_Driver::print(std::string msg)
-{
+void MC::MC_Driver::print(std::string msg) {
 	std::cout << msg << std::endl;
 }

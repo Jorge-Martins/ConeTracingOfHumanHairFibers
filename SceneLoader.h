@@ -8,14 +8,14 @@
 #include "parsing/mc_driver.hpp"
 
 bool load_nff(std::string filePath, Scene *sc, float *initRadius, float *initLongitude, 
-              float *initLatitude, float *initFov, float3 *at) {
+              float *initLatitude, float *initFov, float3 *at, float3 *up) {
     clock_t start, end;
 
     filePath += ".nff";
 	std::cout << "Loading: " << filePath << std::endl;
 
     start = clock();
-	MC::MC_Driver driver(sc, initRadius, initLongitude, initLatitude, initFov, at);
+	MC::MC_Driver driver(sc, initRadius, initLongitude, initLatitude, initFov, at, up);
 	if(!driver.parse(filePath.c_str())) {
         return false;
     }

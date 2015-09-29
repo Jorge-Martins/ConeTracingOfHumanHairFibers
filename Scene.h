@@ -254,8 +254,6 @@ struct Triangle {
 	    e1 = vertices[1] - vertices[0];
 	    e2 = vertices[2] - vertices[0];
 	    normal = normalize(cross(e1, e2));
-
-	    float normalDOTopoint = dot(normal, vertices[0]);
     }
 
     __host__
@@ -298,6 +296,9 @@ private:
 public:
     __host__
     Scene() {
+        d_shapeSizes = nullptr;
+        d_shapes = nullptr;
+
         d_spheres = nullptr;
         d_cylinders = nullptr;
         d_triangles = nullptr;
@@ -330,6 +331,14 @@ public:
 
         if(d_lights != nullptr) {
             checkCudaErrors(cudaFree(d_lights));
+        }
+
+        if(d_shapes != nullptr) {
+             checkCudaErrors(cudaFree(d_shapes));
+        }
+
+        if(d_shapeSizes != nullptr) {
+             checkCudaErrors(cudaFree(d_shapeSizes));
         }
     }
 

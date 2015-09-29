@@ -27,8 +27,8 @@ int RES_X = 512, RES_Y = 512;
 dim3 blockSize(16, 16);
 dim3 gridSize;
 
-float latitude, longitude, radius;
-float initLatitude = 55.0f, initLongitude = 32.0f, initRadius = 3.0f, initFov = 45;
+float horizontalAngle, verticalAngle, radius;
+float initHorizontalAngle = 55.0f, initVerticalAngle = 32.0f, initRadius = 3.0f, initFov = 45;
 
 int xDragStart, yDragStart, dragging, zooming;
 float fov;
@@ -56,13 +56,20 @@ extern void deviceDrawScene(int **d_shapes, size_t *d_shapeSizes, Light *lights,
                             Ray *d_rays, float3 *d_locals, float3 *d_reflectionCols, float3 *d_refractionCols);
 
 
-float3 computeFromCoordinates(){
-   float phi, theta;
+float3 computeFromCoordinates(float3 up){
+    float ha, va;
 
-   theta = (float) (latitude * DEG2RAD);
-   phi = (float) (longitude * DEG2RAD);
+    ha = (float) (horizontalAngle * DEG2RAD);
+    va = (float) (verticalAngle * DEG2RAD);
 
-   return make_float3(radius * sin(theta) * cos(phi), radius * sin(theta) * sin(phi), radius * cos(theta));
+    if(up.x > 0) {
+        return make_float3(radius * cos(va), radius * sin(va) * cos(ha), radius * sin(va) * sin(ha));
+
+    } else if(up.y > 0) {
+        return make_float3(radius * sin(va) * sin(ha), radius * cos(va), radius * sin(va) * cos(ha));
+    }
+
+    return make_float3(radius * sin(va) * cos(ha), radius * sin(va) * sin(ha), radius * cos(va));
 }
 
 void cleanup() {
@@ -279,23 +286,23 @@ void mouseMove(int x, int y) {
     float zstep = 0.002f;
 
     if (dragging == 1) {
-        longitude += (-x + xDragStart) * xstep;
+        horizontalAngle += (-x + xDragStart) * xstep;
 
-        if(longitude > 360) {
-            longitude -= 360;
-        } else if(longitude < 0) {
-            longitude = 360;
+        if(horizontalAngle > 360) {
+            horizontalAngle -= 360;
+        } else if(horizontalAngle < 0) {
+            horizontalAngle += 360;
         }
 
-        latitude += (-y + yDragStart) * ystep;
+        verticalAngle += (-y + yDragStart) * ystep;
 
-        if(latitude > 179){
-            latitude = 179;
-        } else if(latitude < 1) {
-            latitude = 1;
+        if(verticalAngle > 179){
+            verticalAngle = 179;
+        } else if(verticalAngle < 1) {
+            verticalAngle = 1;
         }
 
-        camera->update(computeFromCoordinates(), fov);
+        camera->update(computeFromCoordinates(camera->up), fov);
 
     }
     if(zooming == 1) {
@@ -307,7 +314,7 @@ void mouseMove(int x, int y) {
             fov = 1;
         }
 
-        camera->update(computeFromCoordinates(), fov);
+        camera->update(computeFromCoordinates(camera->up), fov);
         //std::cout<< "From: " << camera->from().x << " " << camera->from().y << " " << camera->from().z << std::endl;
         //std::cout<< "radius: " << radius << std::endl;
     } 
@@ -318,7 +325,7 @@ void mousePressed(int button, int state, int x, int y) {
 		if (state == GLUT_DOWN) { 
 			dragging = 1; 
 			xDragStart = x; 
-         yDragStart = y; 
+            yDragStart = y; 
 		} else  {
 			dragging = 0;
 		}
@@ -336,15 +343,15 @@ void mousePressed(int button, int state, int x, int y) {
 
 void initPosition() {
     radius = initRadius;
-    longitude = initLongitude;
-    latitude = initLatitude;
+    verticalAngle = initVerticalAngle;
+    horizontalAngle = initHorizontalAngle;
     fov = initFov;
 }
 
 void keyboardKey(unsigned char key, int x, int y) {
 	if (key == 'c'){
 		initPosition();
-        camera->update(computeFromCoordinates(), fov);
+        camera->update(computeFromCoordinates(camera->up), fov);
 	}
 
 	if (key == 'p'){
@@ -382,8 +389,9 @@ int main(int argc, char *argv[]) {
     cudaSetDevice(0); 
 
     float3 at = make_float3(0.0f);
+    float3 up = make_float3(0.0f , 1.0f, 0.0f);
 
-	if (!load_nff(path + sceneName, scene, &initRadius, &initLongitude, &initLatitude, &initFov, &at)) {
+	if (!load_nff(path + sceneName, scene, &initRadius, &initVerticalAngle, &initHorizontalAngle, &initFov, &at, &up)) {
         delete scene;
 
         getchar();
@@ -392,8 +400,8 @@ int main(int argc, char *argv[]) {
 
     initPosition();
     
-    float3 from = computeFromCoordinates();
-    float3 up = make_float3(0.0f , 0.0f, 1.0f);
+    float3 from = computeFromCoordinates(up);
+    
     
     // calculate new grid size
     gridSize = dim3(iDivUp(RES_X, blockSize.x), iDivUp(RES_Y, blockSize.y));

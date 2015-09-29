@@ -20,14 +20,14 @@ namespace MC{
 
 class MC_Driver{
 	Scene *_scene;
-    float *_initRadius, *_initLongitude, *_initLatitude, *_initFov;
-    float3 *_at;
+    float *_initRadius, *_initVerticalAngle, *_initHorizontalAngle, *_initFov;
+    float3 *_at, *_up;
 
 public:
    MC_Driver();
    MC_Driver(Scene *scene);
-   MC_Driver(Scene *scene,  float* initRadius, float* initLongitude, float* initLatitude, float* initFov, 
-             float3 *at);
+   MC_Driver(Scene *scene,  float* initRadius, float* initVerticalAngle, float* initHorizontalAngle, float* initFov, 
+             float3 *at, float3 *up);
 
    virtual ~MC_Driver();
 
