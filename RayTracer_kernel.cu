@@ -143,9 +143,164 @@ bool intersection(Ray ray, RayIntersection *out, Sphere sphere) {
 }
 
 __device__
+bool infiniteCylinderIntersection(Ray ray, RayIntersection *out, Cylinder cylinder, float3 axis, float *inD, float *outD) {
+    float t;
+    
+    float3 r_c = ray.origin - cylinder.base;
+    float r_2 = cylinder.radius * cylinder.radius;
+
+    float3 dr = ray.direction - dot(ray.direction, axis)* axis;
+	float A = dot(dr, dr);
+
+    if(equal(A, 0.0f)) {
+        return false;
+    }
+
+    float3 d = r_c - dot(r_c, axis)* axis;
+    float d_2 = dot(d, d);
+
+    
+    float B = 2 * dot(dr, d);
+
+	float C = d_2 - r_2;
+
+    float root = B*B - 4 * A * C;
+    if(root < 0.0f) {
+        return false;
+    }
+
+    A *= 2;
+
+	float t1 = (-B + sqrt(root)) / A;
+	float t2 = (-B - sqrt(root)) / A;
+
+	//O raio nao atinge o cilindro
+	if (t1 <= 0 && t2 <= 0) {
+		return false;
+    }
+
+	//Distancia ao ponto de intercessao
+	if (t1 < t2) {
+		t = t1;
+        *inD = t1;
+        *outD = t2;
+    } else if (t2 > 0) {
+		t = t2;
+        *inD = t2;
+        *outD = t1;
+    } else {
+        return false;
+    }
+
+    if (out != nullptr) {
+        out->shapeMaterial = cylinder.material;
+        out->distance = t;
+        out->point = ray.origin + t*ray.direction;
+        
+        float3 v1 = out->point - cylinder.base;
+	    float3 v2 = dot(v1, axis) * axis;
+	    out->normal = (v1 - v2);
+    }
+	
+	return true;
+}
+
+__device__
 bool intersection(Ray ray, RayIntersection *out, Cylinder cylinder) {
-    //TODO
-    return false;
+    float3 axis = normalize(cylinder.top - cylinder.base);
+
+    float baseDistance = -dot(-axis, cylinder.base);
+    float topDistance = -dot(axis, cylinder.top);
+
+    float dc, dw, t;
+	float inD, outD;		/* Object  intersection dists.	*/
+
+
+    if(!infiniteCylinderIntersection(ray, out, cylinder, axis, &inD, &outD)) {
+        return false;
+    }
+    /*	Intersect the ray with the bottom end-cap plane.		*/
+
+	dc = dot(-axis, ray.direction);
+    dw = dot(-axis, ray.origin) + baseDistance;
+
+    if(dc == 0.0f) {		/* If parallel to bottom plane	*/
+        if(dw >= 0.0f) {
+            return false;
+        }
+    } else {
+        t  = - dw / dc;
+        if(dc >= 0.0f) {			    /* If far plane	*/
+            if(t > inD && t < outD) {
+                outD = t;
+            }
+            if(t < inD) {
+                return false;
+            }
+        } else {				    /* If near plane	*/
+            if(t > inD && t < outD) {
+                inD	= t;
+                if(out != nullptr) {
+                    out->normal = -axis;
+                    out->distance = t;
+                    out->point = ray.origin + t*ray.direction;
+                }
+            }
+            if(t > outD) {
+                return false;
+            }
+        }
+    }
+
+/*	Intersect the ray with the top end-cap plane.			*/
+
+    dc = dot(axis, ray.direction);
+    dw = dot(axis, ray.origin) + topDistance;
+
+	if(dc == 0.0f) {		/* If parallel to top plane	*/
+	    if(dw >= 0.0f) {
+            return false;
+        }
+	} else {
+	    t  = - dw/dc;
+	    if	(dc >= 0.0f) {			    /* If far plane	*/
+		    if(t > inD && t < outD) {
+                outD = t; 
+            }
+		    if(t < inD) {
+                return false;
+            }
+	    } else {				    /* If near plane	*/
+		    if(t > inD && t < outD) {
+                inD	= t;
+                if(out != nullptr) {
+                    out->normal = axis;
+                    out->distance = t;
+                    out->point = ray.origin + t*ray.direction;
+                }
+            }
+		    if(t > outD) {
+                return false;
+	        }
+	    } 
+    }
+
+    if(inD >= outD) {
+        return false;
+    }
+
+    if (out != nullptr) {
+        bool entering = dot(out->normal, ray.direction) < 0.0f;
+		if (!entering) {
+			out->normal *= -1.0f;
+		}
+        
+        out->isEntering = entering;
+        out->shapeMaterial = cylinder.material;
+        out->point += out->normal * EPSILON;
+	}
+
+    return true;
 }
 
 __device__
@@ -255,19 +410,16 @@ float3 computeTransmissionDir(float3 inDir, float3 normal, float beforeIOR, floa
 
 __device__
 float3 rayTracing(int **d_shapes, size_t *d_shapeSizes, Light* lights, size_t lightSize, float3 backcolor, 
-                 float3 rayOrigin, float3 rayDirection, float MediumIor, Ray *ray, float3* locals,
-                 float3* reflectionCols, float3* refractionCols, int offset) {
+                 float3 rayOrigin, float3 rayDirection, Ray *ray, float3* locals,
+                 float3* reflectionCols, float3* refractionCols, uint offset) {
 
-    int rayOffset = offset * raysSize;                 
-    int localsOffset = offset * raysPerPixel;
-    int rrOffset = offset * sizeRRArrays;
+    uint rayOffset = offset * raysSize;                 
+    uint localsOffset = offset * raysPerPixel;
+    uint rrOffset = offset * sizeRRArrays;
     Ray feeler = Ray();
 
     ray[rayOffset].update(rayOrigin, rayDirection);
-
-    float ior[raysPerPixel];
-    ior[0] = MediumIor;
-
+    
     RayIntersection intersect;
     int level;
     float3 blackColor = make_float3(0.0f);
@@ -311,9 +463,7 @@ float3 rayTracing(int **d_shapes, size_t *d_shapeSizes, Light* lights, size_t li
 	    for(size_t li = 0; li < lightSize; li++) {
 		    float3 feelerDir = normalize(lights[li].position - intersect.point);
             feeler.update(intersect.point, feelerDir);
-            compensatePrecision(feeler);
-
-		    
+            
             bool inShadow = findShadow(d_shapes, d_shapeSizes, feeler);
                 
 		    if(!inShadow) {
@@ -336,14 +486,9 @@ float3 rayTracing(int **d_shapes, size_t *d_shapeSizes, Light* lights, size_t li
             // reflection
             level = 2 * rayN + 1;
 	        if(mat.Kspecular > 0.0f) {
-		        ray[rayOffset + rayIndex(level)].update(intersect.point, 
-                                                        reflect(ray[rayOffset + rayIndex(rayN)].direction, 
-                                                                intersect.normal));
-		        compensatePrecision(ray[rayOffset + rayIndex(level)]);
-
+                float3 reflectDir = reflect(ray[rayOffset + rayIndex(rayN)].direction, intersect.normal);
+		        ray[rayOffset + rayIndex(level)].update(intersect.point, reflectDir);
                 reflectionCols[rrOffset + rayN] = mat.color * mat.Kspecular;
-                ior[level] = mat.ior;
-	        
             }
 
 	        // transmission
@@ -351,22 +496,18 @@ float3 rayTracing(int **d_shapes, size_t *d_shapeSizes, Light* lights, size_t li
 	        if(mat.transparency > 0.0f) {
 		        float ior1, ior2;
 		        if(intersect.isEntering) {
-			        ior1 = ior[rayN];
+			        ior1 = 1.0f;
 			        ior2 = mat.ior;
 		        }
 		        else {
 			        ior1 = mat.ior;
-			        ior2 = ior[rayN];
+			        ior2 = 1.0f;
 		        }
 		        float3 refractionDir = computeTransmissionDir(ray[rayOffset + rayIndex(rayN)].direction, intersect.normal, ior1, ior2);
 		            
                 if (!equal(length(refractionDir), 0.0f)) {
 			        ray[rayOffset + rayIndex(level)].update(intersect.point, refractionDir);
-			        compensatePrecision(ray[rayOffset + rayIndex(level)]);
-
                     refractionCols[rrOffset + rayN] = mat.color * mat.transparency;
-                    ior[level] = mat.ior;
-		        
                 }
 	        }
         }
@@ -407,7 +548,7 @@ void drawScene(int **d_shapes, size_t *d_shapeSizes, Light *lights, size_t light
     uint x = blockIdx.x * blockDim.x + threadIdx.x;
     uint y = blockIdx.y * blockDim.y + threadIdx.y;
 
-    int index = y * resX + x;
+    uint index = y * resX + x;
 
     float3 zeFactor = -ze * atDistance; 
 	float3 yeFactor = ye * height * ((y + 0.5f) / (float)resY - 0.5f);
@@ -415,10 +556,22 @@ void drawScene(int **d_shapes, size_t *d_shapeSizes, Light *lights, size_t light
 
 	float3 direction = normalize(zeFactor + yeFactor + xeFactor);
 	
-    float3 color = rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 1.0, 
+    float3 color = rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
                               ray, d_locals, d_reflectionCols, d_refractionCols, index);
-
+    
+    
     d_output[index] = color;
+   
+}
+
+__global__
+void clearImage(float3 *d_output, float3 value, int resX) {
+    uint x = blockIdx.x * blockDim.x + threadIdx.x;
+    uint y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    uint index = y * resX + x;
+
+    d_output[index] = value;
 }
 
 void deviceDrawScene(int **d_shapes, size_t *d_shapeSizes, Light* lights, size_t lightSize, float3 backcolor, 
@@ -426,10 +579,16 @@ void deviceDrawScene(int **d_shapes, size_t *d_shapeSizes, Light* lights, size_t
                      float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize, Ray* ray,
                      float3* d_locals, float3* d_reflectionCols, float3* d_refractionCols) {
 
+    /*if(SUPER_SAMPLING > 1) {
+        dim3 clearGridSize = dim3(gridSize.x / SUPER_SAMPLING, gridSize.y / SUPER_SAMPLING, gridSize.z);
+        clearImage<<<clearGridSize, blockSize>>>(d_output, make_float3(0.0f), resX);
+
+        cudaDeviceSynchronize();
+    }*/
+
     drawScene<<<gridSize, blockSize>>>(d_shapes, d_shapeSizes, lights, lightSize, backcolor, resX, resY,
                                        width, height, atDistance, xe, ye, ze, from, d_output, ray,
                                        d_locals, d_reflectionCols, d_refractionCols);
-
 
 }
 

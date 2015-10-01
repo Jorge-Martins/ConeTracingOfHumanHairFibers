@@ -16,7 +16,8 @@
 #include <sstream>
 
 #define SUPER_SAMPLING 1
-#define MAX_DEPTH 3
+#define SUPER_SAMPLING_2 (SUPER_SAMPLING * SUPER_SAMPLING);
+#define MAX_DEPTH 2
 
 #define KB 1000
 #define MB (1000 * KB)
@@ -179,24 +180,27 @@ struct Sphere {
 };
 
 struct Cylinder {
-	float4 base, apex;
+	float3 base, top;
+    float radius;
     Material material;
     
     __host__
 	Cylinder() {}
 
     __host__
-	Cylinder(float4 base, float4 apex) {
+	Cylinder(float3 base, float3 top, float radius) {
         this->base = base;
-        this->apex = apex;
+        this->top = top;
+        this->radius = radius;
     }
 
     __host__
     std::string print() {
         std::ostringstream os;
 
-        os << "Cylinder: Base" << base.x << " " << base.y << " " << base.z << " " << base.w << std::endl <<
-            "Top" << apex.x << " " << apex.y << " " << apex.z << " " << apex.w << std::endl;
+        os << "Cylinder: Base" << base.x << " " << base.y << " " << base.z << std::endl <<
+            "Top" << top.x << " " << top.y << " " << top.z << std::endl <<
+            " Radius " << radius << std::endl;
 
         return os.str();
     }
@@ -223,7 +227,7 @@ struct Plane {
         float3 e1 = v1 - v0;
         float3 e2 = v2 - v1;
 	    normal = normalize(cross(e1, e2));
-	    float nDOTapoint = dot(normal, v1);
+	    float nDOTapoint = dot(normal, v0);
 	    distance = -nDOTapoint;
     }
 
@@ -539,8 +543,8 @@ public:
 
 
     __host__
-    void addCylinder(float4 base, float4 apex) {
-	    Cylinder c = Cylinder(base, apex);
+    void addCylinder(float3 base, float3 top, float radius) {
+	    Cylinder c = Cylinder(base, top, radius);
 	    c.material = material;
 	    h_cylinders.push_back(c);
     }

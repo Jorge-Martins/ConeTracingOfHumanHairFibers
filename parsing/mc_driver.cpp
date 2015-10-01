@@ -168,24 +168,18 @@ bool MC::MC_Driver::parse(const char *filename) {
         }
 
         else if(token == "c") {
-            std::string cToken;
+            float data[8];
 
-            //base top
-            float4 cyllinder[2];
+            for(int i = 0; i < 8; i++) {
+                std::getline(iss, token , ' ');
+                data[i] = std::stof(token, &sz);
+            }
 
-            //x y z radius
-            float data[4];
-
-            for(int i = 0; i < 2; i++) {
-                std::getline(in_file, line);
-                std::istringstream iss(line);
-
-                for(int y = 0; i < 4; i++) {
-                    std::getline(iss, cToken , ' ');
-                    data[y] = std::stof(cToken, &sz);
-                }
-
-                cyllinder[i] = make_float4(data[0], data[1], data[2], data[3]);
+            if(data[3] == data[7]) {
+                add_cylinder(make_float3(data[0], data[1], data[2]), make_float3(data[4], data[5], data[6]), data[3]);
+            } else {
+                //TODO add_cone
+                printf("Add cone\n");
             }
         }
 
@@ -275,8 +269,7 @@ void MC::MC_Driver::add_view(float3 from, float3 at, float3 up, float fov, float
     float ha, va;
 
 	if(_initRadius != nullptr) {
-        float3 from_2 = from * from;
-        *_initRadius = sqrtf(from_2.x + from_2.y + from_2.z);
+        *_initRadius = length(at - from);
         *_initFov = fov;
         *_at = at;
         *_up = up;
@@ -331,9 +324,9 @@ void MC::MC_Driver::add_material(float3 color, float diff, float spec, float shi
 	_scene->setMaterial(color, diff, spec, shine, t, ior);
 }
 
-void MC::MC_Driver::add_cylinder(float4 base, float4 top) {
+void MC::MC_Driver::add_cylinder(float3 base, float3 top, float radius) {
 	//print("Saw cylinder");
-	_scene->addCylinder(base,top);
+	_scene->addCylinder(base, top, radius);
 }
 
 void MC::MC_Driver::add_sphere(float3 center, float radius) {

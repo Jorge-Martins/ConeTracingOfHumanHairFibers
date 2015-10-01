@@ -39,7 +39,7 @@ private:
     void add_light(float3);
     void add_light(float3, float3);
     void add_material(float3, float, float, float, float, float);
-    void add_cylinder(float4, float4);
+    void add_cylinder(float3, float3, float);
     void add_sphere(float3, float);
     void add_poly(int, std::vector<float3>);
     void add_poly_patch(int, std::vector<float3>, std::vector<float3>);
