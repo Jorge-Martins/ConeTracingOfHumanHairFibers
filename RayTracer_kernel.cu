@@ -144,81 +144,60 @@ bool intersection(Ray ray, RayIntersection *out, Sphere sphere) {
 
 __device__
 bool infiniteCylinderIntersection(Ray ray, RayIntersection *out, Cylinder cylinder, float3 axis, float *inD, float *outD) {
-    float t;
-    
     float3 r_c = ray.origin - cylinder.base;
     float r_2 = cylinder.radius * cylinder.radius;
+    float3 n = cross(ray.direction, axis);
 
-    float3 dr = ray.direction - dot(ray.direction, axis)* axis;
-	float A = dot(dr, dr);
+    float ln = length(n);
 
-    if(equal(A, 0.0f)) {
-        return false;
+    // check if is parallel
+    if(equal(ln, 0.0f)) {
+        *inD = -1.0e21;
+	    *outD = 1.0e21;
+        return length(r_c - dot(r_c, axis) * axis) <= cylinder.radius;
     }
+    n = normalize(n);
 
-    float3 d = r_c - dot(r_c, axis)* axis;
-    float d_2 = dot(d, d);
+    float d = fabs(dot(r_c, n));
 
+    if (d <= cylinder.radius) {
+        float3 O = cross(r_c, axis);
     
-    float B = 2 * dot(dr, d);
+        float t = -dot(O, n) / ln;
+    
+        O = normalize(cross(n, axis));
 
-	float C = d_2 - r_2;
+        float s = fabs(sqrtf(r_2 - d*d) / dot(ray.direction, O));
 
-    float root = B*B - 4 * A * C;
-    if(root < 0.0f) {
-        return false;
+        *inD = t - s;
+        *outD = t + s;
+
+        return true;
     }
 
-    A *= 2;
-
-	float t1 = (-B + sqrt(root)) / A;
-	float t2 = (-B - sqrt(root)) / A;
-
-	//O raio nao atinge o cilindro
-	if (t1 <= 0 && t2 <= 0) {
-		return false;
-    }
-
-	//Distancia ao ponto de intercessao
-	if (t1 < t2) {
-		t = t1;
-        *inD = t1;
-        *outD = t2;
-    } else if (t2 > 0) {
-		t = t2;
-        *inD = t2;
-        *outD = t1;
-    } else {
-        return false;
-    }
-
-    if (out != nullptr) {
-        out->shapeMaterial = cylinder.material;
-        out->distance = t;
-        out->point = ray.origin + t*ray.direction;
-        
-        float3 v1 = out->point - cylinder.base;
-	    float3 v2 = dot(v1, axis) * axis;
-	    out->normal = (v1 - v2);
-    }
-	
-	return true;
+	return false;
 }
 
 __device__
 bool intersection(Ray ray, RayIntersection *out, Cylinder cylinder) {
     float3 axis = normalize(cylinder.top - cylinder.base);
+    float3 normal, point; 
 
     float baseDistance = -dot(-axis, cylinder.base);
     float topDistance = -dot(axis, cylinder.top);
 
     float dc, dw, t;
 	float inD, outD;		/* Object  intersection dists.	*/
-
+    //0 top, 1 side, 2 base
+    short sideIn;
+    short sideOut;
 
     if(!infiniteCylinderIntersection(ray, out, cylinder, axis, &inD, &outD)) {
         return false;
     }
+    
+    sideIn = sideOut = 1;
+
     /*	Intersect the ray with the bottom end-cap plane.		*/
 
 	dc = dot(-axis, ray.direction);
@@ -229,10 +208,11 @@ bool intersection(Ray ray, RayIntersection *out, Cylinder cylinder) {
             return false;
         }
     } else {
-        t  = - dw / dc;
+        t  = -dw / dc;
         if(dc >= 0.0f) {			    /* If far plane	*/
             if(t > inD && t < outD) {
                 outD = t;
+                sideOut = 2;
             }
             if(t < inD) {
                 return false;
@@ -240,11 +220,8 @@ bool intersection(Ray ray, RayIntersection *out, Cylinder cylinder) {
         } else {				    /* If near plane	*/
             if(t > inD && t < outD) {
                 inD	= t;
-                if(out != nullptr) {
-                    out->normal = -axis;
-                    out->distance = t;
-                    out->point = ray.origin + t*ray.direction;
-                }
+                sideIn = 2;
+                
             }
             if(t > outD) {
                 return false;
@@ -265,7 +242,8 @@ bool intersection(Ray ray, RayIntersection *out, Cylinder cylinder) {
 	    t  = - dw/dc;
 	    if	(dc >= 0.0f) {			    /* If far plane	*/
 		    if(t > inD && t < outD) {
-                outD = t; 
+                outD = t;
+                sideOut = 0;
             }
 		    if(t < inD) {
                 return false;
@@ -273,11 +251,8 @@ bool intersection(Ray ray, RayIntersection *out, Cylinder cylinder) {
 	    } else {				    /* If near plane	*/
 		    if(t > inD && t < outD) {
                 inD	= t;
-                if(out != nullptr) {
-                    out->normal = axis;
-                    out->distance = t;
-                    out->point = ray.origin + t*ray.direction;
-                }
+                sideIn = 0;
+                
             }
 		    if(t > outD) {
                 return false;
@@ -285,19 +260,51 @@ bool intersection(Ray ray, RayIntersection *out, Cylinder cylinder) {
 	    } 
     }
 
-    if(inD >= outD) {
+    if (inD < 0 && outD < 0) {
+		return false;
+    }
+
+	if (inD < outD && inD > 0) {
+		t = inD;
+        point = ray.origin + t * ray.direction;
+
+        if(sideIn == 0) {
+            normal = axis;
+        } else if(sideIn == 1) {
+            float3 v1 = point - cylinder.base;
+	        float3 v2 = dot(v1, axis) * axis;
+	        normal = normalize(v1 - v2);
+        } else {
+            normal = -axis;
+        }
+        
+    } else if (outD > 0) {
+		t = outD;
+
+        point = ray.origin + t * ray.direction;
+
+        if(sideOut == 0) {
+            normal = -axis;
+        } else if(sideOut == 1) {
+            float3 v1 = point - cylinder.base;
+	        float3 v2 = dot(v1, axis) * axis;
+	        normal = normalize(v2 - v1);
+        } else {
+            normal = axis;
+        }
+        
+    } else {
         return false;
     }
 
     if (out != nullptr) {
-        bool entering = dot(out->normal, ray.direction) < 0.0f;
-		if (!entering) {
-			out->normal *= -1.0f;
-		}
-        
-        out->isEntering = entering;
+        out->isEntering = dot(normal, ray.direction) < 0.0f;
         out->shapeMaterial = cylinder.material;
-        out->point += out->normal * EPSILON;
+        out->distance = t;
+        out->point = point;
+        out->normal = normal;
+
+        out->point += normal * EPSILON;
 	}
 
     return true;
