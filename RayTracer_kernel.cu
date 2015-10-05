@@ -273,7 +273,7 @@ bool intersection(Ray ray, RayIntersection *out, Cylinder cylinder) {
         } else if(sideIn == 1) {
             float3 v1 = point - cylinder.base;
 	        float3 v2 = dot(v1, axis) * axis;
-	        normal = normalize(v1 - v2);
+            normal = normalize(v1 - v2);
         } else {
             normal = -axis;
         }

@@ -6,6 +6,7 @@
 #include "Scene.h"
 #include <time.h>
 #include "parsing/mc_driver.hpp"
+#include "parsing/cyHairFile.h"
 
 bool load_nff(std::string filePath, Scene *sc, float *initRadius, float *initLongitude, 
               float *initLatitude, float *initFov, float3 *at, float3 *up) {
@@ -32,6 +33,141 @@ bool load_nff(std::string filePath, Scene *sc, float *initRadius, float *initLon
     std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
 	return true;
 }
+
+
+bool load_hair(std::string filePath, Scene *sc) {
+    
+    filePath += ".hair";
+	std::cout << "Loading: " << filePath << std::endl;
+
+    cyHairFile hairfile = cyHairFile();
+
+    // Load the hair model
+    int result = hairfile.LoadFromFile(filePath.c_str());
+
+    // Check for errors
+    switch(result) {
+        case CY_HAIR_FILE_ERROR_CANT_OPEN_FILE:
+            printf("Error: Cannot open hair file!\n");
+            return false;
+        case CY_HAIR_FILE_ERROR_CANT_READ_HEADER:
+            printf("Error: Cannot read hair file header!\n");
+            return false;
+        case CY_HAIR_FILE_ERROR_WRONG_SIGNATURE:
+            printf("Error: File has wrong signature!\n");
+            return false;
+        case CY_HAIR_FILE_ERROR_READING_SEGMENTS:
+            printf("Error: Cannot read hair segments!\n");
+            return false;
+        case CY_HAIR_FILE_ERROR_READING_POINTS:
+            printf("Error: Cannot read hair points!\n");
+            return false;
+        case CY_HAIR_FILE_ERROR_READING_COLORS:
+            printf("Error: Cannot read hair colors!\n");
+            return false;
+        case CY_HAIR_FILE_ERROR_READING_THICKNESS:
+            printf("Error: Cannot read hair thickness!\n");
+            return false;
+        case CY_HAIR_FILE_ERROR_READING_TRANSPARENCY:
+            printf("Error: Cannot read hair transparency!\n");
+            return false;
+        default:
+            printf("Hair file \"%s\" loaded.\n", filePath.c_str());
+    }
+
+    int hairCount = hairfile.GetHeader().hair_count;
+    int pointCount = hairfile.GetHeader().point_count;
+    printf("Number of hair strands = %d\n", hairCount );
+    printf("Number of hair points = %d\n", pointCount );
+
+    float *colorsArray = hairfile.GetColorsArray();
+    float *thicknessArray = hairfile.GetThicknessArray();
+    float *transparencyArray = hairfile.GetTransparencyArray();
+    float *pointsArray = hairfile.GetPointsArray();
+   
+    const unsigned short *segments = hairfile.GetSegmentsArray();
+    int pointIndex = 0;
+    int segmentSize;
+    float hairIor = 1.55f; //paper Light Scattering from Human Hair Fibers
+    float Kd = 0.2f; //paper Light Scattering from Human Hair Fibers
+    float Ks = 0.4f;  //https://support.solidangle.com/display/NodeRef/hair
+    float shininess = 50.0f;
+    float transparency = hairfile.GetHeader().d_transparency;
+    float thickness = hairfile.GetHeader().d_thickness;
+
+    float3 color, base, top;
+    color = make_float3(hairfile.GetHeader().d_color[0], hairfile.GetHeader().d_color[1], hairfile.GetHeader().d_color[2]);
+
+    sc->setBackcolor(make_float3(1, 0.75, 0.33));
+    sc->addLight(make_float3(1, -4, 4));
+
+    if (segments) {
+        // If segments array exists
+        for (int hairIndex = 0; hairIndex < hairCount; hairIndex++ ) {
+            segmentSize = segments[ hairIndex ] + 1;
+
+            for(int point = pointIndex; point < segmentSize; point++) {
+                int cpIndex = point * 3;
+
+                if(colorsArray) {
+                    color = make_float3(colorsArray[cpIndex], colorsArray[cpIndex + 1], colorsArray[cpIndex + 2]);
+                } 
+
+                if(transparencyArray) {
+                    transparency = transparencyArray[point];
+                }
+
+                if(thicknessArray) {
+                    thickness = thicknessArray[point];
+                }
+
+                sc->setMaterial(color, Kd, Ks, shininess, transparency, hairIor);
+
+                base = make_float3(pointsArray[cpIndex], pointsArray[cpIndex + 1], pointsArray[cpIndex + 2]);
+                top = make_float3(pointsArray[cpIndex + 3], pointsArray[cpIndex + 4], pointsArray[cpIndex + 5]);
+                sc->addCylinder(base, top, thickness);
+            }
+            
+            pointIndex += segmentSize;
+        }
+    } else {
+        // If segments array does not exist, use default segment count
+        int dsegs = hairfile.GetHeader().d_segments;
+        for ( int hairIndex=0; hairIndex < hairCount; hairIndex++ ) {
+            segmentSize = dsegs + 1;
+
+            for(int point = pointIndex; point < segmentSize; point++) {
+                int cpIndex = point * 3;
+
+                if(colorsArray) {
+                    color = make_float3(colorsArray[cpIndex], colorsArray[cpIndex + 1], colorsArray[cpIndex + 2]);
+                } 
+
+                if(transparencyArray) {
+                    transparency = transparencyArray[point];
+                }
+
+                if(thicknessArray) {
+                    thickness = thicknessArray[point];
+                }
+
+                sc->setMaterial(color, Kd, Ks, shininess, transparency, hairIor);
+
+                base = make_float3(pointsArray[cpIndex], pointsArray[cpIndex + 1], pointsArray[cpIndex + 2]);
+                top = make_float3(pointsArray[cpIndex + 3], pointsArray[cpIndex + 4], pointsArray[cpIndex + 5]);
+                sc->addCylinder(base, top, thickness);
+            }
+
+            pointIndex += segmentSize;
+        }
+    }
+    
+    sc->copyToDevice();
+    
+	return true;
+}
+
+
 
 class Camera {
 public:
