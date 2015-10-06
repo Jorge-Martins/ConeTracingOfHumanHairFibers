@@ -28,7 +28,7 @@ dim3 blockSize(16, 16);
 dim3 gridSize;
 
 float horizontalAngle, verticalAngle, radius;
-float initHorizontalAngle = 1.0f, initVerticalAngle = 2.0f, initRadius = 10.0f, initFov = 60.0f;
+float initHorizontalAngle = 180.0f, initVerticalAngle = 45.0f, initRadius = 60.0f, initFov = 55.0f;
 
 int xDragStart, yDragStart, dragging, zooming;
 float fov;
@@ -48,8 +48,8 @@ StopWatchInterface *timer = NULL;
 
 const char* windowTitle = "Msc Ray Tracing";
 
-//std::string sceneName = "cyl";
-std::string sceneName = "straight";
+std::string sceneName = "mount_low";
+//std::string sceneName = "straight";
 
 extern void deviceDrawScene(int **d_shapes, size_t *d_shapeSizes, Light *lights, size_t lightSize, float3 backcolor, 
                             int resX, int resY, float width, float height, float atDistance, float3 xe, 
@@ -304,7 +304,7 @@ void mouseMove(int x, int y) {
             verticalAngle = 1;
         }
 
-        //std::cout<< "Ha: " << horizontalAngle << std::endl << "VA: "<< verticalAngle << std::endl;
+        //std::cout<< "Ha: " << horizontalAngle << std::endl << "Va: "<< verticalAngle << std::endl;
         camera->update(computeFromCoordinates(camera->up), fov);
 
     }
@@ -384,8 +384,8 @@ void idle() {
 
 int main(int argc, char *argv[]) {
     sdkCreateTimer(&timer);
-	//std::string path = "../../resources/nffFiles/";
-    std::string path = "../../resources/HairModels/";
+	std::string path = "../../resources/nffFiles/";
+    //std::string path = "../../resources/HairModels/";
     scene = new Scene();
 
     //Explicitly set device 0 
@@ -394,19 +394,19 @@ int main(int argc, char *argv[]) {
     float3 at = make_float3(0.0f);
     float3 up = make_float3(0.0f , 0.0f, 1.0f);
 
-	/*if (!load_nff(path + sceneName, scene, &initRadius, &initVerticalAngle, &initHorizontalAngle, &initFov, &at, &up)) {
-        delete scene;
-
-        getchar();
-		return -1;
-	}*/
-
-    if (!load_hair(path + sceneName, scene, &at, &up)) {
+	if (!load_nff(path + sceneName, scene, &initRadius, &initVerticalAngle, &initHorizontalAngle, &initFov, &up)) {
         delete scene;
 
         getchar();
 		return -1;
 	}
+
+    /*if (!load_hair(path + sceneName, scene)) {
+        delete scene;
+
+        getchar();
+		return -1;
+	}*/
 
     initPosition();
     

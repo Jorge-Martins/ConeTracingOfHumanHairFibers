@@ -9,14 +9,14 @@
 #include "parsing/cyHairFile.h"
 
 bool load_nff(std::string filePath, Scene *sc, float *initRadius, float *initLongitude, 
-              float *initLatitude, float *initFov, float3 *at, float3 *up) {
+              float *initLatitude, float *initFov, float3 *up) {
     clock_t start, end;
 
     filePath += ".nff";
 	std::cout << "Loading: " << filePath << std::endl;
 
     start = clock();
-	MC::MC_Driver driver(sc, initRadius, initLongitude, initLatitude, initFov, at, up);
+	MC::MC_Driver driver(sc, initRadius, initLongitude, initLatitude, initFov, up);
 	if(!driver.parse(filePath.c_str())) {
         return false;
     }
@@ -35,13 +35,14 @@ bool load_nff(std::string filePath, Scene *sc, float *initRadius, float *initLon
 }
 
 
-bool load_hair(std::string filePath, Scene *sc, float3 *at, float3 *up) {
-    
+bool load_hair(std::string filePath, Scene *sc) {
+    clock_t start, end;
     filePath += ".hair";
 	std::cout << "Loading: " << filePath << std::endl;
 
     cyHairFile hairfile = cyHairFile();
 
+    start = clock();
     // Load the hair model
     int result = hairfile.LoadFromFile(filePath.c_str());
 
@@ -98,22 +99,22 @@ bool load_hair(std::string filePath, Scene *sc, float3 *at, float3 *up) {
     float transparency = hairfile.GetHeader().d_transparency;
     float thickness = hairfile.GetHeader().d_thickness;
 
-    float3 color, base, top;
+    float3 color, base, top, translation;
     color = make_float3(hairfile.GetHeader().d_color[0], hairfile.GetHeader().d_color[1], hairfile.GetHeader().d_color[2]);
-
-    sc->setBackcolor(make_float3(0.2f, 0.2f, 0.2f));
-    sc->addLight(make_float3(1, -4, 4));
-
-    *at = make_float3(pointsArray[0], pointsArray[1], pointsArray[2]);
+    
+    float3 hairRoot = make_float3(pointsArray[0], pointsArray[1], pointsArray[2]);
+    
+    sc->setBackcolor(make_float3(0.8f, 0.8f, 0.8f));
+    sc->addLight(hairRoot + make_float3(0.0f, 0.0f, 60.0f));
 
     if (segments) {
         // If segments array exists
         int index = 3 * (segments[0] - 1);
         float3 lastPoint = make_float3(pointsArray[index], pointsArray[index + 1], pointsArray[index + 2]);
-        float3 axis = *at - lastPoint;
-        float d = length(axis) / 2.0f;
-        axis = normalize(axis);
-        *at = lastPoint + d * axis;
+        float3 hairAxis = hairRoot - lastPoint;
+        float d = 2 * length(hairAxis) / 3.0f;
+        hairAxis = normalize(hairAxis);
+        translation = -(lastPoint + d * hairAxis);
 
         for (int segment = 0; segment < nSegments; segment++ ) {
             segmentSize = segments[segment];
@@ -135,8 +136,8 @@ bool load_hair(std::string filePath, Scene *sc, float3 *at, float3 *up) {
 
                 sc->setMaterial(color, Kd, Ks, shininess, transparency, hairIor);
 
-                base = make_float3(pointsArray[cpIndex], pointsArray[cpIndex + 1], pointsArray[cpIndex + 2]);
-                top = make_float3(pointsArray[cpIndex + 3], pointsArray[cpIndex + 4], pointsArray[cpIndex + 5]);
+                base = make_float3(pointsArray[cpIndex], pointsArray[cpIndex + 1], pointsArray[cpIndex + 2]) + translation;
+                top = make_float3(pointsArray[cpIndex + 3], pointsArray[cpIndex + 4], pointsArray[cpIndex + 5]) + translation;
                 sc->addCylinder(base, top, thickness);
             }
             
@@ -146,13 +147,12 @@ bool load_hair(std::string filePath, Scene *sc, float3 *at, float3 *up) {
         // If segments array does not exist, use default segment count
         int index = 3 * (segmentSize - 1);
         float3 lastPoint = make_float3(pointsArray[index], pointsArray[index + 1], pointsArray[index + 2]);
-        float3 axis = *at - lastPoint;
-        float d = length(axis) / 2.0f;
-        axis = normalize(axis);
-        *at = lastPoint + d * axis;
+        float3 hairAxis = hairRoot - lastPoint;
+        float d = 2 * length(hairAxis) / 3.0f;
+        hairAxis = normalize(hairAxis);
+        translation = -(lastPoint + d * hairAxis);
 
-        for (int segment = 0; segment < nSegments; segment++ ) {
-            
+        for (int segment = 0; segment < 4; segment++ ) {
             for(int point = pointIndex; point < pointIndex + segmentSize; point++) {
                 int cpIndex = point * 3;
 
@@ -170,17 +170,25 @@ bool load_hair(std::string filePath, Scene *sc, float3 *at, float3 *up) {
 
                 sc->setMaterial(color, Kd, Ks, shininess, transparency, hairIor);
 
-                base = make_float3(pointsArray[cpIndex], pointsArray[cpIndex + 1], pointsArray[cpIndex + 2]);
-                top = make_float3(pointsArray[cpIndex + 3], pointsArray[cpIndex + 4], pointsArray[cpIndex + 5]);
+                base = make_float3(pointsArray[cpIndex], pointsArray[cpIndex + 1], pointsArray[cpIndex + 2]) + translation;
+                top = make_float3(pointsArray[cpIndex + 3], pointsArray[cpIndex + 4], pointsArray[cpIndex + 5]) + translation;
                 sc->addCylinder(base, top, thickness);
             }
 
             pointIndex += segmentSize + 1;
         }
     }
-    
+    end = clock();
+
+    std::cout << "Build time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
+
+    std::cout << "Transfer" << std::endl;
+
+    start = clock();
     sc->copyToDevice();
-    
+    end = clock();
+
+    std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
 	return true;
 }
 

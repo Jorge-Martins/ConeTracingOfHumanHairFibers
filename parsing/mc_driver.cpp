@@ -12,12 +12,12 @@ MC::MC_Driver::~MC_Driver(){}
 MC::MC_Driver::MC_Driver() : _scene(nullptr) {}
 
 MC::MC_Driver::MC_Driver(Scene *scene) : _scene(nullptr), _initRadius(nullptr), _initVerticalAngle(nullptr), 
-                         _initHorizontalAngle(nullptr), _initFov(nullptr), _at(nullptr), _up(nullptr) {}
+                         _initHorizontalAngle(nullptr), _initFov(nullptr), _up(nullptr), translation(make_float3(0.0f)) {}
 
 MC::MC_Driver::MC_Driver(Scene *scene, float* initRadius, float* initVerticalAngle, float* initHorizontalAngle, 
-                         float* initFov, float3 *at, float3 *up) : _scene(scene), _initRadius(initRadius), 
+                         float* initFov, float3 *up) : _scene(scene), _initRadius(initRadius), 
                          _initVerticalAngle(initVerticalAngle), _initHorizontalAngle(initHorizontalAngle), 
-                         _initFov(initFov), _at(at), _up(up) {}
+                         _initFov(initFov), _up(up), translation(make_float3(0.0f)) {}
 
 bool MC::MC_Driver::parse(const char *filename) {
     assert(filename != nullptr);
@@ -271,7 +271,7 @@ void MC::MC_Driver::add_view(float3 from, float3 at, float3 up, float fov, float
 	if(_initRadius != nullptr) {
         *_initRadius = length(at - from);
         *_initFov = fov;
-        *_at = at;
+        translation = -at;
         *_up = up;
 
         if(up.x > 0) {
@@ -311,12 +311,12 @@ void MC::MC_Driver::add_back_col(float3 color) {
 
 void MC::MC_Driver::add_light(float3 position) {
 	//print("Saw light");
-	_scene->addLight(position);
+    _scene->addLight(position + translation);
 }
 
 void MC::MC_Driver::add_light(float3 position, float3 color) {
 	//print("Saw ligh + col");
-	_scene->addLight(position, color);
+	_scene->addLight(position + translation, color);
 }
 
 void MC::MC_Driver::add_material(float3 color, float diff, float spec, float shine, float t, float ior) {
@@ -326,18 +326,21 @@ void MC::MC_Driver::add_material(float3 color, float diff, float spec, float shi
 
 void MC::MC_Driver::add_cylinder(float3 base, float3 top, float radius) {
 	//print("Saw cylinder");
-	_scene->addCylinder(base, top, radius);
+	_scene->addCylinder(base + translation, top + translation, radius);
 }
 
 void MC::MC_Driver::add_sphere(float3 center, float radius) {
 	//print("Saw sphere");
-	_scene->addSphere(center, radius);
+	_scene->addSphere(center + translation, radius);
 }
 
 void MC::MC_Driver::add_poly(int nVerts, std::vector<float3> verts) {
 	//print("Saw poly");
 	if (nVerts == verts.size()) {
         if(nVerts == 3) {
+            verts[0] = verts[0] + translation;
+            verts[1] = verts[1] + translation;
+            verts[2] = verts[2] + translation;
 		    _scene->addTriangle(verts);
         } else {
             //TODO
@@ -361,7 +364,7 @@ void MC::MC_Driver::add_poly_patch(int nVerts, std::vector<float3> verts, std::v
 
 void MC::MC_Driver::add_plane(float3 v1, float3 v2, float3 v3) {
 	//print("Saw plane");
-	_scene->addPlane(v1, v2, v3);
+	_scene->addPlane(v1 + translation, v2 + translation, v3 + translation);
 }
 
 void MC::MC_Driver::print(std::string msg) {
