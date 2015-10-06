@@ -48,7 +48,7 @@ StopWatchInterface *timer = NULL;
 
 const char* windowTitle = "Msc Ray Tracing";
 
-std::string sceneName = "mount_low";
+std::string sceneName = "balls_low";
 //std::string sceneName = "straight";
 
 extern void deviceDrawScene(int **d_shapes, size_t *d_shapeSizes, Light *lights, size_t lightSize, float3 backcolor, 
@@ -124,7 +124,7 @@ void cudaInit() {
     }
 
     //size local array
-    size = RES_X * RES_Y;
+    size = RES_X * RES_Y * SUPER_SAMPLING * SUPER_SAMPLING;
     size_t localsSize = size * ((2 << MAX_DEPTH) - 1);
 
     //size reflection and refraction arrays 
@@ -215,7 +215,7 @@ void render() {
 
 void reshape(int w, int h) {
     RES_X = w;
-    RES_Y = w;
+    RES_Y = h;
     
     // calculate new grid size
     gridSize = dim3(iDivUp(RES_X, blockSize.x), iDivUp(RES_Y, blockSize.y));

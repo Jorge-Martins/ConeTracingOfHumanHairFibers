@@ -548,27 +548,32 @@ float3 rayTracing(int **d_shapes, size_t *d_shapeSizes, Light* lights, size_t li
 
 __global__
 void drawScene(int **d_shapes, size_t *d_shapeSizes, Light *lights, size_t lightSize, float3 backcolor, int resX,
-               int resY, float width, float height, float atDistance, float3 xe, float3 ye, 
+               int resY, int res_xy, float width, float height, float atDistance, float3 xe, float3 ye, 
                float3 ze, float3 from, float3 *d_output, Ray* ray, float3* d_locals, 
                float3* d_reflectionCols, float3* d_refractionCols) {
 
     uint x = blockIdx.x * blockDim.x + threadIdx.x;
     uint y = blockIdx.y * blockDim.y + threadIdx.y;
 
-    uint index = y * resX + x;
+    uint index = y * (resX * SUPER_SAMPLING) + x;
 
-    float3 zeFactor = -ze * atDistance; 
-	float3 yeFactor = ye * height * ((y + 0.5f) / (float)resY - 0.5f);
-	float3 xeFactor = xe * width * ((x + 0.5f) / (float)resX - 0.5f);
+    if(index < res_xy * SUPER_SAMPLING * SUPER_SAMPLING) {
+        float3 zeFactor = -ze * atDistance; 
+        float3 yeFactor = ye * height * ((y + 0.5f) / (float)(resY * SUPER_SAMPLING) - 0.5f);
+	    float3 xeFactor = xe * width * ((x + 0.5f) / (float)(resX * SUPER_SAMPLING) - 0.5f);
 
-	float3 direction = normalize(zeFactor + yeFactor + xeFactor);
+	    float3 direction = normalize(zeFactor + yeFactor + xeFactor);
 	
-    float3 color = rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
-                              ray, d_locals, d_reflectionCols, d_refractionCols, index);
+        float3 color = rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
+                                  ray, d_locals, d_reflectionCols, d_refractionCols, index);
     
-    
-    d_output[index] = color;
-   
+        if(SUPER_SAMPLING > 1) {
+            index = (int)(y / (float)SUPER_SAMPLING) * resX + (int)(x / (float)SUPER_SAMPLING);
+            d_output[index] += color; // (SUPER_SAMPLING * SUPER_SAMPLING);
+        } else {
+            d_output[index] = color;
+        }
+    }
 }
 
 __global__
@@ -585,16 +590,18 @@ void deviceDrawScene(int **d_shapes, size_t *d_shapeSizes, Light* lights, size_t
                      int resX, int resY, float width, float height, float atDistance, float3 xe, float3 ye, 
                      float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize, Ray* ray,
                      float3* d_locals, float3* d_reflectionCols, float3* d_refractionCols) {
-
-    /*if(SUPER_SAMPLING > 1) {
-        dim3 clearGridSize = dim3(gridSize.x / SUPER_SAMPLING, gridSize.y / SUPER_SAMPLING, gridSize.z);
-        clearImage<<<clearGridSize, blockSize>>>(d_output, make_float3(0.0f), resX);
-
+    
+    dim3 ssgridSize = gridSize;
+    float res_xy = resX * resY;
+    if(SUPER_SAMPLING > 1) {
+        clearImage<<<gridSize, blockSize>>>(d_output, make_float3(0.0f), resX);
         cudaDeviceSynchronize();
-    }*/
 
-    drawScene<<<gridSize, blockSize>>>(d_shapes, d_shapeSizes, lights, lightSize, backcolor, resX, resY,
-                                       width, height, atDistance, xe, ye, ze, from, d_output, ray,
+        ssgridSize = dim3(gridSize.x * SUPER_SAMPLING, gridSize.y * SUPER_SAMPLING, gridSize.z);
+    }
+
+    drawScene<<<ssgridSize, blockSize>>>(d_shapes, d_shapeSizes, lights, lightSize, backcolor, resX, resY,
+                                       res_xy, width, height, atDistance, xe, ye, ze, from, d_output, ray,
                                        d_locals, d_reflectionCols, d_refractionCols);
 
 }

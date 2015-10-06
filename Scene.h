@@ -16,7 +16,7 @@
 #include <sstream>
 
 #define SUPER_SAMPLING 1
-#define SUPER_SAMPLING_2 (SUPER_SAMPLING * SUPER_SAMPLING);
+
 #define MAX_DEPTH 1
 
 #define KB 1000
