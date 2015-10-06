@@ -35,7 +35,7 @@ bool load_nff(std::string filePath, Scene *sc, float *initRadius, float *initLon
 }
 
 
-bool load_hair(std::string filePath, Scene *sc) {
+bool load_hair(std::string filePath, Scene *sc, float3 *at, float3 *up) {
     
     filePath += ".hair";
 	std::cout << "Loading: " << filePath << std::endl;
@@ -75,19 +75,22 @@ bool load_hair(std::string filePath, Scene *sc) {
             printf("Hair file \"%s\" loaded.\n", filePath.c_str());
     }
 
-    int hairCount = hairfile.GetHeader().hair_count;
-    int pointCount = hairfile.GetHeader().point_count;
-    printf("Number of hair strands = %d\n", hairCount );
-    printf("Number of hair points = %d\n", pointCount );
+    
+
+    int nSegments = hairfile.GetHeader().hair_count;
+    int nPoints = hairfile.GetHeader().point_count;
+    printf("Number of hair strands = %d\n", nSegments );
+    //printf("Number of hair points = %d\n", nPoints );
 
     float *colorsArray = hairfile.GetColorsArray();
     float *thicknessArray = hairfile.GetThicknessArray();
     float *transparencyArray = hairfile.GetTransparencyArray();
     float *pointsArray = hairfile.GetPointsArray();
-   
     const unsigned short *segments = hairfile.GetSegmentsArray();
+
+    
     int pointIndex = 0;
-    int segmentSize;
+    int segmentSize = hairfile.GetHeader().d_segments;
     float hairIor = 1.55f; //paper Light Scattering from Human Hair Fibers
     float Kd = 0.2f; //paper Light Scattering from Human Hair Fibers
     float Ks = 0.4f;  //https://support.solidangle.com/display/NodeRef/hair
@@ -98,15 +101,24 @@ bool load_hair(std::string filePath, Scene *sc) {
     float3 color, base, top;
     color = make_float3(hairfile.GetHeader().d_color[0], hairfile.GetHeader().d_color[1], hairfile.GetHeader().d_color[2]);
 
-    sc->setBackcolor(make_float3(1, 0.75, 0.33));
+    sc->setBackcolor(make_float3(0.2f, 0.2f, 0.2f));
     sc->addLight(make_float3(1, -4, 4));
+
+    *at = make_float3(pointsArray[0], pointsArray[1], pointsArray[2]);
 
     if (segments) {
         // If segments array exists
-        for (int hairIndex = 0; hairIndex < hairCount; hairIndex++ ) {
-            segmentSize = segments[ hairIndex ] + 1;
+        int index = 3 * (segments[0] - 1);
+        float3 lastPoint = make_float3(pointsArray[index], pointsArray[index + 1], pointsArray[index + 2]);
+        float3 axis = *at - lastPoint;
+        float d = length(axis) / 2.0f;
+        axis = normalize(axis);
+        *at = lastPoint + d * axis;
 
-            for(int point = pointIndex; point < segmentSize; point++) {
+        for (int segment = 0; segment < nSegments; segment++ ) {
+            segmentSize = segments[segment];
+
+            for(int point = pointIndex; point < pointIndex + segmentSize; point++) {
                 int cpIndex = point * 3;
 
                 if(colorsArray) {
@@ -128,15 +140,20 @@ bool load_hair(std::string filePath, Scene *sc) {
                 sc->addCylinder(base, top, thickness);
             }
             
-            pointIndex += segmentSize;
+            pointIndex += segmentSize + 1;
         }
     } else {
         // If segments array does not exist, use default segment count
-        int dsegs = hairfile.GetHeader().d_segments;
-        for ( int hairIndex=0; hairIndex < hairCount; hairIndex++ ) {
-            segmentSize = dsegs + 1;
+        int index = 3 * (segmentSize - 1);
+        float3 lastPoint = make_float3(pointsArray[index], pointsArray[index + 1], pointsArray[index + 2]);
+        float3 axis = *at - lastPoint;
+        float d = length(axis) / 2.0f;
+        axis = normalize(axis);
+        *at = lastPoint + d * axis;
 
-            for(int point = pointIndex; point < segmentSize; point++) {
+        for (int segment = 0; segment < nSegments; segment++ ) {
+            
+            for(int point = pointIndex; point < pointIndex + segmentSize; point++) {
                 int cpIndex = point * 3;
 
                 if(colorsArray) {
@@ -158,7 +175,7 @@ bool load_hair(std::string filePath, Scene *sc) {
                 sc->addCylinder(base, top, thickness);
             }
 
-            pointIndex += segmentSize;
+            pointIndex += segmentSize + 1;
         }
     }
     

@@ -17,7 +17,7 @@
 
 #define SUPER_SAMPLING 1
 #define SUPER_SAMPLING_2 (SUPER_SAMPLING * SUPER_SAMPLING);
-#define MAX_DEPTH 3
+#define MAX_DEPTH 1
 
 #define KB 1000
 #define MB (1000 * KB)

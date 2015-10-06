@@ -11,7 +11,7 @@
 
 #include "Scene.h"
 
-__device__ float EPSILON = 1E-5f;
+__device__ float EPSILON = 1E-4f;
 
 //size ray array
 __device__ int const raysSize = 2 << (MAX_DEPTH - 1);

@@ -28,7 +28,7 @@ dim3 blockSize(16, 16);
 dim3 gridSize;
 
 float horizontalAngle, verticalAngle, radius;
-float initHorizontalAngle = 55.0f, initVerticalAngle = 32.0f, initRadius = 3.0f, initFov = 45;
+float initHorizontalAngle = 1.0f, initVerticalAngle = 2.0f, initRadius = 10.0f, initFov = 60.0f;
 
 int xDragStart, yDragStart, dragging, zooming;
 float fov;
@@ -283,9 +283,9 @@ void drawScene() {
 }
 
 void mouseMove(int x, int y) { 	
-    float ystep = 0.002f;
-    float xstep = 0.002f;
-    float zstep = 0.002f;
+    float ystep = 0.01f;
+    float xstep = 0.01f;
+    float zstep = 0.01f;
 
     if (dragging == 1) {
         horizontalAngle += (-x + xDragStart) * xstep;
@@ -304,6 +304,7 @@ void mouseMove(int x, int y) {
             verticalAngle = 1;
         }
 
+        //std::cout<< "Ha: " << horizontalAngle << std::endl << "VA: "<< verticalAngle << std::endl;
         camera->update(computeFromCoordinates(camera->up), fov);
 
     }
@@ -391,7 +392,7 @@ int main(int argc, char *argv[]) {
     cudaSetDevice(0); 
 
     float3 at = make_float3(0.0f);
-    float3 up = make_float3(0.0f , 1.0f, 0.0f);
+    float3 up = make_float3(0.0f , 0.0f, 1.0f);
 
 	/*if (!load_nff(path + sceneName, scene, &initRadius, &initVerticalAngle, &initHorizontalAngle, &initFov, &at, &up)) {
         delete scene;
@@ -400,7 +401,7 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}*/
 
-    if (!load_hair(path + sceneName, scene)) {
+    if (!load_hair(path + sceneName, scene, &at, &up)) {
         delete scene;
 
         getchar();
