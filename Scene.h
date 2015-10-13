@@ -29,33 +29,107 @@
 #define planeIndex 3
 #define nShapes 4
 
-//====================================  device ========================
-struct Sphere;
+enum BBType {
+    AABB,
+    OBB
+};
 
-struct Ray{
+/* N - Negative
+ * O - zero
+ * P - Positive
+ */
+enum RayClassification {
+    NNN, NNO, NNP, NON, NOO, NOP, NPN, NPO, NPP,
+    ONN, ONO, ONP, OON, OOP = 14, OPN, OPO, OPP,
+    PNN, PNO, PNP, PON, POO, POP, PPN, PPO, PPP
+        
+};
+
+//====================================  device ========================
+
+struct Ray {
     float3 origin;
     float3 direction;
+    float3 invDirection;
     bool exists;
+    int classification;
+
+    //slope
+    float x_y, y_x, y_z, z_y, x_z, z_x; 
+	float c_xy, c_xz, c_yx, c_yz, c_zx, c_zy;
+
+    __host__ __device__
+    void computeSlopes() {
+        x_y = direction.x * invDirection.y;
+	    y_x = direction.y * invDirection.x;
+	    y_z = direction.y * invDirection.z;
+	    z_y = direction.z * invDirection.y;
+	    x_z = direction.x * invDirection.z;
+	    z_x = direction.z * invDirection.x;
+
+	    c_xy = origin.y - y_x * origin.x;
+	    c_xz = origin.z - z_x * origin.x;
+	    c_yx = origin.x - x_y * origin.y;
+	    c_yz = origin.z - z_y * origin.y;
+	    c_zx = origin.x - x_z * origin.z;
+	    c_zy = origin.y - y_z * origin.z;
+
+        
+        if(direction.x < 0) {
+			classification = NNN;
+
+		} else if(direction.x > 0){
+			classification = PNN;
+
+		} else {
+			classification = ONN;
+		}
+
+        if(direction.y < 0) {
+			
+		} else if(direction.y > 0){
+			classification += 6;
+
+		} else {
+			classification += 3;
+		}
+
+        if(direction.z < 0) {
+			
+		} else if(direction.y > 0){
+			classification += 2;
+
+		} else {
+			classification += 1;
+		}
+    }
 
     __host__ __device__ 
-    Ray(){
-        this->origin = make_float3(0.0f);
-        this->direction = make_float3(0.0f, 0.0f, 1.0f);
-        this->exists = true;
+    Ray() {
+        origin = make_float3(0.0f);
+        direction = make_float3(0.0f, 0.0f, 1.0f);
+        invDirection = 1.0f / direction;
+        exists = true;
     }
 
     __device__ 
     Ray(float3 origin, float3 direction) {
         this->origin = origin;
         this->direction = direction;
+        invDirection = 1.0f / direction;
         this->exists = true;
+
+        computeSlopes();
     }
 
     __device__
     void update(float3 origin, float3 direction) {
         this->origin = origin;
         this->direction = direction;
+        invDirection = 1.0f / direction;
         this->exists = true;
+
+        computeSlopes();
     }
 };
 
@@ -84,7 +158,7 @@ struct Material {
     }
 };
 
-struct RayIntersection{
+struct RayIntersection {
 	float distance;
 	float3 point;
 	float3 normal;
@@ -273,6 +347,88 @@ struct Triangle {
     }
 };
 
+
+struct Node {
+    float3 max;
+    float3 min;
+    BBType type;
+    Cylinder *shape;
+
+    __host__
+    Node() {
+        type = AABB;
+        shape = nullptr;
+    }
+
+    __host__
+    Node(BBType type) {
+        this->type = type;
+        shape = nullptr;
+    }
+
+    __host__
+    Node(BBType type, Cylinder *shape) {
+        this->type = type;
+        this->shape = shape;
+
+        min = fminf(shape->base, shape->top) - shape->radius;
+        max = fmaxf(shape->base, shape->top) + shape->radius;
+    }
+};
+
+struct SphereNode{
+    float3 max;
+    float3 min;
+    BBType type;
+    Sphere *shape;
+
+    __host__
+    SphereNode() {
+        type = AABB;
+        shape = nullptr;
+    }
+
+    __host__
+    SphereNode(BBType type) {
+        this->type = type;
+        shape = nullptr;
+    }
+
+    __host__
+    SphereNode(BBType type, Sphere *shape) {
+        this->type = type;
+        this->shape = shape;
+        max = shape->center + shape->r;
+        min = shape->center - shape->r;
+    }
+};
+
+struct TriangleNode {
+    float3 max;
+    float3 min;
+    BBType type;
+    Triangle *shape;
+
+    __host__
+    TriangleNode() {
+        type = AABB;
+        shape = nullptr;
+    }
+
+    __host__
+    TriangleNode(BBType type) {
+        this->type = type;
+        shape = nullptr;
+    }
+
+    __host__
+    TriangleNode(BBType type, Triangle *shape) {
+        this->type = type;
+        this->shape = shape;
+        max = fmaxf(fmaxf(shape->vertices[0], shape->vertices[1]), shape->vertices[2]);
+        min = fminf(fminf(shape->vertices[0], shape->vertices[1]), shape->vertices[2]);
+    }
+};
 
 struct Scene {
 private:

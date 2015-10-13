@@ -586,20 +586,16 @@ void clearImage(float3 *d_output, float3 value, int resX) {
     d_output[index] = value;
 }
 
+void deviceClearImage(float3 *d_output, float3 value, int resX, dim3 gridSize, dim3 blockSize) {
+    clearImage<<<gridSize, blockSize>>>(d_output, make_float3(0.0f), resX);
+}
+
 void deviceDrawScene(int **d_shapes, size_t *d_shapeSizes, Light* lights, size_t lightSize, float3 backcolor, 
                      int resX, int resY, float width, float height, float atDistance, float3 xe, float3 ye, 
-                     float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize, Ray* ray,
+                     float3 ze, float3 from, float3 *d_output, dim3 ssgridSize, dim3 blockSize, Ray* ray,
                      float3* d_locals, float3* d_reflectionCols, float3* d_refractionCols) {
     
-    dim3 ssgridSize = gridSize;
-    float res_xy = resX * resY;
-    if(SUPER_SAMPLING > 1) {
-        clearImage<<<gridSize, blockSize>>>(d_output, make_float3(0.0f), resX);
-        cudaDeviceSynchronize();
-
-        ssgridSize = dim3(gridSize.x * SUPER_SAMPLING, gridSize.y * SUPER_SAMPLING, gridSize.z);
-    }
-
+    int res_xy = resX * resY;
     drawScene<<<ssgridSize, blockSize>>>(d_shapes, d_shapeSizes, lights, lightSize, backcolor, resX, resY,
                                        res_xy, width, height, atDistance, xe, ye, ze, from, d_output, ray,
                                        d_locals, d_reflectionCols, d_refractionCols);
