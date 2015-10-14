@@ -11,8 +11,6 @@
 
 #include "Scene.h"
 
-__device__ float EPSILON = 1E-4f;
-
 //size ray array
 __device__ int const raysSize = 2 << (MAX_DEPTH - 1);
 
@@ -26,6 +24,189 @@ __device__
 bool equal(float f1, float f2) {
 	float diffAbs = abs(f1 - f2);
 	return diffAbs < EPSILON;
+}
+
+__device__
+bool AABBIntersection(Ray ray, float3 min, float3 max) {
+    switch (ray.classification) {
+	    case NNN:	
+            return !((ray.origin.x < min.x) || (ray.origin.y < min.y) || (ray.origin.z < min.z)
+			        || (ray.y_x * min.x - max.y + ray.c_xy > 0)
+			        || (ray.x_y * min.y - max.x + ray.c_yx > 0)
+			        || (ray.y_z * min.z - max.y + ray.c_zy > 0)
+			        || (ray.z_y * min.y - max.z + ray.c_yz > 0)
+			        || (ray.z_x * min.x - max.z + ray.c_xz > 0)
+			        || (ray.x_z * min.z - max.x + ray.c_zx > 0));
+			
+	    case NNP:	
+		    return !((ray.origin.x < min.x) || (ray.origin.y < min.y) || (ray.origin.z > max.z)
+			        || (ray.y_x * min.x - max.y + ray.c_xy > 0)
+			        || (ray.x_y * min.y - max.x + ray.c_yx > 0)
+			        || (ray.y_z * max.z - max.y + ray.c_zy > 0)
+			        || (ray.z_y * min.y - min.z + ray.c_yz < 0)
+			        || (ray.z_x * min.x - min.z + ray.c_xz < 0)
+			        || (ray.x_z * max.z - max.x + ray.c_zx > 0));
+
+	    case NPN:	
+		    return !((ray.origin.x < min.x) || (ray.origin.y > max.y) || (ray.origin.z < min.z)
+			        || (ray.y_x * min.x - min.y + ray.c_xy < 0) 
+			        || (ray.x_y * max.y - max.x + ray.c_yx > 0)
+			        || (ray.y_z * min.z - min.y + ray.c_zy < 0) 
+			        || (ray.z_y * max.y - max.z + ray.c_yz > 0)
+			        || (ray.z_x * min.x - max.z + ray.c_xz > 0)
+			        || (ray.x_z * min.z - max.x + ray.c_zx > 0));
+			
+	    case NPP:
+		    return !((ray.origin.x < min.x) || (ray.origin.y > max.y) || (ray.origin.z > max.z)
+			        || (ray.y_x * min.x - min.y + ray.c_xy < 0) 
+			        || (ray.x_y * max.y - max.x + ray.c_yx > 0)
+			        || (ray.y_z * max.z - min.y + ray.c_zy < 0)
+			        || (ray.z_y * max.y - min.z + ray.c_yz < 0)
+			        || (ray.z_x * min.x - min.z + ray.c_xz < 0)
+			        || (ray.x_z * max.z - max.x + ray.c_zx > 0));
+			
+	    case PNN:
+		    return !((ray.origin.x > max.x) || (ray.origin.y < min.y) || (ray.origin.z < min.z)
+			        || (ray.y_x * max.x - max.y + ray.c_xy > 0)
+			        || (ray.x_y * min.y - min.x + ray.c_yx < 0)
+			        || (ray.y_z * min.z - max.y + ray.c_zy > 0)
+			        || (ray.z_y * min.y - max.z + ray.c_yz > 0)
+			        || (ray.z_x * max.x - max.z + ray.c_xz > 0)
+			        || (ray.x_z * min.z - min.x + ray.c_zx < 0));
+			
+	    case PNP:
+		    return !((ray.origin.x > max.x) || (ray.origin.y < min.y) || (ray.origin.z > max.z)
+			        || (ray.y_x * max.x - max.y + ray.c_xy > 0)
+			        || (ray.x_y * min.y - min.x + ray.c_yx < 0)
+			        || (ray.y_z * max.z - max.y + ray.c_zy > 0)
+			        || (ray.z_y * min.y - min.z + ray.c_yz < 0)
+			        || (ray.z_x * max.x - min.z + ray.c_xz < 0)
+			        || (ray.x_z * max.z - min.x + ray.c_zx < 0));
+
+	    case PPN:
+		    return !((ray.origin.x > max.x) || (ray.origin.y > max.y) || (ray.origin.z < min.z)
+			        || (ray.y_x * max.x - min.y + ray.c_xy < 0)
+			        || (ray.x_y * max.y - min.x + ray.c_yx < 0)
+			        || (ray.y_z * min.z - min.y + ray.c_zy < 0) 
+			        || (ray.z_y * max.y - max.z + ray.c_yz > 0)
+			        || (ray.z_x * max.x - max.z + ray.c_xz > 0)
+			        || (ray.x_z * min.z - min.x + ray.c_zx < 0));
+			
+	    case PPP:
+		    return !((ray.origin.x > max.x) || (ray.origin.y > max.y) || (ray.origin.z > max.z)
+			        || (ray.y_x * max.x - min.y + ray.c_xy < 0)
+			        || (ray.x_y * max.y - min.x + ray.c_yx < 0)
+			        || (ray.y_z * max.z - min.y + ray.c_zy < 0)
+			        || (ray.z_y * max.y - min.z + ray.c_yz < 0)
+			        || (ray.z_x * max.x - min.z + ray.c_xz < 0)
+			        || (ray.x_z * max.z - min.x + ray.c_zx < 0));
+			
+	    case ONN:
+		    return !((ray.origin.x < min.x) || (ray.origin.x > max.x)
+			        || (ray.origin.y < min.y) || (ray.origin.z < min.z)
+			        || (ray.y_z * min.z - max.y + ray.c_zy > 0)
+			        || (ray.z_y * min.y - max.z + ray.c_yz > 0));
+			
+	    case ONP:
+		    return !((ray.origin.x < min.x) || (ray.origin.x > max.x)
+			        || (ray.origin.y < min.y) || (ray.origin.z > max.z)
+			        || (ray.y_z * max.z - max.y + ray.c_zy > 0)
+			        || (ray.z_y * min.y - min.z + ray.c_yz < 0));
+			
+	    case OPN:
+		    return !((ray.origin.x < min.x) || (ray.origin.x > max.x)
+			        || (ray.origin.y > max.y) || (ray.origin.z < min.z)
+			        || (ray.y_z * min.z - min.y + ray.c_zy < 0) 
+			        || (ray.z_y * max.y - max.z + ray.c_yz > 0));
+			
+	    case OPP:
+		    return !((ray.origin.x < min.x) || (ray.origin.x > max.x)
+			        || (ray.origin.y > max.y) || (ray.origin.z > max.z)
+			        || (ray.y_z * max.z - min.y + ray.c_zy < 0)
+			        || (ray.z_y * max.y - min.z + ray.c_yz < 0));
+			
+	    case NON:
+		    return !((ray.origin.y < min.y) || (ray.origin.y > max.y)
+			        || (ray.origin.x < min.x) || (ray.origin.z < min.z) 
+			        || (ray.z_x * min.x - max.z + ray.c_xz > 0)
+			        || (ray.x_z * min.z - max.x + ray.c_zx > 0));
+			
+	    case NOP:
+		    return !((ray.origin.y < min.y) || (ray.origin.y > max.y)
+			        || (ray.origin.x < min.x) || (ray.origin.z > max.z) 
+			        || (ray.z_x * min.x - min.z + ray.c_xz < 0)
+			        || (ray.x_z * max.z - max.x + ray.c_zx > 0));
+			
+	    case PON:
+		    return !((ray.origin.y < min.y) || (ray.origin.y > max.y)
+			        || (ray.origin.x > max.x) || (ray.origin.z < min.z)
+			        || (ray.z_x * max.x - max.z + ray.c_xz > 0)
+			        || (ray.x_z * min.z - min.x + ray.c_zx < 0));
+			
+	    case POP:
+		    return !((ray.origin.y < min.y) || (ray.origin.y > max.y)
+			        || (ray.origin.x > max.x) || (ray.origin.z > max.z)
+			        || (ray.z_x * max.x - min.z + ray.c_xz < 0)
+			        || (ray.x_z * max.z - min.x + ray.c_zx < 0));
+			
+	    case NNO:
+		    return !((ray.origin.z < min.z) || (ray.origin.z > max.z)
+			        || (ray.origin.x < min.x) || (ray.origin.y < min.y) 
+			        || (ray.y_x * min.x - max.y + ray.c_xy > 0)
+			        || (ray.x_y * min.y - max.x + ray.c_yx > 0));
+			
+	    case NPO:
+		    return !((ray.origin.z < min.z) || (ray.origin.z > max.z)
+			        || (ray.origin.x < min.x) || (ray.origin.y > max.y) 
+			        || (ray.y_x * min.x - min.y + ray.c_xy < 0) 
+			        || (ray.x_y * max.y - max.x + ray.c_yx > 0));
+			
+	    case PNO:
+		    return !((ray.origin.z < min.z) || (ray.origin.z > max.z)
+			        || (ray.origin.x > max.x) || (ray.origin.y < min.y) 
+			        || (ray.y_x * max.x - max.y + ray.c_xy > 0)
+			        || (ray.x_y * min.y - min.x + ray.c_yx < 0));
+			
+	    case PPO:
+		    return !((ray.origin.z < min.z) || (ray.origin.z > max.z)
+			        || (ray.origin.x > max.x) || (ray.origin.y > max.y)
+			        || (ray.y_x * max.x - min.y + ray.c_xy < 0)
+			        || (ray.x_y * max.y - min.x + ray.c_yx < 0));
+			
+	    case NOO:
+		    return !((ray.origin.x < min.x)
+			        || (ray.origin.y < min.y) || (ray.origin.y > max.y)
+			        || (ray.origin.z < min.z) || (ray.origin.z > max.z));
+			
+	    case POO:
+		    return !((ray.origin.x > max.x)
+			        || (ray.origin.y < min.y) || (ray.origin.y > max.y)
+			        || (ray.origin.z < min.z) || (ray.origin.z > max.z));
+			
+	    case ONO:
+		    return !((ray.origin.y < min.y)
+			        || (ray.origin.x < min.x) || (ray.origin.x > max.x)
+			        || (ray.origin.z < min.z) || (ray.origin.z > max.z));
+			
+	    case OPO:
+		    return !((ray.origin.y > max.y)
+			        || (ray.origin.x < min.x) || (ray.origin.x > max.x)
+			        || (ray.origin.z < min.z) || (ray.origin.z > max.z));
+			
+	    case OON:
+		    return !((ray.origin.z < min.z)
+			        || (ray.origin.x < min.x) || (ray.origin.x > max.x)
+			        || (ray.origin.y < min.y) || (ray.origin.y > max.y));
+			
+	    case OOP:
+		    return !((ray.origin.z > max.z)
+			        || (ray.origin.x < min.x) || (ray.origin.x > max.x)
+			        || (ray.origin.y < min.y) || (ray.origin.y > max.y));
+			
+	
+	}
+
+	return false;
 }
 
 __device__
@@ -56,30 +237,30 @@ bool intersection(Ray ray, RayIntersection *out, Plane plane) {
 }
 
 __device__
-bool intersection(Ray ray, RayIntersection *out, Triangle tri) {
-    float normalDOTray = dot(tri.normal, ray.direction); 
+bool intersection(Ray ray, RayIntersection *out, Triangle *tri) {
+    float normalDOTray = dot(tri->normal, ray.direction); 
     
-    float3 h = cross(ray.direction, tri.e2);
-	float a = dot(tri.e1, h);
+    float3 h = cross(ray.direction, tri->e2);
+	float a = dot(tri->e1, h);
 
     if (a > -EPSILON && a < EPSILON) {
 		return false;
     }
 	float f = 1.0f / a;
-	float3 s = ray.origin - tri.vertices[0];
+	float3 s = ray.origin - tri->vertices[0];
 	float u = f * dot(s, h);
 
 	if (u < 0.0 || u > 1.0) {
 		return false;
     }
-	float3 q = cross(s, tri.e1);
+	float3 q = cross(s, tri->e1);
 	float v = f * dot(ray.direction, q);
 
 	if (v < 0.0 || u + v > 1.0) {
 		return false;
     }
 	
-	float t = f * dot(tri.e2, q);
+	float t = f * dot(tri->e2, q);
 
 	if (t < 0) {
 		return false;
@@ -87,9 +268,9 @@ bool intersection(Ray ray, RayIntersection *out, Triangle tri) {
 
 	if (out != nullptr) {
 		out->distance = t;
-		out->normal = tri.normal;
+		out->normal = tri->normal;
 		out->point = ray.origin + t * ray.direction;
-        out->shapeMaterial = tri.material;
+        out->shapeMaterial = tri->material;
 		out->isEntering = normalDOTray < 0.0f;
 
         out->point += out->normal * EPSILON;
@@ -99,12 +280,12 @@ bool intersection(Ray ray, RayIntersection *out, Triangle tri) {
 }
 
 __device__
-bool intersection(Ray ray, RayIntersection *out, Sphere sphere) {
+bool intersection(Ray ray, RayIntersection *out, Sphere *sphere) {
     float d_2, r_2, b, root, t;
 
-    float3 s_r = sphere.center - ray.origin;
+    float3 s_r = sphere->center - ray.origin;
     
-    r_2 = sphere.r * sphere.r;
+    r_2 = sphere->radius * sphere->radius;
     d_2 = dot(s_r, s_r);
 
     if(equal(d_2, r_2)) {
@@ -125,7 +306,7 @@ bool intersection(Ray ray, RayIntersection *out, Sphere sphere) {
 
     if (out != nullptr) {
         out->point = ray.origin + ray.direction * t;
-		out->normal = normalize((out->point - sphere.center) / sphere.r);
+		out->normal = normalize((out->point - sphere->center) / sphere->radius);
 
 		bool entering = true;
 		if (d_2 < r_2) {
@@ -134,7 +315,7 @@ bool intersection(Ray ray, RayIntersection *out, Sphere sphere) {
 		}
         
         out->point += out->normal * EPSILON;
-		out->shapeMaterial = sphere.material;
+		out->shapeMaterial = sphere->material;
 		out->distance = t;
         out->isEntering = entering;
 	}
@@ -143,9 +324,9 @@ bool intersection(Ray ray, RayIntersection *out, Sphere sphere) {
 }
 
 __device__
-bool infiniteCylinderIntersection(Ray ray, RayIntersection *out, Cylinder cylinder, float3 axis, float *inD, float *outD) {
-    float3 r_c = ray.origin - cylinder.base;
-    float r_2 = cylinder.radius * cylinder.radius;
+bool infiniteCylinderIntersection(Ray ray, RayIntersection *out, Cylinder *cylinder, float3 axis, float *inD, float *outD) {
+    float3 r_c = ray.origin - cylinder->base;
+    float r_2 = cylinder->radius * cylinder->radius;
     float3 n = cross(ray.direction, axis);
 
     float ln = length(n);
@@ -154,13 +335,13 @@ bool infiniteCylinderIntersection(Ray ray, RayIntersection *out, Cylinder cylind
     if(equal(ln, 0.0f)) {
         *inD = -1.0e21;
 	    *outD = 1.0e21;
-        return length(r_c - dot(r_c, axis) * axis) <= cylinder.radius;
+        return length(r_c - dot(r_c, axis) * axis) <= cylinder->radius;
     }
     n = normalize(n);
 
     float d = fabs(dot(r_c, n));
 
-    if (d <= cylinder.radius) {
+    if (d <= cylinder->radius) {
         float3 O = cross(r_c, axis);
     
         float t = -dot(O, n) / ln;
@@ -179,12 +360,12 @@ bool infiniteCylinderIntersection(Ray ray, RayIntersection *out, Cylinder cylind
 }
 
 __device__
-bool intersection(Ray ray, RayIntersection *out, Cylinder cylinder) {
-    float3 axis = normalize(cylinder.top - cylinder.base);
+bool intersection(Ray ray, RayIntersection *out, Cylinder *cylinder) {
+    float3 axis = normalize(cylinder->top - cylinder->base);
     float3 normal, point; 
 
-    float baseDistance = -dot(-axis, cylinder.base);
-    float topDistance = -dot(axis, cylinder.top);
+    float baseDistance = -dot(-axis, cylinder->base);
+    float topDistance = -dot(axis, cylinder->top);
 
     float dc, dw, t;
 	float inD, outD;		/* Object  intersection dists.	*/
@@ -271,7 +452,7 @@ bool intersection(Ray ray, RayIntersection *out, Cylinder cylinder) {
         if(sideIn == 0) {
             normal = axis;
         } else if(sideIn == 1) {
-            float3 v1 = point - cylinder.base;
+            float3 v1 = point - cylinder->base;
 	        float3 v2 = dot(v1, axis) * axis;
             normal = normalize(v1 - v2);
         } else {
@@ -286,7 +467,7 @@ bool intersection(Ray ray, RayIntersection *out, Cylinder cylinder) {
         if(sideOut == 0) {
             normal = -axis;
         } else if(sideOut == 1) {
-            float3 v1 = point - cylinder.base;
+            float3 v1 = point - cylinder->base;
 	        float3 v2 = dot(v1, axis) * axis;
 	        normal = normalize(v2 - v1);
         } else {
@@ -299,7 +480,7 @@ bool intersection(Ray ray, RayIntersection *out, Cylinder cylinder) {
 
     if (out != nullptr) {
         out->isEntering = dot(normal, ray.direction) < 0.0f;
-        out->shapeMaterial = cylinder.material;
+        out->shapeMaterial = cylinder->material;
         out->distance = t;
         out->point = point;
         out->normal = normal;
@@ -316,16 +497,21 @@ bool findShadow(int **d_shapes, size_t *d_shapeSizes, Ray feeler) {
     for(size_t shapeType = 0; shapeType < nShapes; shapeType++) {
         for (size_t i = 0; i < d_shapeSizes[shapeType]; i++) {
             if(shapeType == sphereIndex) {
-                Sphere *sphere = (Sphere*) d_shapes[shapeType];
-                intersectionFound = intersection(feeler, nullptr, sphere[i]);
+                SphereNode *sphereNode = (SphereNode*) d_shapes[shapeType];
+
+                intersectionFound = AABBIntersection(feeler, sphereNode[i].min, sphereNode[i].max);
+                
+                if(intersectionFound) {
+                    intersectionFound = intersection(feeler, nullptr, sphereNode[i].shape);
+                }
 
             } else if(shapeType == cylinderIndex) {
-                Cylinder *cylinder = (Cylinder*) d_shapes[shapeType];
-                intersectionFound = intersection(feeler, nullptr, cylinder[i]);
+                CylinderNode *cylinderNode = (CylinderNode*) d_shapes[shapeType];
+                intersectionFound = intersection(feeler, nullptr, cylinderNode[i].shape);
 
             } else if(shapeType == triangleIndex) {
-                Triangle *triangle = (Triangle*) d_shapes[shapeType];
-                intersectionFound = intersection(feeler, nullptr, triangle[i]);
+                TriangleNode *triangleNode = (TriangleNode*) d_shapes[shapeType];
+                intersectionFound = intersection(feeler, nullptr, triangleNode[i].shape);
             
             } else if(shapeType == planeIndex) {
                 Plane *plane = (Plane*) d_shapes[shapeType];
@@ -353,17 +539,37 @@ bool nearestIntersect(int **d_shapes, size_t *d_shapeSizes, Ray ray, RayIntersec
     for(size_t shapeType = 0; shapeType < nShapes; shapeType++) {
         for (size_t i = 0; i < d_shapeSizes[shapeType]; i++) {
             if(shapeType == sphereIndex) {
-                Sphere *sphere = (Sphere*) d_shapes[shapeType];
-                intersectionFound = intersection(ray, &curr, sphere[i]);
+                SphereNode *sphereNode = (SphereNode*) d_shapes[shapeType];
 
+                intersectionFound = AABBIntersection(ray, sphereNode[i].min, sphereNode[i].max);
+
+                if(intersectionFound) {
+                    intersectionFound = intersection(ray, &curr, sphereNode[i].shape);
+                }
+               
             } else if(shapeType == cylinderIndex) {
-                Cylinder *cylinder = (Cylinder*) d_shapes[shapeType];
-                intersectionFound = intersection(ray, &curr, cylinder[i]);
+                CylinderNode *cylinderNode = (CylinderNode*) d_shapes[shapeType];
+
+                if(cylinderNode[i].type == AABB) {
+                    intersectionFound = AABBIntersection(ray, cylinderNode[i].min, cylinderNode[i].max);
+                } else {
+                    //TODO
+                    intersectionFound = false;
+                }
+
+                if(intersectionFound) {
+                    intersectionFound = intersection(ray, &curr, cylinderNode[i].shape);
+                }
 
             } else if(shapeType == triangleIndex) {
-                Triangle *triangle = (Triangle*) d_shapes[shapeType];
-                intersectionFound = intersection(ray, &curr, triangle[i]);
-            
+                TriangleNode *triangleNode = (TriangleNode*) d_shapes[shapeType];
+
+                intersectionFound = AABBIntersection(ray, triangleNode[i].min, triangleNode[i].max);
+
+                if(intersectionFound) {
+                    intersectionFound = intersection(ray, &curr, triangleNode[i].shape);
+                }
+
             } else if(shapeType == planeIndex) {
                 Plane *plane = (Plane*) d_shapes[shapeType];
                 intersectionFound = intersection(ray, &curr, plane[i]);

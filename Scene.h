@@ -17,7 +17,7 @@
 
 #define SUPER_SAMPLING 1
 
-#define MAX_DEPTH 1
+#define MAX_DEPTH 2
 
 #define KB 1000
 #define MB (1000 * KB)
@@ -28,6 +28,8 @@
 #define triangleIndex 2
 #define planeIndex 3
 #define nShapes 4
+
+#define EPSILON 1E-4f
 
 enum BBType {
     AABB,
@@ -40,7 +42,7 @@ enum BBType {
  */
 enum RayClassification {
     NNN, NNO, NNP, NON, NOO, NOP, NPN, NPO, NPP,
-    ONN, ONO, ONP, OON, OOP = 14, OPN, OPO, OPP,
+    ONN, ONO, ONP, OON, OOO, OOP, OPN, OPO, OPP,
     PNN, PNO, PNP, PON, POO, POP, PPN, PPO, PPP
         
 };
@@ -50,9 +52,9 @@ enum RayClassification {
 struct Ray {
     float3 origin;
     float3 direction;
-    float3 invDirection;
+    
     bool exists;
-    int classification;
+    short classification;
 
     //slope
     float x_y, y_x, y_z, z_y, x_z, z_x; 
@@ -60,6 +62,7 @@ struct Ray {
 
     __host__ __device__
     void computeSlopes() {
+        float3 invDirection = 1.0f / direction;
         x_y = direction.x * invDirection.y;
 	    y_x = direction.y * invDirection.x;
 	    y_z = direction.y * invDirection.z;
@@ -86,7 +89,7 @@ struct Ray {
 		}
 
         if(direction.y < 0) {
-			
+			//ignore
 		} else if(direction.y > 0){
 			classification += 6;
 
@@ -95,8 +98,8 @@ struct Ray {
 		}
 
         if(direction.z < 0) {
-			
-		} else if(direction.y > 0){
+			//ignore
+		} else if(direction.z > 0){
 			classification += 2;
 
 		} else {
@@ -108,7 +111,6 @@ struct Ray {
     Ray() {
         origin = make_float3(0.0f);
         direction = make_float3(0.0f, 0.0f, 1.0f);
-        invDirection = 1.0f / direction;
         exists = true;
     }
 
@@ -116,7 +118,6 @@ struct Ray {
     Ray(float3 origin, float3 direction) {
         this->origin = origin;
         this->direction = direction;
-        invDirection = 1.0f / direction;
         this->exists = true;
 
         computeSlopes();
@@ -126,7 +127,6 @@ struct Ray {
     void update(float3 origin, float3 direction) {
         this->origin = origin;
         this->direction = direction;
-        invDirection = 1.0f / direction;
         this->exists = true;
 
         computeSlopes();
@@ -228,26 +228,26 @@ struct Light {
 
 struct Sphere {
 	float3 center;
-    float r;
+    float radius;
     Material material;
 
     __host__
 	Sphere() {
         center = make_float3(0.0f);
-        r = 1.0f;
+        radius = 1.0f;
     }
 
     __host__
-	Sphere(float x, float y, float z, float r) {
+	Sphere(float x, float y, float z, float radius) {
         center = make_float3(x, y, z);
-        this->r = r;
+        this->radius = radius;
     }
     
     __host__
     std::string print() {
         std::ostringstream os;
 
-        os << "Sphere: " << center.x << " " << center.y << " " << center.z << " " << r << std::endl;
+        os << "Sphere: " << center.x << " " << center.y << " " << center.z << " " << radius << std::endl;
 
         return os.str();
     }
@@ -348,27 +348,36 @@ struct Triangle {
 };
 
 
-struct Node {
+struct CylinderNode {
     float3 max;
     float3 min;
-    BBType type;
+    short type;
     Cylinder *shape;
 
     __host__
-    Node() {
+    CylinderNode() {
         type = AABB;
         shape = nullptr;
     }
 
     __host__
-    Node(BBType type) {
+    CylinderNode(short type) {
         this->type = type;
         shape = nullptr;
     }
 
     __host__
-    Node(BBType type, Cylinder *shape) {
+    CylinderNode(short type, Cylinder *shape) {
         this->type = type;
+        this->shape = shape;
+
+        min = fminf(shape->base, shape->top) - shape->radius;
+        max = fmaxf(shape->base, shape->top) + shape->radius;
+    }
+
+    __host__
+    CylinderNode(Cylinder *shape) {
+        type = AABB;
         this->shape = shape;
 
         min = fminf(shape->base, shape->top) - shape->radius;
@@ -379,51 +388,33 @@ struct Node {
 struct SphereNode{
     float3 max;
     float3 min;
-    BBType type;
     Sphere *shape;
 
     __host__
     SphereNode() {
-        type = AABB;
         shape = nullptr;
     }
 
     __host__
-    SphereNode(BBType type) {
-        this->type = type;
-        shape = nullptr;
-    }
-
-    __host__
-    SphereNode(BBType type, Sphere *shape) {
-        this->type = type;
+    SphereNode(Sphere *shape) {
         this->shape = shape;
-        max = shape->center + shape->r;
-        min = shape->center - shape->r;
+        max = shape->center + shape->radius;
+        min = shape->center - shape->radius;
     }
 };
 
 struct TriangleNode {
     float3 max;
     float3 min;
-    BBType type;
     Triangle *shape;
 
     __host__
     TriangleNode() {
-        type = AABB;
         shape = nullptr;
     }
 
     __host__
-    TriangleNode(BBType type) {
-        this->type = type;
-        shape = nullptr;
-    }
-
-    __host__
-    TriangleNode(BBType type, Triangle *shape) {
-        this->type = type;
+    TriangleNode(Triangle *shape) {
         this->shape = shape;
         max = fmaxf(fmaxf(shape->vertices[0], shape->vertices[1]), shape->vertices[2]);
         min = fminf(fminf(shape->vertices[0], shape->vertices[1]), shape->vertices[2]);
@@ -434,17 +425,17 @@ struct Scene {
 private:
     float3 backcolor;
     Material material;
-    std::vector<Sphere> h_spheres;
-    std::vector<Cylinder> h_cylinders;
-    std::vector<Triangle> h_triangles;
+    std::vector<SphereNode> h_spheres;
+    std::vector<CylinderNode> h_cylinders;
+    std::vector<TriangleNode> h_triangles;
     std::vector<Plane> h_planes;
 	std::vector<Light> h_lights;
     
     size_t *h_shapeSizes;
     
-    Sphere *d_spheres;
-    Cylinder *d_cylinders;
-    Triangle *d_triangles;
+    SphereNode *d_spheres;
+    CylinderNode *d_cylinders;
+    TriangleNode *d_triangles;
     Plane *d_planes;
 
     Light *d_lights;
@@ -575,60 +566,111 @@ public:
         //Spheres
         size = h_spheres.size();
         if(size > 0) {
-            Sphere *sphVector = new Sphere[size];
+            SphereNode *sphVector = new SphereNode[size];
             h_shapeSizes[sphereIndex] = size;
 
+            Sphere *h_sphere;
+            size_t sizeSphere = sizeof(Sphere);
             for(size_t i = 0; i < size; i++) {
                 sphVector[i] = h_spheres[i];
+
+                h_sphere = h_spheres[i].shape;
+                if(h_sphere != nullptr) {
+                    sceneSize += sizeSphere;
+                    checkCudaErrors(cudaMalloc((void**) &sphVector[i].shape, sizeSphere));
+                    checkCudaErrors(cudaMemcpy(sphVector[i].shape, h_sphere, sizeSphere, cudaMemcpyHostToDevice));
+                }
             }
 
-            size *= sizeof(Sphere);
+            size *= sizeof(SphereNode);
             sceneSize += size;
 
             checkCudaErrors(cudaMalloc((void**) &d_spheres, size));
             checkCudaErrors(cudaMemcpy(d_spheres, sphVector, size, cudaMemcpyHostToDevice));
 
             delete[] sphVector;
+            Sphere *s;
+            for(size_t i = 0; i < h_spheres.size(); i++) {
+                s = h_spheres[i].shape;
+
+                if(s != nullptr) {
+                    delete s;
+                }
+            }
             h_spheres.clear();
         }
 
         //cylinders
         size = h_cylinders.size();
         if(size > 0) {
-            Cylinder *cylVector = new Cylinder[size];
+            CylinderNode *cylVector = new CylinderNode[size];
             h_shapeSizes[cylinderIndex] = size;
 
+            Cylinder *h_cylinder;
+            size_t cylinderSize = sizeof(Cylinder);
             for(size_t i = 0; i < size; i++) {
                 cylVector[i] = h_cylinders[i];
+
+                h_cylinder = h_cylinders[i].shape;
+                if(h_cylinder != nullptr) {
+                    sceneSize += cylinderSize;
+                    checkCudaErrors(cudaMalloc((void**) &cylVector[i].shape, cylinderSize));
+                    checkCudaErrors(cudaMemcpy(cylVector[i].shape, h_cylinder, cylinderSize, cudaMemcpyHostToDevice));
+                }
             }
 
-            size *= sizeof(Cylinder);
+            size *= sizeof(CylinderNode);
             sceneSize += size;
 
             checkCudaErrors(cudaMalloc((void**) &d_cylinders, size));
             checkCudaErrors(cudaMemcpy(d_cylinders, cylVector, size, cudaMemcpyHostToDevice));
 
             delete[] cylVector;
+            Cylinder *c;
+            for(size_t i = 0; i < h_cylinders.size(); i++) {
+                c = h_cylinders[i].shape;
+
+                if(c != nullptr) {
+                    delete c;
+                }
+            }
             h_cylinders.clear();
         }
 
         //triangles
         size = h_triangles.size();
         if(size > 0) {
-            Triangle *triVector = new Triangle[size];
+            TriangleNode *triVector = new TriangleNode[size];
             h_shapeSizes[triangleIndex] = size;
 
+            Triangle *h_triangle;
+            size_t triangleSize = sizeof(Triangle);
             for(size_t i = 0; i < size; i++) {
                 triVector[i] = h_triangles[i];
+
+                h_triangle = h_triangles[i].shape;
+                if(h_triangle != nullptr) {
+                    sceneSize += triangleSize;
+                    checkCudaErrors(cudaMalloc((void**) &triVector[i].shape, triangleSize));
+                    checkCudaErrors(cudaMemcpy(triVector[i].shape, h_triangle, triangleSize, cudaMemcpyHostToDevice));
+                }
             }
 
-            size *= sizeof(Triangle);
+            size *= sizeof(TriangleNode);
             sceneSize += size;
 
             checkCudaErrors(cudaMalloc((void**) &d_triangles, size));
             checkCudaErrors(cudaMemcpy(d_triangles, triVector, size, cudaMemcpyHostToDevice));
 
             delete[] triVector;
+            Triangle *t;
+            for(size_t i = 0; i < h_triangles.size(); i++) {
+                t = h_triangles[i].shape;
+
+                if(t != nullptr) {
+                    delete t;
+                }
+            }
             h_triangles.clear();
         }
 
@@ -700,23 +742,26 @@ public:
 
     __host__
     void addCylinder(float3 base, float3 top, float radius) {
-	    Cylinder c = Cylinder(base, top, radius);
-	    c.material = material;
-	    h_cylinders.push_back(c);
+	    Cylinder *c = new Cylinder(base, top, radius);
+	    c->material = material;
+        CylinderNode cn = CylinderNode(c);
+	    h_cylinders.push_back(cn);
     }
 
     __host__
     void addSphere(float3 center, float radius) {
-	    Sphere sp = Sphere(center.x, center.y, center.z, radius);
-	    sp.material = material;
-	    h_spheres.push_back(sp);
+	    Sphere *sp = new Sphere(center.x, center.y, center.z, radius);
+	    sp->material = material;
+        SphereNode spn = SphereNode(sp);
+	    h_spheres.push_back(spn);
     }
 
     __host__
     void addTriangle(std::vector<float3> verts) {
-	    Triangle t = Triangle(verts);
-	    t.material = material;
-	    h_triangles.push_back(t);
+	    Triangle *t = new Triangle(verts);
+	    t->material = material;
+        TriangleNode tn = TriangleNode(t);
+	    h_triangles.push_back(tn);
     }
 
     __host__
