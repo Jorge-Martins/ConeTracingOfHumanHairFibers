@@ -498,7 +498,6 @@ bool findShadow(int **d_shapes, size_t *d_shapeSizes, Ray feeler) {
         for (size_t i = 0; i < d_shapeSizes[shapeType]; i++) {
             if(shapeType == sphereIndex) {
                 SphereNode *sphereNode = (SphereNode*) d_shapes[shapeType];
-
                 intersectionFound = AABBIntersection(feeler, sphereNode[i].min, sphereNode[i].max);
                 
                 if(intersectionFound) {
@@ -507,12 +506,18 @@ bool findShadow(int **d_shapes, size_t *d_shapeSizes, Ray feeler) {
 
             } else if(shapeType == cylinderIndex) {
                 CylinderNode *cylinderNode = (CylinderNode*) d_shapes[shapeType];
-                intersectionFound = intersection(feeler, nullptr, cylinderNode[i].shape);
+                intersectionFound = AABBIntersection(feeler, cylinderNode[i].min, cylinderNode[i].max);
 
+                if(intersectionFound) {
+                    intersectionFound = intersection(feeler, nullptr, cylinderNode[i].shape);
+                }
             } else if(shapeType == triangleIndex) {
                 TriangleNode *triangleNode = (TriangleNode*) d_shapes[shapeType];
-                intersectionFound = intersection(feeler, nullptr, triangleNode[i].shape);
-            
+                intersectionFound = AABBIntersection(feeler, triangleNode[i].min, triangleNode[i].max);
+
+                if(intersectionFound) {
+                    intersectionFound = intersection(feeler, nullptr, triangleNode[i].shape);
+                }
             } else if(shapeType == planeIndex) {
                 Plane *plane = (Plane*) d_shapes[shapeType];
                 intersectionFound = intersection(feeler, nullptr, plane[i]);

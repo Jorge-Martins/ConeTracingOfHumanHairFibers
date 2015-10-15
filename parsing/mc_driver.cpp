@@ -36,7 +36,7 @@ bool MC::MC_Driver::parse(const char *filename) {
         
         std::getline(iss, token , ' ');
 
-        if(token == "#") {
+        if(token == "#" || token == "") {
             //Ignore the rest of the line
         }
 
@@ -46,8 +46,8 @@ bool MC::MC_Driver::parse(const char *filename) {
             float3 from, at, up;
             float angle, hither;
             int2 resolution;
-
-            for(int i = 0; i < 6; i++) {
+            int nLines = 6;
+            for(int i = 0; i < nLines; i++) {
                 std::getline(in_file, line);
                 std::istringstream iss(line);
 
@@ -108,9 +108,15 @@ bool MC::MC_Driver::parse(const char *filename) {
 
                     resolution = make_int2(x, y);
                 } 
-                
+
+                else if(vToken == "#" || vToken == "") {
+                    nLines++;
+                    //Ignore the rest of the line
+                }
+
                 else {
-                    print("token : " + vToken + " was not recognized inside v");
+                    nLines++;
+                    print("token :" + vToken + " was not recognized inside v");
                 }
             }
 
@@ -257,7 +263,7 @@ bool MC::MC_Driver::parse(const char *filename) {
         } 
 
         else {
-            print("token : " + token + " was not recognized");
+            print("token:" + token + " was not recognized");
         }
     }
 
