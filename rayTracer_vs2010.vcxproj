@@ -115,7 +115,11 @@
   <ItemGroup>
     <ClCompile Include="parsing\mc_driver.cpp" />
     <ClCompile Include="RayTracer.cpp" />
+    <ClInclude Include="Intersection.cuh" />
+    <ClInclude Include="MathUtil.h" />
+    <ClInclude Include="parsing\cyHairFile.h" />
     <ClInclude Include="parsing\mc_driver.hpp" />
+    <ClInclude Include="Primitives.h" />
     <ClInclude Include="Scene.h" />
     <ClInclude Include="SceneLoader.h" />
     <CudaCompile Include="rayTracer_kernel.cu" />

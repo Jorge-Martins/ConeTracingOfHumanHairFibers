@@ -10,6 +10,18 @@
     <ClInclude Include="parsing\mc_driver.hpp">
       <Filter>parsing files</Filter>
     </ClInclude>
+    <ClInclude Include="MathUtil.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="parsing\cyHairFile.h">
+      <Filter>parsing files</Filter>
+    </ClInclude>
+    <ClInclude Include="Primitives.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="Intersection.cuh">
+      <Filter>cuda</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="headers">
