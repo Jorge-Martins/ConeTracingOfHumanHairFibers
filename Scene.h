@@ -195,15 +195,32 @@ public:
             h_shapeSizes[cylinderIndex] = size;
 
             Cylinder *h_cylinder;
+            float3 *h_translation;
+            Matrix *h_m;
             size_t cylinderSize = sizeof(Cylinder);
             for(size_t i = 0; i < size; i++) {
                 cylVector[i] = h_cylinders[i];
 
                 h_cylinder = h_cylinders[i].shape;
                 if(h_cylinder != nullptr) {
+                    //copy shape
                     sceneSize += cylinderSize;
                     checkCudaErrors(cudaMalloc((void**) &cylVector[i].shape, cylinderSize));
                     checkCudaErrors(cudaMemcpy(cylVector[i].shape, h_cylinder, cylinderSize, cudaMemcpyHostToDevice));
+                }
+
+                if(h_cylinders[i].type == OBB) {
+                    //copy matrix
+                    h_m = h_cylinders[i].matrix;
+                    sceneSize += sizeof(Matrix);
+                    checkCudaErrors(cudaMalloc((void**) &cylVector[i].matrix, sizeof(Matrix)));
+                    checkCudaErrors(cudaMemcpy(cylVector[i].matrix, h_m, sizeof(Matrix), cudaMemcpyHostToDevice));
+
+                    //copy translation
+                    h_translation = h_cylinders[i].translation;
+                    sceneSize += sizeof(float3);
+                    checkCudaErrors(cudaMalloc((void**) &cylVector[i].translation, sizeof(float3)));
+                    checkCudaErrors(cudaMemcpy(cylVector[i].translation, h_translation, sizeof(float3), cudaMemcpyHostToDevice));
                 }
             }
 
@@ -220,6 +237,11 @@ public:
 
                 if(c != nullptr) {
                     delete c;
+                }
+
+                if(h_cylinders[i].type == OBB) {
+                    delete h_cylinders[i].matrix;
+                    delete h_cylinders[i].translation;
                 }
             }
             h_cylinders.clear();

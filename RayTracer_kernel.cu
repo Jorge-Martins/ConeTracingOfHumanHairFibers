@@ -34,11 +34,19 @@ bool findShadow(int **d_shapes, size_t *d_shapeSizes, Ray feeler) {
 
             } else if(shapeType == cylinderIndex) {
                 CylinderNode *cylinderNode = (CylinderNode*) d_shapes[shapeType];
-                intersectionFound = AABBIntersection(feeler, cylinderNode[i].min, cylinderNode[i].max);
+
+                if(cylinderNode[i].type == AABB) {
+                    intersectionFound = AABBIntersection(feeler, cylinderNode[i].min, cylinderNode[i].max);
+
+                } else {
+                    intersectionFound = OBBIntersection(feeler, cylinderNode[i].min, cylinderNode[i].max, 
+                                                        cylinderNode[i].matrix, cylinderNode[i].translation);
+                }
 
                 if(intersectionFound) {
                     intersectionFound = intersection(feeler, nullptr, cylinderNode[i].shape);
                 }
+
             } else if(shapeType == triangleIndex) {
                 TriangleNode *triangleNode = (TriangleNode*) d_shapes[shapeType];
                 intersectionFound = AABBIntersection(feeler, triangleNode[i].min, triangleNode[i].max);
@@ -46,6 +54,7 @@ bool findShadow(int **d_shapes, size_t *d_shapeSizes, Ray feeler) {
                 if(intersectionFound) {
                     intersectionFound = intersection(feeler, nullptr, triangleNode[i].shape);
                 }
+
             } else if(shapeType == planeIndex) {
                 Plane *plane = (Plane*) d_shapes[shapeType];
                 intersectionFound = intersection(feeler, nullptr, plane[i]);
@@ -86,8 +95,8 @@ bool nearestIntersect(int **d_shapes, size_t *d_shapeSizes, Ray ray, RayIntersec
                 if(cylinderNode[i].type == AABB) {
                     intersectionFound = AABBIntersection(ray, cylinderNode[i].min, cylinderNode[i].max);
                 } else {
-                    //TODO
-                    intersectionFound = false;
+                    intersectionFound = OBBIntersection(ray, cylinderNode[i].min, cylinderNode[i].max, 
+                                                        cylinderNode[i].matrix, cylinderNode[i].translation);
                 }
 
                 if(intersectionFound) {

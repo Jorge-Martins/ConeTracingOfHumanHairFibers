@@ -12,6 +12,11 @@ bool equal(float f1, float f2) {
 }
 
 __device__
+float3 getTransformed(Matrix *m, float3 *translation, float3 v) {
+    return *m * (v + *translation);
+}
+
+__device__
 bool AABBIntersection(Ray ray, float3 min, float3 max) {
     switch (ray.classification) {
 	    case NNN:	
@@ -192,6 +197,19 @@ bool AABBIntersection(Ray ray, float3 min, float3 max) {
 	}
 
 	return false;
+}
+
+__device__
+bool OBBIntersection(Ray ray, float3 min, float3 max, Matrix *m, float3 *translation) {
+    float3 origin = ray.origin;
+    float3 direction = ray.direction;
+
+    ray.update(getTransformed(m, translation, ray.origin), getTransformed(m, translation, ray.direction)); 
+
+    bool res = AABBIntersection(ray, min, max);
+
+    ray.update(origin, direction);
+    return res;
 }
 
 __device__

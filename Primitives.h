@@ -365,16 +365,39 @@ struct CylinderNode {
             float dotAB = dot(A, B);
             float3 AxB = cross(A, B);
 
-            Matrix R = Matrix(dotAB, -length(AxB), 0.0f,
+            /*Matrix R = Matrix(dotAB, -length(AxB), 0.0f,
                               length(AxB), dotAB,  0.0f,
                               0.0f, 0.0f, 1.0f);
 
             Matrix Fi = Matrix(A, (B - dotAB * A) / length(B - dotAB * A), -AxB);
             
-            matrix = new Matrix((Fi * R * Fi.inverse()).M);
+            matrix = new Matrix((Fi * R * Fi.inverse()).M);*/
+
             
-            //Matrix debug
-            A = *matrix * (shape->top + *translation);
+            matrix = new Matrix(AxB, cross(AxB, A), A);  
+
+
+            /*float idotAB = 1 - dotAB;
+	        float rsin = length(AxB);
+            
+	        matrix = new Matrix(dotAB + AxB.x * AxB.x *(idotAB),
+	                            AxB.z * rsin + AxB.y * AxB.x *(idotAB),
+	                            -AxB.y * rsin + AxB.z * AxB.x *(idotAB),
+
+	                            -AxB.z * rsin + AxB.x * AxB.y *(idotAB),
+	                            dotAB + AxB.y * AxB.y *(idotAB),
+	                            AxB.x * rsin + AxB.z * AxB.y *(idotAB),
+
+	                            AxB.y * rsin + AxB.x * AxB.z *(idotAB),
+	                            -AxB.x * rsin + AxB.y * AxB.z *(idotAB),
+	                            dotAB + AxB.z * AxB.z *(idotAB));
+            */
+
+            //debug
+            //B = *matrix * (A + *translation);
+
+            max = make_float3(shape->radius, shape->radius, height);
+            min = make_float3(-shape->radius, -shape->radius, 0);
 
         }
     }
@@ -387,6 +410,17 @@ struct CylinderNode {
 
         min = fminf(shape->base, shape->top) - shape->radius;
         max = fmaxf(shape->base, shape->top) + shape->radius;
+    }
+
+    __host__ __device__
+    float volume() {
+        float x, y, z;
+
+        x = abs(max.x - min.x);
+        y = abs(max.y - min.y); 
+        z = abs(max.z - min.z);
+
+        return x * y * z;
     }
 };
 
