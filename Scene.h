@@ -19,7 +19,7 @@ private:
     std::vector<Plane> h_planes;
 	std::vector<Light> h_lights;
     
-    size_t *h_shapeSizes;
+    long *h_shapeSizes;
     
     SphereNode *d_spheres;
     CylinderNode *d_cylinders;
@@ -29,8 +29,8 @@ private:
     Light *d_lights;
 
     int **d_shapes;
-    size_t *d_shapeSizes;
-    size_t d_lightsSize;
+    long *d_shapeSizes;
+    long d_lightsSize;
 
 public:
     __host__
@@ -43,7 +43,7 @@ public:
         d_triangles = nullptr;
         d_planes = nullptr; 
         
-        h_shapeSizes = new size_t[nShapes];
+        h_shapeSizes = new long[nShapes];
         
         d_lights = nullptr;
 
@@ -87,12 +87,12 @@ public:
     }
 
     __host__
-    size_t* getDShapesSize() {
+    long* getDShapesSize() {
         return d_shapeSizes;
     }
 
     __host__
-    size_t getDLightsSize() {
+    long getDLightsSize() {
         return d_lightsSize;
     }
 
@@ -131,18 +131,18 @@ public:
 
     __host__
     bool copyToDevice() {
-        size_t size, sceneSize = 0;
+        long size, sceneSize = 0;
 
         Light *ltVector = new Light[h_lights.size()];
 
-        for(size_t i = 0; i < h_lights.size(); i++) {
+        for(long i = 0; i < h_lights.size(); i++) {
             ltVector[i] = h_lights[i];
         }
 
-        d_lightsSize = h_lights.size();
+        d_lightsSize = (long)h_lights.size();
         
 
-        size = h_lights.size() * sizeof(Light);
+        size = (long)h_lights.size() * sizeof(Light);
         sceneSize += size;
 
         checkCudaErrors(cudaMalloc((void**) &d_lights, size));
@@ -152,14 +152,14 @@ public:
         h_lights.clear();
 
         //Spheres
-        size = h_spheres.size();
+        size = (long)h_spheres.size();
         if(size > 0) {
             SphereNode *sphVector = new SphereNode[size];
             h_shapeSizes[sphereIndex] = size;
 
             Sphere *h_sphere;
-            size_t sizeSphere = sizeof(Sphere);
-            for(size_t i = 0; i < size; i++) {
+            long sizeSphere = sizeof(Sphere);
+            for(long i = 0; i < size; i++) {
                 sphVector[i] = h_spheres[i];
 
                 h_sphere = h_spheres[i].shape;
@@ -178,7 +178,7 @@ public:
 
             delete[] sphVector;
             Sphere *s;
-            for(size_t i = 0; i < h_spheres.size(); i++) {
+            for(long i = 0; i < h_spheres.size(); i++) {
                 s = h_spheres[i].shape;
 
                 if(s != nullptr) {
@@ -189,7 +189,7 @@ public:
         }
 
         //cylinders
-        size = h_cylinders.size();
+        size = (long)h_cylinders.size();
         if(size > 0) {
             CylinderNode *cylVector = new CylinderNode[size];
             h_shapeSizes[cylinderIndex] = size;
@@ -197,8 +197,8 @@ public:
             Cylinder *h_cylinder;
             float3 *h_translation;
             Matrix *h_m;
-            size_t cylinderSize = sizeof(Cylinder);
-            for(size_t i = 0; i < size; i++) {
+            long cylinderSize = sizeof(Cylinder);
+            for(long i = 0; i < size; i++) {
                 cylVector[i] = h_cylinders[i];
 
                 h_cylinder = h_cylinders[i].shape;
@@ -232,7 +232,7 @@ public:
 
             delete[] cylVector;
             Cylinder *c;
-            for(size_t i = 0; i < h_cylinders.size(); i++) {
+            for(long i = 0; i < h_cylinders.size(); i++) {
                 c = h_cylinders[i].shape;
 
                 if(c != nullptr) {
@@ -248,14 +248,14 @@ public:
         }
 
         //triangles
-        size = h_triangles.size();
+        size = (long)h_triangles.size();
         if(size > 0) {
             TriangleNode *triVector = new TriangleNode[size];
             h_shapeSizes[triangleIndex] = size;
 
             Triangle *h_triangle;
-            size_t triangleSize = sizeof(Triangle);
-            for(size_t i = 0; i < size; i++) {
+            long triangleSize = sizeof(Triangle);
+            for(long i = 0; i < size; i++) {
                 triVector[i] = h_triangles[i];
 
                 h_triangle = h_triangles[i].shape;
@@ -274,7 +274,7 @@ public:
 
             delete[] triVector;
             Triangle *t;
-            for(size_t i = 0; i < h_triangles.size(); i++) {
+            for(long i = 0; i < h_triangles.size(); i++) {
                 t = h_triangles[i].shape;
 
                 if(t != nullptr) {
@@ -285,12 +285,12 @@ public:
         }
 
         //planes
-        size = h_planes.size();
+        size = (long)h_planes.size();
         if(size > 0) {
             Plane *plaVector = new Plane[size];
             h_shapeSizes[planeIndex] = size;
 
-            for(size_t i = 0; i < size; i++) {
+            for(long i = 0; i < size; i++) {
                 plaVector[i] = h_planes[i];
             }
 

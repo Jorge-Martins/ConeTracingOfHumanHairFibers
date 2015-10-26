@@ -22,6 +22,9 @@
     <ClInclude Include="Intersection.cuh">
       <Filter>cuda</Filter>
     </ClInclude>
+    <ClInclude Include="BVH.cuh">
+      <Filter>cuda</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="headers">
