@@ -305,7 +305,7 @@ bool intersection(Ray ray, RayIntersection *out, Sphere *sphere) {
         return false;
     }
 
-    t = min(b - sqrtf(root), b + sqrtf(root));
+    t = fminf(b - sqrtf(root), b + sqrtf(root));
 
     if (out != nullptr) {
         out->point = ray.origin + ray.direction * t;
@@ -336,8 +336,8 @@ bool infiniteCylinderIntersection(Ray ray, RayIntersection *out, Cylinder *cylin
 
     // check if is parallel
     if(equal(ln, 0.0f)) {
-        *inD = -1.0e21;
-	    *outD = 1.0e21;
+        *inD = -1.0e21f;
+	    *outD = 1.0e21f;
         return length(r_c - dot(r_c, axis) * axis) <= cylinder->radius;
     }
     n = normalize(n);

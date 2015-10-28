@@ -219,9 +219,9 @@ float3 rayTracing(int **d_shapes, long *d_shapeSizes, Light* lights, long lightS
                 
 		    if(!inShadow) {
                 float3 reflectDir = reflect(-feelerDir, intersect.normal);
-                float Lspec = powf(fmax(dot(reflectDir, -ray[rayOffset + rayIndex(rayN)].direction), 0.0f), 
+                float Lspec = powf(fmaxf(dot(reflectDir, -ray[rayOffset + rayIndex(rayN)].direction), 0.0f), 
                                          mat.shininess);
-                float Ldiff = fmax(dot(feelerDir, intersect.normal), 0.0f);
+                float Ldiff = fmaxf(dot(feelerDir, intersect.normal), 0.0f);
 
 			    
                 locals[localsOffset + rayN] +=  (Ldiff * mat.color * mat.Kdiffuse + mat.color * Lspec * mat.Kspecular) * lights[li].color;

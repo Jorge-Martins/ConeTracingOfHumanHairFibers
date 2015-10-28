@@ -1,3 +1,7 @@
+#pragma once
+
+#ifndef __BVH__
+#define __BVH__
 
 #include "Intersection.cuh"
 
@@ -6,18 +10,19 @@
 __device__
 void traverse(CylinderNode **list, CylinderNode *bvh, long bvhSize, Ray ray) {
     bool intersection = false;
-    int stackNodes[StackSize];
-    int stackChildren[StackSize];
+    long stackNodes[StackSize];
+    long stackChildren[StackSize];
 
-    int *stackPtr = stackNodes;
-    int *stackChildPtr = stackChildren;
+    long *stackPtr = stackNodes;
+    long *stackChildPtr = stackChildren;
 
-    *stackPtr++ = *stackChildPtr++ = -1;
+    *stackPtr = *stackChildPtr = -1;
+    stackPtr++;
     *stackPtr = 0;
 
     int listIndex = 0;
     CylinderNode *node;
-    int stackNodeIndex;
+    long stackNodeIndex;
 
     while((stackNodeIndex = *stackPtr) != -1) {
         node = &bvh[stackNodeIndex];
@@ -35,16 +40,20 @@ void traverse(CylinderNode **list, CylinderNode *bvh, long bvhSize, Ray ray) {
                 
             // Internal node
             } else {
-                *stackChildPtr++ = 2 * stackNodeIndex + 1;
-                *stackChildPtr++ = 2 * stackNodeIndex + 2;
+                *++stackChildPtr = 2 * stackNodeIndex + 1;
+                *++stackChildPtr = 2 * stackNodeIndex + 2;
             }
 
             if(*stackPtr == -1) {
-                int *tmp = stackPtr;
+                long *tmp;
 
+                tmp = stackPtr;
                 stackPtr = stackChildPtr;
                 stackChildPtr = tmp;
             }
         }
     }
 }
+
+
+#endif;

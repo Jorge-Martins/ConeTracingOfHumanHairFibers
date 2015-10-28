@@ -333,6 +333,7 @@ struct CylinderNode {
     Cylinder *shape;
     Matrix *matrix;
     float3 *translation;
+    unsigned int mortonCode;
 
     __host__
     CylinderNode() {
@@ -407,6 +408,7 @@ struct CylinderNode {
         type = AABB;
         this->shape = shape;
         matrix = nullptr;
+        translation = nullptr;
 
         min = fminf(shape->base, shape->top) - shape->radius;
         max = fmaxf(shape->base, shape->top) + shape->radius;
