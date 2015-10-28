@@ -4,6 +4,8 @@
 #define _SCENE_H_
 
 #include "Primitives.h"
+#include <thrust/sort.h>
+
 
 #define KB 1000
 #define MB (1000 * KB)
@@ -154,10 +156,13 @@ public:
 
             Sphere *h_sphere;
             long sizeSphere = sizeof(Sphere);
-            for(long i = 0; i < size; i++) {
-                sphVector[i] = h_spheres[i];
 
-                h_sphere = h_spheres[i].shape;
+            SphereNode *node;
+            for(long i = 0; i < size; i++) {
+                node = &h_spheres[i];
+                sphVector[i] = *node;
+
+                h_sphere = node->shape;
                 if(h_sphere != nullptr) {
                     sceneSize += sizeSphere;
                     checkCudaErrors(cudaMalloc((void**) &sphVector[i].shape, sizeSphere));
@@ -187,18 +192,35 @@ public:
         size = (long)h_cylinders.size();
         if(size > 0) {
             CylinderNode *cylVector = new CylinderNode[size];
+            unsigned int *codes = new unsigned int[size];
+            long *values = new long[size];
+
             h_shapeSizes[cylinderIndex] = size;
 
             Cylinder *h_cylinder;
             float3 *h_translation;
             Matrix *h_m;
             long cylinderSize = sizeof(Cylinder);
+
+            unsigned int code;
             for(long i = 0; i < size; i++) {
-                cylVector[i] = h_cylinders[i];
+                code = morton3D(computeCenter(cmin, cmax, h_cylinders[i].min, h_cylinders[i].max));
 
-                cylVector[i].mortonCode = morton3D(computeCenter(cmin, cmax, cylVector[i].min, cylVector[i].max));
+                h_cylinders[i].mortonCode = code;
+                codes[i] = code;
+                values[i] = i;
+            }
 
-                h_cylinder = h_cylinders[i].shape;
+            //sort morton codes
+            thrust::sort_by_key(codes, codes + size, values);
+
+            CylinderNode *node;
+            for(long i = 0; i < size; i++) {
+                node = &h_cylinders[values[i]];
+
+                cylVector[i] = *node;
+
+                h_cylinder = node->shape;
                 if(h_cylinder != nullptr) {
                     //copy shape
                     sceneSize += cylinderSize;
@@ -206,15 +228,15 @@ public:
                     checkCudaErrors(cudaMemcpy(cylVector[i].shape, h_cylinder, cylinderSize, cudaMemcpyHostToDevice));
                 }
 
-                if(h_cylinders[i].type == OBB) {
+                if(node->type == OBB) {
                     //copy matrix
-                    h_m = h_cylinders[i].matrix;
+                    h_m = node->matrix;
                     sceneSize += sizeof(Matrix);
                     checkCudaErrors(cudaMalloc((void**) &cylVector[i].matrix, sizeof(Matrix)));
                     checkCudaErrors(cudaMemcpy(cylVector[i].matrix, h_m, sizeof(Matrix), cudaMemcpyHostToDevice));
 
                     //copy translation
-                    h_translation = h_cylinders[i].translation;
+                    h_translation = node->translation;
                     sceneSize += sizeof(float3);
                     checkCudaErrors(cudaMalloc((void**) &cylVector[i].translation, sizeof(float3)));
                     checkCudaErrors(cudaMemcpy(cylVector[i].translation, h_translation, sizeof(float3), cudaMemcpyHostToDevice));
@@ -228,17 +250,20 @@ public:
             checkCudaErrors(cudaMemcpy(d_cylinders, cylVector, size, cudaMemcpyHostToDevice));
 
             delete[] cylVector;
+            delete[] codes;
+            delete[] values;
             Cylinder *c;
             for(long i = 0; i < h_cylinders.size(); i++) {
-                c = h_cylinders[i].shape;
+                node = &h_cylinders[i];
+                c = node->shape;
 
                 if(c != nullptr) {
                     delete c;
                 }
 
-                if(h_cylinders[i].type == OBB) {
-                    delete h_cylinders[i].matrix;
-                    delete h_cylinders[i].translation;
+                if(node->type == OBB) {
+                    delete node->matrix;
+                    delete node->translation;
                 }
             }
             h_cylinders.clear();
@@ -252,10 +277,13 @@ public:
 
             Triangle *h_triangle;
             long triangleSize = sizeof(Triangle);
-            for(long i = 0; i < size; i++) {
-                triVector[i] = h_triangles[i];
 
-                h_triangle = h_triangles[i].shape;
+            TriangleNode *node;
+            for(long i = 0; i < size; i++) {
+                node = &h_triangles[i];
+                triVector[i] = *node;
+
+                h_triangle = node->shape;
                 if(h_triangle != nullptr) {
                     sceneSize += triangleSize;
                     checkCudaErrors(cudaMalloc((void**) &triVector[i].shape, triangleSize));
