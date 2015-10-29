@@ -130,7 +130,7 @@ inline __host__ __device__ Matrix operator*(float f, Matrix m) {
 }
 
 inline __host__ __device__
-unsigned int expandBits(unsigned int v) {
+uint expandBits(uint v) {
     v = (v * 0x00010001u) & 0xFF0000FFu;
     v = (v * 0x00000101u) & 0x0F00F00Fu;
     v = (v * 0x00000011u) & 0xC30C30C3u;
@@ -141,13 +141,14 @@ unsigned int expandBits(unsigned int v) {
 // Calculates a 30-bit Morton code for the
 // given 3D point located within the unit cube [0,1].
 inline __host__ __device__
-unsigned int morton3D(float3 center) {
+uint morton3D(float3 center) {
     center.x = fminf(fmaxf(center.x * 1024.0f, 0.0f), 1023.0f);
     center.y = fminf(fmaxf(center.y * 1024.0f, 0.0f), 1023.0f);
     center.z = fminf(fmaxf(center.z * 1024.0f, 0.0f), 1023.0f);
-    unsigned int xx = expandBits((unsigned int)center.x);
-    unsigned int yy = expandBits((unsigned int)center.y);
-    unsigned int zz = expandBits((unsigned int)center.z);
+    
+    uint xx = expandBits((uint)center.x);
+    uint yy = expandBits((uint)center.y);
+    uint zz = expandBits((uint)center.z);
     return xx * 4 + yy * 2 + zz;
 }
 

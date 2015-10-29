@@ -53,7 +53,7 @@ std::string sceneName = "rings_low";
 
 extern void deviceClearImage(float3 *d_output, float3 value, int resX, dim3 gridSize, dim3 blockSize);
 
-extern void deviceDrawScene(int **d_shapes, long *d_shapeSizes, Light *lights, long lightSize, float3 backcolor, 
+extern void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
                             int resX, int resY, float width, float height, float atDistance, float3 xe, 
                             float3 ye, float3 ze, float3 from, float3 *d_output, dim3 ssgridSize, dim3 blockSize,
                             Ray *d_rays, float3 *d_locals, float3 *d_reflectionCols, float3 *d_refractionCols);
@@ -116,7 +116,7 @@ void computeFPS() {
 }
 
 void cudaInit() {
-    long size, totalSize = 0;
+    uint size, totalSize = 0;
     clock_t start = clock();
     if(d_rays) {
         checkCudaErrors(cudaFree(d_rays));
@@ -127,12 +127,12 @@ void cudaInit() {
 
     //size local array
     size = RES_X * RES_Y * SUPER_SAMPLING * SUPER_SAMPLING;
-    long localsSize = size * ((2 << MAX_DEPTH) - 1);
+    uint localsSize = size * ((2 << MAX_DEPTH) - 1);
 
     //size reflection and refraction arrays 
-    long sizeRRArrays = size * ((2 << (MAX_DEPTH - 1)) - 1);
+    uint sizeRRArrays = size * ((2 << (MAX_DEPTH - 1)) - 1);
     
-    long raysSize = size * (2 << (MAX_DEPTH - 1));
+    uint raysSize = size * (2 << (MAX_DEPTH - 1));
 
     Ray *rays = new Ray[raysSize]; 
     float3 *colors = new float3[localsSize];

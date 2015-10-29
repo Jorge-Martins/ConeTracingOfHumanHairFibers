@@ -333,7 +333,8 @@ struct CylinderNode {
     Cylinder *shape;
     Matrix *matrix;
     float3 *translation;
-    unsigned int mortonCode;
+    uint mortonCode;
+    CylinderNode *lchild, *rchild;
 
     __host__
     CylinderNode() {
@@ -341,10 +342,14 @@ struct CylinderNode {
         shape = nullptr;
         matrix = nullptr;
         translation = nullptr;
+        lchild = nullptr;
+        rchild = nullptr;
     }
 
     __host__
     CylinderNode(short type, Cylinder *shape) {
+        lchild = nullptr;
+        rchild = nullptr;
         this->type = type;
         this->shape = shape;
 
@@ -374,28 +379,11 @@ struct CylinderNode {
             
             matrix = new Matrix((Fi * R * Fi.inverse()).M);*/
 
-            
+           
             matrix = new Matrix(AxB, cross(AxB, A), A);  
 
-
-            /*float idotAB = 1 - dotAB;
-	        float rsin = length(AxB);
-            
-	        matrix = new Matrix(dotAB + AxB.x * AxB.x *(idotAB),
-	                            AxB.z * rsin + AxB.y * AxB.x *(idotAB),
-	                            -AxB.y * rsin + AxB.z * AxB.x *(idotAB),
-
-	                            -AxB.z * rsin + AxB.x * AxB.y *(idotAB),
-	                            dotAB + AxB.y * AxB.y *(idotAB),
-	                            AxB.x * rsin + AxB.z * AxB.y *(idotAB),
-
-	                            AxB.y * rsin + AxB.x * AxB.z *(idotAB),
-	                            -AxB.x * rsin + AxB.y * AxB.z *(idotAB),
-	                            dotAB + AxB.z * AxB.z *(idotAB));
-            */
-
             //debug
-            //B = *matrix * (A + *translation);
+            B = *matrix * (shape->top + *translation);
 
             max = make_float3(shape->radius, shape->radius, height);
             min = make_float3(-shape->radius, -shape->radius, 0);
@@ -409,6 +397,8 @@ struct CylinderNode {
         this->shape = shape;
         matrix = nullptr;
         translation = nullptr;
+        lchild = nullptr;
+        rchild = nullptr;
 
         min = fminf(shape->base, shape->top) - shape->radius;
         max = fmaxf(shape->base, shape->top) + shape->radius;

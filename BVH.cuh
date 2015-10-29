@@ -8,24 +8,27 @@
 #define StackSize 32
 
 __device__
-void traverse(CylinderNode **list, CylinderNode *bvh, long bvhSize, Ray ray) {
+void traverse(CylinderNode **list, CylinderNode *bvh, uint bvhSize, Ray ray) {
     bool intersection = false;
-    long stackNodes[StackSize];
-    long stackChildren[StackSize];
+    CylinderNode *stackNodes[StackSize];
+    CylinderNode *stackChildren[StackSize];
 
-    long *stackPtr = stackNodes;
-    long *stackChildPtr = stackChildren;
+    CylinderNode **stackNodesPtr = stackNodes;
+    CylinderNode **stackChildrenPtr = stackChildren;
 
-    *stackPtr = *stackChildPtr = -1;
-    stackPtr++;
-    *stackPtr = 0;
+    uint stackIndex = 0;
+    uint stackCIndex = 0;
+    uint listIndex = 0;
 
-    int listIndex = 0;
+    stackNodes[stackIndex] = stackChildren[stackCIndex] = nullptr;
+    
+    stackNodes[++stackIndex] = &bvh[0];
+
+    
     CylinderNode *node;
-    long stackNodeIndex;
 
-    while((stackNodeIndex = *stackPtr) != -1) {
-        node = &bvh[stackNodeIndex];
+    while((node = stackNodesPtr[stackIndex]) != nullptr) {
+        
         if(node->type == AABB) {
             intersection = AABBIntersection(ray, node->min, node->max);
         } else {
@@ -33,25 +36,38 @@ void traverse(CylinderNode **list, CylinderNode *bvh, long bvhSize, Ray ray) {
         }
 
         if (intersection) {
-            --stackPtr;
+            stackIndex--;
             // Leaf node
             if (node->shape != nullptr) {
                 list[listIndex++] = node;
                 
             // Internal node
             } else {
-                *++stackChildPtr = 2 * stackNodeIndex + 1;
-                *++stackChildPtr = 2 * stackNodeIndex + 2;
+                stackChildrenPtr[++stackCIndex] = node->lchild;
+                stackChildrenPtr[++stackCIndex] = node->rchild;
             }
 
-            if(*stackPtr == -1) {
-                long *tmp;
+            if(stackNodes[stackIndex] == nullptr) {
+                CylinderNode **tmp;
+                int tmpIndex;
 
-                tmp = stackPtr;
-                stackPtr = stackChildPtr;
-                stackChildPtr = tmp;
+                tmp = stackNodesPtr;
+                stackNodesPtr = stackChildrenPtr;
+                stackChildrenPtr = tmp;
+
+                tmpIndex = stackIndex;
+                stackIndex = stackCIndex;
+                stackCIndex = tmpIndex;
             }
         }
+    }
+}
+
+inline __device__ int longestCommonPrefix(int i, int j, uint nObjects, CylinderNode *bvh) {
+    if (j >= 0 && j < nObjects) {
+        return __clz(bvh[i].mortonCode ^ bvh[j].mortonCode);
+    } else {
+        return -1;
     }
 }
 

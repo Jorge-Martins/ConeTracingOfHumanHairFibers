@@ -20,10 +20,10 @@ __device__ int const raysPerPixel = (2 << MAX_DEPTH) - 1;
 
 
 __device__
-bool findShadow(int **d_shapes, long *d_shapeSizes, Ray feeler) {
+bool findShadow(int **d_shapes, uint *d_shapeSizes, Ray feeler) {
     bool intersectionFound = false;
-    for(long shapeType = 0; shapeType < nShapes; shapeType++) {
-        for (long i = 0; i < d_shapeSizes[shapeType]; i++) {
+    for(uint shapeType = 0; shapeType < nShapes; shapeType++) {
+        for (uint i = 0; i < d_shapeSizes[shapeType]; i++) {
             if(shapeType == sphereIndex) {
                 SphereNode *sphereNode = (SphereNode*) d_shapes[shapeType];
                 intersectionFound = AABBIntersection(feeler, sphereNode[i].min, sphereNode[i].max);
@@ -73,13 +73,13 @@ bool findShadow(int **d_shapes, long *d_shapeSizes, Ray feeler) {
 }
 
 __device__
-bool nearestIntersect(int **d_shapes, long *d_shapeSizes, Ray ray, RayIntersection *out) {
+bool nearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersection *out) {
 	RayIntersection minIntersect(FLT_MAX, make_float3(0.0f), make_float3(0.0f));
 	bool minIntersectionFound = false, intersectionFound = false;
 
 	RayIntersection curr = minIntersect;
-    for(long shapeType = 0; shapeType < nShapes; shapeType++) {
-        for (long i = 0; i < d_shapeSizes[shapeType]; i++) {
+    for(uint shapeType = 0; shapeType < nShapes; shapeType++) {
+        for (uint i = 0; i < d_shapeSizes[shapeType]; i++) {
             if(shapeType == sphereIndex) {
                 SphereNode *sphereNode = (SphereNode*) d_shapes[shapeType];
 
@@ -160,7 +160,7 @@ float3 computeTransmissionDir(float3 inDir, float3 normal, float beforeIOR, floa
 }
 
 __device__
-float3 rayTracing(int **d_shapes, long *d_shapeSizes, Light* lights, long lightSize, float3 backcolor, 
+float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightSize, float3 backcolor, 
                  float3 rayOrigin, float3 rayDirection, Ray *ray, float3* locals,
                  float3* reflectionCols, float3* refractionCols, uint offset) {
 
@@ -208,10 +208,10 @@ float3 rayTracing(int **d_shapes, long *d_shapeSizes, Light* lights, long lightS
         } 
 
         Material mat = intersect.shapeMaterial;
-    
+         
         // local illumination
 	    locals[localsOffset + rayN] = blackColor;
-	    for(long li = 0; li < lightSize; li++) {
+	    for(uint li = 0; li < lightSize; li++) {
 		    float3 feelerDir = normalize(lights[li].position - intersect.point);
             feeler.update(intersect.point, feelerDir);
             
@@ -291,15 +291,15 @@ float3 rayTracing(int **d_shapes, long *d_shapeSizes, Light* lights, long lightS
 
 
 __global__
-void drawScene(int **d_shapes, long *d_shapeSizes, Light *lights, long lightSize, float3 backcolor, int resX,
+void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, int resX,
                int resY, int res_xy, float width, float height, float atDistance, float3 xe, float3 ye, 
                float3 ze, float3 from, float3 *d_output, Ray* ray, float3* d_locals, 
                float3* d_reflectionCols, float3* d_refractionCols) {
 
-    long x = blockIdx.x * blockDim.x + threadIdx.x;
-    long y = blockIdx.y * blockDim.y + threadIdx.y;
+    uint x = blockIdx.x * blockDim.x + threadIdx.x;
+    uint y = blockIdx.y * blockDim.y + threadIdx.y;
 
-    long index = y * (resX * SUPER_SAMPLING) + x;
+    uint index = y * (resX * SUPER_SAMPLING) + x;
 
     if(index < res_xy * SUPER_SAMPLING * SUPER_SAMPLING) {
         float3 zeFactor = -ze * atDistance; 
@@ -312,7 +312,7 @@ void drawScene(int **d_shapes, long *d_shapeSizes, Light *lights, long lightSize
                                   ray, d_locals, d_reflectionCols, d_refractionCols, index);
     
         if(SUPER_SAMPLING > 1) {
-            index = (long)(y / (float)SUPER_SAMPLING) * resX + (long)(x / (float)SUPER_SAMPLING);
+            index = (uint)(y / (float)SUPER_SAMPLING) * resX + (uint)(x / (float)SUPER_SAMPLING);
             d_output[index] += color; // (SUPER_SAMPLING * SUPER_SAMPLING);
         } else {
             d_output[index] = color;
@@ -322,10 +322,10 @@ void drawScene(int **d_shapes, long *d_shapeSizes, Light *lights, long lightSize
 
 __global__
 void clearImage(float3 *d_output, float3 value, int resX) {
-    long x = blockIdx.x * blockDim.x + threadIdx.x;
-    long y = blockIdx.y * blockDim.y + threadIdx.y;
+    uint x = blockIdx.x * blockDim.x + threadIdx.x;
+    uint y = blockIdx.y * blockDim.y + threadIdx.y;
 
-    long index = y * resX + x;
+    uint index = y * resX + x;
 
     d_output[index] = value;
 }
@@ -334,7 +334,7 @@ void deviceClearImage(float3 *d_output, float3 value, int resX, dim3 gridSize, d
     clearImage<<<gridSize, blockSize>>>(d_output, make_float3(0.0f), resX);
 }
 
-void deviceDrawScene(int **d_shapes, long *d_shapeSizes, Light* lights, long lightSize, float3 backcolor, 
+void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightSize, float3 backcolor, 
                      int resX, int resY, float width, float height, float atDistance, float3 xe, float3 ye, 
                      float3 ze, float3 from, float3 *d_output, dim3 ssgridSize, dim3 blockSize, Ray* ray,
                      float3* d_locals, float3* d_reflectionCols, float3* d_refractionCols) {
