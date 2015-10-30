@@ -26,33 +26,38 @@ bool findShadow(int **d_shapes, uint *d_shapeSizes, Ray feeler) {
         for (uint i = 0; i < d_shapeSizes[shapeType]; i++) {
             if(shapeType == sphereIndex) {
                 SphereNode *sphereNode = (SphereNode*) d_shapes[shapeType];
-                intersectionFound = AABBIntersection(feeler, sphereNode[i].min, sphereNode[i].max);
-                
-                if(intersectionFound) {
-                    intersectionFound = intersection(feeler, nullptr, sphereNode[i].shape);
-                }
 
+                SphereNode *node = &sphereNode[i];
+                intersectionFound = AABBIntersection(feeler, node->min, node->max);
+
+                if(intersectionFound) {
+                    intersectionFound = intersection(feeler, nullptr, node->shape);
+                }
+               
             } else if(shapeType == cylinderIndex) {
                 CylinderNode *cylinderNode = (CylinderNode*) d_shapes[shapeType];
+                uint leafOffset = d_shapeSizes[shapeType] - 1;
 
-                if(cylinderNode[i].type == AABB) {
-                    intersectionFound = AABBIntersection(feeler, cylinderNode[i].min, cylinderNode[i].max);
-
+                CylinderNode *node = &cylinderNode[leafOffset + i];
+                if(node->type == AABB) {
+                    intersectionFound = AABBIntersection(feeler, node->min, node->max);
                 } else {
-                    intersectionFound = OBBIntersection(feeler, cylinderNode[i].min, cylinderNode[i].max, 
-                                                        cylinderNode[i].matrix, cylinderNode[i].translation);
+                    intersectionFound = OBBIntersection(feeler, node->min, node->max, 
+                                                        node->matrix, node->translation);
                 }
 
                 if(intersectionFound) {
-                    intersectionFound = intersection(feeler, nullptr, cylinderNode[i].shape);
+                    intersectionFound = intersection(feeler, nullptr, node->shape);
                 }
 
             } else if(shapeType == triangleIndex) {
                 TriangleNode *triangleNode = (TriangleNode*) d_shapes[shapeType];
-                intersectionFound = AABBIntersection(feeler, triangleNode[i].min, triangleNode[i].max);
+
+                TriangleNode *node = &triangleNode[i];
+                intersectionFound = AABBIntersection(feeler, node->min, node->max);
 
                 if(intersectionFound) {
-                    intersectionFound = intersection(feeler, nullptr, triangleNode[i].shape);
+                    intersectionFound = intersection(feeler, nullptr, node->shape);
                 }
 
             } else if(shapeType == planeIndex) {
@@ -83,33 +88,37 @@ bool nearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersecti
             if(shapeType == sphereIndex) {
                 SphereNode *sphereNode = (SphereNode*) d_shapes[shapeType];
 
-                intersectionFound = AABBIntersection(ray, sphereNode[i].min, sphereNode[i].max);
+                SphereNode *node = &sphereNode[i];
+                intersectionFound = AABBIntersection(ray, node->min, node->max);
 
                 if(intersectionFound) {
-                    intersectionFound = intersection(ray, &curr, sphereNode[i].shape);
+                    intersectionFound = intersection(ray, &curr, node->shape);
                 }
                
             } else if(shapeType == cylinderIndex) {
                 CylinderNode *cylinderNode = (CylinderNode*) d_shapes[shapeType];
+                uint leafOffset = d_shapeSizes[shapeType] - 1;
 
-                if(cylinderNode[i].type == AABB) {
-                    intersectionFound = AABBIntersection(ray, cylinderNode[i].min, cylinderNode[i].max);
+                CylinderNode *node = &cylinderNode[leafOffset + i];
+                if(node->type == AABB) {
+                    intersectionFound = AABBIntersection(ray, node->min, node->max);
                 } else {
-                    intersectionFound = OBBIntersection(ray, cylinderNode[i].min, cylinderNode[i].max, 
-                                                        cylinderNode[i].matrix, cylinderNode[i].translation);
+                    intersectionFound = OBBIntersection(ray, node->min, node->max, 
+                                                        node->matrix, node->translation);
                 }
 
                 if(intersectionFound) {
-                    intersectionFound = intersection(ray, &curr, cylinderNode[i].shape);
+                    intersectionFound = intersection(ray, &curr, node->shape);
                 }
 
             } else if(shapeType == triangleIndex) {
                 TriangleNode *triangleNode = (TriangleNode*) d_shapes[shapeType];
 
-                intersectionFound = AABBIntersection(ray, triangleNode[i].min, triangleNode[i].max);
+                TriangleNode *node = &triangleNode[i];
+                intersectionFound = AABBIntersection(ray, node->min, node->max);
 
                 if(intersectionFound) {
-                    intersectionFound = intersection(ray, &curr, triangleNode[i].shape);
+                    intersectionFound = intersection(ray, &curr, node->shape);
                 }
 
             } else if(shapeType == planeIndex) {

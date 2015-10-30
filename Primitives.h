@@ -235,6 +235,7 @@ struct Cylinder {
 	float3 base, top;
     float radius;
     Material material;
+    uint mortonCode;
     
     __host__
 	Cylinder() {}
@@ -333,8 +334,8 @@ struct CylinderNode {
     Cylinder *shape;
     Matrix *matrix;
     float3 *translation;
-    uint mortonCode;
-    CylinderNode *lchild, *rchild;
+    
+    CylinderNode *lchild, *rchild, *parent;
 
     __host__
     CylinderNode() {
@@ -344,12 +345,14 @@ struct CylinderNode {
         translation = nullptr;
         lchild = nullptr;
         rchild = nullptr;
+        parent = nullptr;
     }
 
     __host__
     CylinderNode(short type, Cylinder *shape) {
         lchild = nullptr;
         rchild = nullptr;
+        parent = nullptr;
         this->type = type;
         this->shape = shape;
 
@@ -399,6 +402,7 @@ struct CylinderNode {
         translation = nullptr;
         lchild = nullptr;
         rchild = nullptr;
+        parent = nullptr;
 
         min = fminf(shape->base, shape->top) - shape->radius;
         max = fmaxf(shape->base, shape->top) + shape->radius;
@@ -406,13 +410,9 @@ struct CylinderNode {
 
     __host__ __device__
     float volume() {
-        float x, y, z;
+        float3 len = max - min;
 
-        x = abs(max.x - min.x);
-        y = abs(max.y - min.y); 
-        z = abs(max.z - min.z);
-
-        return x * y * z;
+        return abs(len.x * len.y * len.z);
     }
 };
 
