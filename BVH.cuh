@@ -124,6 +124,8 @@ inline __device__ int longestCommonPrefix(int i, int j, uint nObjects, CylinderN
                 
                 mcj += j;
             }
+
+            return __clzll(mci ^ mcj);
         }
 
         return __clz(mci ^ mcj);
@@ -134,75 +136,73 @@ inline __device__ int longestCommonPrefix(int i, int j, uint nObjects, CylinderN
 }
 
 
-//__global__ void buildBVH(CylinderNode *bvh, uint nObjects) {
-//    uint size;
-//    int i = blockIdx.x * blockDim.x + threadIdx.x;
-//
-//    if (i >= nObjects) {
-//        return;
-//    }
-//
-//    // Run radix tree construction algorithm
-//    // Determine direction of the range (+1 or -1)
-//    size = nObjects+1;
-//    int d = longestCommonPrefix(i, i + 1, size) - longestCommonPrefix(i, i - 1, size) > 0 ? 1 : -1;
-//    
-//    // Compute upper bound for the length of the range
-//    int sigMin = longestCommonPrefix(i, i - d, size);
-//    int lmax = 2;
-//
-//    while (longestCommonPrefix(i, i + lmax * d, size) > sigMin) {
-//        lmax *= 2;
-//    }
-//
-//    // Find the other end using binary search
-//    int l = 0;
-//    int divider = 2;
-//    for (int t = lmax / divider; t >= 1; divider *= 2) {
-//        if (longestCommonPrefix(i, i + (l + t) * d, size) > sigMin) {
-//            l += t;
-//        }
-//        t = lmax / divider;
-//    }
-//  
-//    int j = i + l * d;
-//  
-//    // Find the split position using binary search
-//    int sigNode = longestCommonPrefix(i, j, size);
-//    int s = 0;
-//    divider = 2;
-//    for (int t = (l + (divider - 1)) / divider; t >= 1; divider *= 2) {
-//        if (longestCommonPrefix(i, i + (s + t) * d, size) > sigNode) {
-//            s = s + t;
-//        }
-//        t = (l + (divider - 1)) / divider;
-//    }
-//
-//    int gamma = i + s * d + intMin(d, 0);
-//
-//    // Output child pointers
-//    TreeNode *current = radixTreeNodes + i;
-//
-//
-//    if (intMin(i, j) == gamma) {
-//        current->left = radixTreeLeaves + gamma;
-//        (radixTreeLeaves + gamma)->parent = current;
-//    } else {
-//        current->left = radixTreeNodes + gamma;
-//        (radixTreeNodes + gamma)->parent = current;
-//    }
-//
-//    if (intMax(i, j) == gamma + 1) {
-//        current->right = radixTreeLeaves + gamma + 1;
-//        (radixTreeLeaves + gamma + 1)->parent = current;
-//    } else {
-//        current->right = radixTreeNodes + gamma + 1;
-//        (radixTreeNodes + gamma + 1)->parent = current;
-//    }
-//
-//    current->min = intMin(i, j);
-//    current->max = intMax(i, j);
-//}
+__global__ void buildBVH(CylinderNode *bvh, uint nObjects) {
+    CylinderNode *bvhLeaves = &bvh[nObjects - 1];
+    uint size = nObjects;
+
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (i >= nObjects) {
+        return;
+    }
+
+    // Determine direction of the range (+1 or -1)
+    int sign = longestCommonPrefix(i, i + 1, size, bvhLeaves) - longestCommonPrefix(i, i - 1, size, bvhLeaves); 
+    
+    int d = sign > 0 ? 1 : -1;
+    
+    // Compute upper bound for the length of the range
+    int sigMin = longestCommonPrefix(i, i - d, size, bvhLeaves);
+    int lmax = 2;
+
+    while (longestCommonPrefix(i, i + lmax * d, size, bvhLeaves) > sigMin) {
+        lmax *= 2;
+    }
+
+    // Find the other end using binary search
+    int l = 0;
+    float divider = 2.0f;
+    for (int t = lmax / divider; t >= 1.0f; divider *= 2.0f) {
+        if (longestCommonPrefix(i, i + (l + t) * d, size, bvhLeaves) > sigMin) {
+            l += t;
+        }
+        t = lmax / divider;
+    }
+  
+    int j = i + l * d;
+  
+    // Find the split position using binary search
+    int sigNode = longestCommonPrefix(i, j, size, bvhLeaves);
+    int s = 0;
+
+    divider = 2.0f;
+    for (int t = ceilf(l / divider); t >= 1.0f; divider *= 2.0f) {
+        if (longestCommonPrefix(i, i + (s + t) * d, size, bvhLeaves) > sigNode) {
+            s += t;
+        }
+        t = ceilf(l / divider);
+    }
+
+    int gamma = i + s * d + imin(d, 0);
+
+    // Output child pointers
+    CylinderNode *current = &bvh[i];
+
+    if (imin(i, j) == gamma) {
+        current->lchild = &bvhLeaves[gamma];
+    } else {
+        current->lchild = &bvh[gamma];
+    }
+
+    if (imax(i, j) == gamma + 1) {
+        current->rchild = &bvhLeaves[gamma + 1];
+    } else {
+        current->rchild = &bvh[gamma + 1];
+    }
+
+    current->lchild->parent = current;
+    current->rchild->parent = current;
+}
 
 
 #endif;

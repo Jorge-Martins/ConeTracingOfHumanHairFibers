@@ -11,8 +11,6 @@
 
 #include <FreeImage.h>
 
-#define iDivUp(a, b) (a % b != 0) ? (a / b + 1) : (a / b)
-
 
 Scene *scene = 0;
 Camera *camera = 0;
@@ -58,6 +56,7 @@ extern void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, u
                             float3 ye, float3 ze, float3 from, float3 *d_output, dim3 ssgridSize, dim3 blockSize,
                             Ray *d_rays, float3 *d_locals, float3 *d_reflectionCols, float3 *d_refractionCols);
 
+extern void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize);
 
 float3 computeFromCoordinates(float3 up){
     float ha, va;
@@ -388,6 +387,12 @@ void idle() {
     glutPostRedisplay();
 }
 
+void buildBVH() {
+    uint size = scene->h_shapeSizes[cylinderIndex];
+
+    dim3 grid = dim3(iDivUp(size, blockSize.x));
+    deviceBuildBVH(scene->d_cylinders, scene->h_shapeSizes[cylinderIndex], grid, blockSize);
+}
 
 int main(int argc, char *argv[]) {
     sdkCreateTimer(&timer);
@@ -419,6 +424,7 @@ int main(int argc, char *argv[]) {
     
     float3 from = computeFromCoordinates(up);
     
+    buildBVH();
     
     // calculate new grid size
     gridSize = dim3(iDivUp(RES_X, blockSize.x), iDivUp(RES_Y, blockSize.y));

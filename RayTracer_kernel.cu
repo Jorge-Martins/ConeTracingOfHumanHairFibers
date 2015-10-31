@@ -356,4 +356,8 @@ void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lig
 }
 
 
+void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize) {
+
+    buildBVH<<<gridSize, blockSize>>>(bvh, nObjects);
+}
 #endif

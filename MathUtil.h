@@ -129,6 +129,20 @@ inline __host__ __device__ Matrix operator*(float f, Matrix m) {
     return m * f;
 }
 
+inline __device__ int imax(int a, int b)
+{
+    return a > b ? a : b;
+}
+
+inline __device__ int imin(int a, int b)
+{
+    return a < b ? a : b;
+}
+
+inline __host__ __device__ int iDivUp(int a, int b) {
+    return (a % b != 0) ? (a / b + 1) : (a / b);
+}
+
 inline __host__ __device__
 uint expandBits(uint v) {
     v = (v * 0x00010001u) & 0xFF0000FFu;

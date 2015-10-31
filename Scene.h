@@ -23,13 +23,6 @@ private:
     
     float3 cmin, cmax;
 
-    uint *h_shapeSizes;
-    
-    SphereNode *d_spheres;
-    CylinderNode *d_cylinders;
-    TriangleNode *d_triangles;
-    Plane *d_planes;
-
     Light *d_lights;
 
     int **d_shapes;
@@ -37,6 +30,13 @@ private:
     uint d_lightsSize;
 
 public:
+    SphereNode *d_spheres;
+    CylinderNode *d_cylinders;
+    TriangleNode *d_triangles;
+    Plane *d_planes;
+
+    uint *h_shapeSizes;
+
     Scene() {
         d_shapeSizes = nullptr;
         d_shapes = nullptr;
@@ -59,6 +59,8 @@ public:
     }
 
 	~Scene() {
+        delete[] h_shapeSizes;
+
         if(d_spheres != nullptr) {
             checkCudaErrors(cudaFree(d_spheres));
         }
@@ -346,9 +348,7 @@ public:
         size = nShapes * sizeof(size_t);
         checkCudaErrors(cudaMalloc((void**) &d_shapeSizes, size));
         checkCudaErrors(cudaMemcpy(d_shapeSizes, h_shapeSizes, size, cudaMemcpyHostToDevice));
-        delete[] h_shapeSizes;
-
-
+        
         std::cout << "size: " << printSize(sceneSize) << std::endl;
         
         
