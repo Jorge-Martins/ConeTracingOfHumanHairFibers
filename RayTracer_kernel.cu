@@ -22,13 +22,15 @@ __device__ int const raysPerPixel = (2 << MAX_DEPTH) - 1;
 __device__
 bool findShadow(int **d_shapes, uint *d_shapeSizes, Ray feeler) {
     bool intersectionFound = false;
+    //tmp debug
+    float distance = FLT_MAX;
     for(uint shapeType = 0; shapeType < nShapes; shapeType++) {
         for (uint i = 0; i < d_shapeSizes[shapeType]; i++) {
             if(shapeType == sphereIndex) {
                 SphereNode *sphereNode = (SphereNode*) d_shapes[shapeType];
 
                 SphereNode *node = &sphereNode[i];
-                intersectionFound = AABBIntersection(feeler, node->min, node->max);
+                intersectionFound = AABBIntersection(feeler, node->min, node->max, &distance);
 
                 if(intersectionFound) {
                     intersectionFound = intersection(feeler, nullptr, node->shape);
@@ -40,10 +42,10 @@ bool findShadow(int **d_shapes, uint *d_shapeSizes, Ray feeler) {
 
                 CylinderNode *node = &cylinderNode[leafOffset + i];
                 if(node->type == AABB) {
-                    intersectionFound = AABBIntersection(feeler, node->min, node->max);
+                    intersectionFound = AABBIntersection(feeler, node->min, node->max, &distance);
                 } else {
                     intersectionFound = OBBIntersection(feeler, node->min, node->max, 
-                                                        node->matrix, node->translation);
+                                                        node->matrix, node->translation, &distance);
                 }
 
                 if(intersectionFound) {
@@ -54,7 +56,7 @@ bool findShadow(int **d_shapes, uint *d_shapeSizes, Ray feeler) {
                 TriangleNode *triangleNode = (TriangleNode*) d_shapes[shapeType];
 
                 TriangleNode *node = &triangleNode[i];
-                intersectionFound = AABBIntersection(feeler, node->min, node->max);
+                intersectionFound = AABBIntersection(feeler, node->min, node->max, &distance);
 
                 if(intersectionFound) {
                     intersectionFound = intersection(feeler, nullptr, node->shape);
@@ -83,23 +85,36 @@ bool nearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersecti
 	bool minIntersectionFound = false, intersectionFound = false;
 
 	RayIntersection curr = minIntersect;
+    //tmp debug
+    float distance = FLT_MAX;
     for(uint shapeType = 0; shapeType < nShapes; shapeType++) {
         for (uint i = 0; i < d_shapeSizes[shapeType]; i++) {
             if(shapeType == sphereIndex) {
                 SphereNode *sphereNode = (SphereNode*) d_shapes[shapeType];
 
                 SphereNode *node = &sphereNode[i];
-                intersectionFound = AABBIntersection(ray, node->min, node->max);
+                intersectionFound = AABBIntersection(ray, node->min, node->max, &distance);
 
                 if(intersectionFound) {
                     intersectionFound = intersection(ray, &curr, node->shape);
                 }
                
             } else if(shapeType == cylinderIndex) {
-                CylinderNode *cylinderNode = (CylinderNode*) d_shapes[shapeType];
-                uint leafOffset = d_shapeSizes[shapeType] - 1;
+                CylinderNode *node = nullptr;
+                
+                CylinderNode *bvh = (CylinderNode*) d_shapes[shapeType];
 
-                CylinderNode *node = &cylinderNode[leafOffset + i];
+                bool bvhHit = traverse(node, bvh, d_shapeSizes[shapeType], ray);
+
+                if(bvhHit) {
+                    intersectionFound = intersection(ray, &curr, node->shape);
+                }
+                
+                break;
+                //uint leafOffset = d_shapeSizes[shapeType] - 1;
+
+                
+                /*CylinderNode *node = &cylinderNode[leafOffset + i];
                 if(node->type == AABB) {
                     intersectionFound = AABBIntersection(ray, node->min, node->max);
                 } else {
@@ -109,13 +124,13 @@ bool nearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersecti
 
                 if(intersectionFound) {
                     intersectionFound = intersection(ray, &curr, node->shape);
-                }
+                }*/
 
             } else if(shapeType == triangleIndex) {
                 TriangleNode *triangleNode = (TriangleNode*) d_shapes[shapeType];
 
                 TriangleNode *node = &triangleNode[i];
-                intersectionFound = AABBIntersection(ray, node->min, node->max);
+                intersectionFound = AABBIntersection(ray, node->min, node->max, &distance);
 
                 if(intersectionFound) {
                     intersectionFound = intersection(ray, &curr, node->shape);

@@ -46,7 +46,7 @@ StopWatchInterface *timer = NULL;
 
 const char* windowTitle = "Msc Ray Tracing";
 
-std::string sceneName = "rings_low";
+std::string sceneName = "balls_low";
 //std::string sceneName = "straight";
 
 extern void deviceClearImage(float3 *d_output, float3 value, int resX, int resY, dim3 gridSize, dim3 blockSize);
@@ -390,16 +390,18 @@ void idle() {
 void buildBVH() {
     uint size = scene->h_shapeSizes[cylinderIndex];
 
-    dim3 grid = dim3(iDivUp(size, blockSize.x));
-    dim3 vectorBlock = dim3(blockSize.x);
+    if(size > 0) {
+        dim3 grid = dim3(iDivUp(size, blockSize.x));
+        dim3 vectorBlock = dim3(blockSize.x);
 
-    clock_t start = clock();
-    deviceBuildBVH(scene->d_cylinders, scene->h_shapeSizes[cylinderIndex], grid, vectorBlock);
-    clock_t end = clock();
+        clock_t start = clock();
+        deviceBuildBVH(scene->d_cylinders, scene->h_shapeSizes[cylinderIndex], grid, vectorBlock);
+        clock_t end = clock();
 
-    //debug info
-    std::cout << "bvh construction" << std::endl;
-    std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
+        //debug info
+        std::cout << "bvh construction" << std::endl;
+        std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
+    }
 }
 
 int main(int argc, char *argv[]) {

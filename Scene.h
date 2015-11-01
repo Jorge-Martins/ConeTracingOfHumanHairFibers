@@ -6,10 +6,8 @@
 #include "Primitives.h"
 #include <thrust/sort.h>
 
-
-#define KB 1000
-#define MB (1000 * KB)
-#define GB (1000 * MB)
+std::string const sSize[] = {"B", "KB", "MB", "GB"};
+int const bSize[] = {1, 1000, 1000000, 1000000000};
 
 struct Scene {
 private:
@@ -109,21 +107,10 @@ public:
 
     std::string printSize(size_t size) {
         std::ostringstream os;
-        float out;
-        std::string s;
-
-        if(size > MB) {
-            if(size > GB) {
-                out = (float) size / (float)GB;
-                s = "GB";
-            } else {
-                out = (float) size / (float)MB;
-                s = "MB";
-            }
-        } else {
-            out = (float) size / (float)KB;
-            s = "KB";
-        }
+        
+        int index = (int) log10f(size) / 3.0f;
+        float out = (float) size / (float)bSize[index];
+        std::string s = sSize[index];
 
         os << out << s;
         return os.str();

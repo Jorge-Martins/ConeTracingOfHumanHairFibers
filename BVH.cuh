@@ -12,8 +12,9 @@
 __device__ int const mul[] = {10, 100, 1000, 10000, 100000, 1000000};
 
 __device__
-void traverse(CylinderNode **list, CylinderNode *bvh, uint bvhSize, Ray ray) {
+bool traverse(CylinderNode *nodeOut, CylinderNode *bvh, uint bvhSize, Ray ray) {
     bool intersection = false;
+    float distance = FLT_MAX, oldDistance = FLT_MAX;
     CylinderNode *stackNodes[StackSize];
     CylinderNode *stackChildren[StackSize];
 
@@ -22,7 +23,6 @@ void traverse(CylinderNode **list, CylinderNode *bvh, uint bvhSize, Ray ray) {
 
     uint stackIndex = 0;
     uint stackCIndex = 0;
-    uint listIndex = 0;
 
     stackNodes[stackIndex] = stackChildren[stackCIndex] = nullptr;
     
@@ -34,16 +34,19 @@ void traverse(CylinderNode **list, CylinderNode *bvh, uint bvhSize, Ray ray) {
     while((node = stackNodesPtr[stackIndex]) != nullptr) {
         
         if(node->type == AABB) {
-            intersection = AABBIntersection(ray, node->min, node->max);
+            intersection = AABBIntersection(ray, node->min, node->max, &distance);
         } else {
-            intersection = OBBIntersection(ray, node->min, node->max, node->matrix, node->translation);
+            intersection = OBBIntersection(ray, node->min, node->max, node->matrix, node->translation, &distance);
         }
 
+        stackIndex--;
         if (intersection) {
-            stackIndex--;
             // Leaf node
             if (node->shape != nullptr) {
-                list[listIndex++] = node;
+                if(distance < oldDistance) {
+                    oldDistance = distance;
+                    nodeOut = node;
+                }
                 
             // Internal node
             } else {
@@ -65,6 +68,8 @@ void traverse(CylinderNode **list, CylinderNode *bvh, uint bvhSize, Ray ray) {
             }
         }
     }
+
+    return nodeOut != nullptr;
 }
 
 inline __device__ int longestCommonPrefix(int i, int j, uint nObjects, CylinderNode *bvhLeaves) {
