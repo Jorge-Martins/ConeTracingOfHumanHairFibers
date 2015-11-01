@@ -330,17 +330,19 @@ void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize
 }
 
 __global__
-void clearImage(float3 *d_output, float3 value, int resX) {
+void clearImage(float3 *d_output, float3 value, int resX, int res) {
     uint x = blockIdx.x * blockDim.x + threadIdx.x;
     uint y = blockIdx.y * blockDim.y + threadIdx.y;
 
     uint index = y * resX + x;
 
-    d_output[index] = value;
+    if(index < res) {
+        d_output[index] = value;
+    }
 }
 
-void deviceClearImage(float3 *d_output, float3 value, int resX, dim3 gridSize, dim3 blockSize) {
-    clearImage<<<gridSize, blockSize>>>(d_output, make_float3(0.0f), resX);
+void deviceClearImage(float3 *d_output, float3 value, int resX, int resY, dim3 gridSize, dim3 blockSize) {
+    clearImage<<<gridSize, blockSize>>>(d_output, make_float3(0.0f), resX, resX * resY);
 }
 
 void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightSize, float3 backcolor, 
@@ -359,5 +361,7 @@ void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lig
 void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize) {
 
     buildBVH<<<gridSize, blockSize>>>(bvh, nObjects);
+
+    computeBVHBB<<<gridSize, blockSize>>>(bvh, nObjects);
 }
 #endif

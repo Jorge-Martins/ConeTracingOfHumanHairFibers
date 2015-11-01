@@ -142,7 +142,7 @@ __global__ void buildBVH(CylinderNode *bvh, uint nObjects) {
 
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (i >= nObjects) {
+    if (i > nObjects - 2) {
         return;
     }
 
@@ -202,6 +202,36 @@ __global__ void buildBVH(CylinderNode *bvh, uint nObjects) {
 
     current->lchild->parent = current;
     current->rchild->parent = current;
+}
+
+__global__ void computeBVHBB(CylinderNode *bvh, uint nObjects) {
+    CylinderNode *bvhLeaves = &bvh[nObjects - 1];
+    
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (i > nObjects - 1) {
+        return;
+    }
+    CylinderNode *node = &bvhLeaves[i];
+    node = node->parent;
+
+    int oldLock = atomicAdd(&node->lock, 1);
+    while(1) {
+        if(oldLock == 0) {
+            return;
+        }
+
+        node->min = fminf(node->lchild->min, node->rchild->min);
+        node->max = fmaxf(node->lchild->max, node->rchild->max);
+
+        //if root
+        if(node->parent == nullptr) {
+            return;
+        }
+
+        node = node->parent;
+        oldLock = atomicAdd(&node->lock, 1);
+    }
 }
 
 

@@ -22,7 +22,7 @@ bool load_nff(std::string filePath, Scene *sc, float *initRadius, float *initLon
     }
     end = clock();
 
-    std::cout << "Build time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
+    std::cout << "Load time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
 
     std::cout << "Transfer" << std::endl;
 
@@ -180,7 +180,7 @@ bool load_hair(std::string filePath, Scene *sc) {
     }
     end = clock();
 
-    std::cout << "Build time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
+    std::cout << "Load time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
 
     std::cout << "Transfer" << std::endl;
 

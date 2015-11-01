@@ -331,6 +331,7 @@ struct CylinderNode {
     float3 max;
     float3 min;
     short type;
+    int lock;
     Cylinder *shape;
     Matrix *matrix;
     float3 *translation;
@@ -346,6 +347,10 @@ struct CylinderNode {
         lchild = nullptr;
         rchild = nullptr;
         parent = nullptr;
+        lock = 0;
+
+        min = make_float3(FLT_MAX);
+        max = make_float3(-FLT_MAX);
     }
 
     __host__
@@ -353,6 +358,7 @@ struct CylinderNode {
         lchild = nullptr;
         rchild = nullptr;
         parent = nullptr;
+        lock = 0;
         this->type = type;
         this->shape = shape;
 
@@ -403,6 +409,7 @@ struct CylinderNode {
         lchild = nullptr;
         rchild = nullptr;
         parent = nullptr;
+        lock = 0;
 
         min = fminf(shape->base, shape->top) - shape->radius;
         max = fmaxf(shape->base, shape->top) + shape->radius;

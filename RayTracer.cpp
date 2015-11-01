@@ -49,7 +49,7 @@ const char* windowTitle = "Msc Ray Tracing";
 std::string sceneName = "rings_low";
 //std::string sceneName = "straight";
 
-extern void deviceClearImage(float3 *d_output, float3 value, int resX, dim3 gridSize, dim3 blockSize);
+extern void deviceClearImage(float3 *d_output, float3 value, int resX, int resY, dim3 gridSize, dim3 blockSize);
 
 extern void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
                             int resX, int resY, float width, float height, float atDistance, float3 xe, 
@@ -201,7 +201,7 @@ void render() {
     checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&d_output, &num_bytes, cuda_pbo));
 
     if(SUPER_SAMPLING > 1 ) {
-        deviceClearImage(d_output, make_float3(0.0f), RES_X, gridSize, blockSize);
+        deviceClearImage(d_output, make_float3(0.0f), RES_X, RES_Y, gridSize, blockSize);
     }
 
     dim3 ssgridSize = dim3(gridSize.x * SUPER_SAMPLING, gridSize.y * SUPER_SAMPLING, gridSize.z);
@@ -391,7 +391,15 @@ void buildBVH() {
     uint size = scene->h_shapeSizes[cylinderIndex];
 
     dim3 grid = dim3(iDivUp(size, blockSize.x));
-    deviceBuildBVH(scene->d_cylinders, scene->h_shapeSizes[cylinderIndex], grid, blockSize);
+    dim3 vectorBlock = dim3(blockSize.x);
+
+    clock_t start = clock();
+    deviceBuildBVH(scene->d_cylinders, scene->h_shapeSizes[cylinderIndex], grid, vectorBlock);
+    clock_t end = clock();
+
+    //debug info
+    std::cout << "bvh construction" << std::endl;
+    std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
 }
 
 int main(int argc, char *argv[]) {
