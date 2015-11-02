@@ -17,13 +17,12 @@ float3 getTransformed(Matrix *m, float3 *translation, float3 v) {
 }
 
 __device__
-bool AABBIntersection(Ray ray, float3 min, float3 max, float *d) {
+bool AABBIntersection(Ray ray, float3 min, float3 max) {
     float txmin, txmax, tymin, tymax, tzmin, tzmax;
     float3 *bb[2];
 
     bb[0] = &min;
     bb[1] = &max;
-
 
     txmin = (bb[ray.sign[0]]->x - ray.origin.x) * ray.invDirection.x;
     txmax = (bb[1 - ray.sign[0]]->x - ray.origin.x) * ray.invDirection.x;
@@ -38,10 +37,8 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *d) {
     txmax = fminf(txmax, fminf(tymax, tzmax));
 
     if(txmin < txmax  && txmin > 0) {
-        *d = txmin;
         return true;
     } else if(txmax > 0) {
-        *d = txmax;
         return true;
     }
 
@@ -49,13 +46,13 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *d) {
 }
 
 __device__
-bool OBBIntersection(Ray ray, float3 min, float3 max, Matrix *m, float3 *translation, float *distance) {
+bool OBBIntersection(Ray ray, float3 min, float3 max, Matrix *m, float3 *translation) {
     float3 origin = ray.origin;
     float3 direction = ray.direction;
 
     ray.update(getTransformed(m, translation, ray.origin), getTransformed(m, translation, ray.direction)); 
 
-    bool res = AABBIntersection(ray, min, max, distance);
+    bool res = AABBIntersection(ray, min, max);
 
     ray.update(origin, direction);
     return res;

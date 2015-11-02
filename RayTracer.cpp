@@ -46,7 +46,7 @@ StopWatchInterface *timer = NULL;
 
 const char* windowTitle = "Msc Ray Tracing";
 
-std::string sceneName = "balls_low";
+std::string sceneName = "rings_low";
 //std::string sceneName = "straight";
 
 extern void deviceClearImage(float3 *d_output, float3 value, int resX, int resY, dim3 gridSize, dim3 blockSize);
@@ -390,7 +390,7 @@ void idle() {
 void buildBVH() {
     uint size = scene->h_shapeSizes[cylinderIndex];
 
-    if(size > 0) {
+    if(size > 1) {
         dim3 grid = dim3(iDivUp(size, blockSize.x));
         dim3 vectorBlock = dim3(blockSize.x);
 

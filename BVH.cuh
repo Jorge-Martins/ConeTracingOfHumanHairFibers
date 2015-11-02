@@ -12,9 +12,15 @@
 __device__ int const mul[] = {10, 100, 1000, 10000, 100000, 1000000};
 
 __device__
-bool traverse(CylinderNode *nodeOut, CylinderNode *bvh, uint bvhSize, Ray ray) {
-    bool intersection = false;
-    float distance = FLT_MAX, oldDistance = FLT_MAX;
+bool traverse(CylinderNode *bvh, uint bvhSize, Ray ray, RayIntersection *minIntersect) {
+    bool intersectionFound = false;
+    
+    int nBBIntersected = 0;
+    int nShapesIntersected = 0;
+
+    RayIntersection curr = *minIntersect;
+
+
     CylinderNode *stackNodes[StackSize];
     CylinderNode *stackChildren[StackSize];
 
@@ -30,24 +36,27 @@ bool traverse(CylinderNode *nodeOut, CylinderNode *bvh, uint bvhSize, Ray ray) {
 
     
     CylinderNode *node;
-
+    bool result = false;
     while((node = stackNodesPtr[stackIndex]) != nullptr) {
-        
+        nBBIntersected++;
         if(node->type == AABB) {
-            intersection = AABBIntersection(ray, node->min, node->max, &distance);
+            intersectionFound = AABBIntersection(ray, node->min, node->max);
         } else {
-            intersection = OBBIntersection(ray, node->min, node->max, node->matrix, node->translation, &distance);
+            intersectionFound = OBBIntersection(ray, node->min, node->max, node->matrix, node->translation);
         }
 
         stackIndex--;
-        if (intersection) {
+        if (intersectionFound) {
             // Leaf node
             if (node->shape != nullptr) {
-                if(distance < oldDistance) {
-                    oldDistance = distance;
-                    nodeOut = node;
+                nShapesIntersected++;
+                intersectionFound = intersection(ray, &curr, node->shape);
+
+                if(intersectionFound && (curr.distance < minIntersect->distance)) {
+                    result = true;
+                    *minIntersect = curr;
                 }
-                
+
             // Internal node
             } else {
                 stackChildrenPtr[++stackCIndex] = node->lchild;
@@ -69,7 +78,7 @@ bool traverse(CylinderNode *nodeOut, CylinderNode *bvh, uint bvhSize, Ray ray) {
         }
     }
 
-    return nodeOut != nullptr;
+    return result;
 }
 
 inline __device__ int longestCommonPrefix(int i, int j, uint nObjects, CylinderNode *bvhLeaves) {
@@ -147,7 +156,7 @@ __global__ void buildBVH(CylinderNode *bvh, uint nObjects) {
 
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (i > nObjects - 2) {
+    if (i >= nObjects - 1) {
         return;
     }
 
