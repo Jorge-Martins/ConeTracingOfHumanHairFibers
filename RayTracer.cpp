@@ -26,7 +26,7 @@ dim3 blockSize(16, 16);
 dim3 gridSize;
 
 float horizontalAngle, verticalAngle, radius;
-float initHorizontalAngle = 180.0f, initVerticalAngle = 45.0f, initRadius = 60.0f, initFov = 55.0f;
+float initHorizontalAngle = 100.0f, initVerticalAngle = 90.0f, initRadius = 0.2f, initFov = 70.0f;//initRadius = 60.0f, initFov = 90.0f;
 
 int xDragStart, yDragStart, dragging, zooming;
 float fov;
@@ -46,7 +46,7 @@ StopWatchInterface *timer = NULL;
 
 const char* windowTitle = "Msc Ray Tracing";
 
-std::string sceneName = "rings_low";
+std::string sceneName = "rings";
 //std::string sceneName = "straight";
 
 extern void deviceClearImage(float3 *d_output, float3 value, int resX, int resY, dim3 gridSize, dim3 blockSize);
@@ -75,8 +75,13 @@ float3 computeFromCoordinates(float3 up){
 }
 
 void cleanup() {
-    delete scene;
-    delete camera;
+    if(scene) {
+        delete scene;
+    }
+
+    if(camera) {
+        delete camera;
+    }
 
     if(d_rays) {
         checkCudaErrors(cudaFree(d_rays));
@@ -200,22 +205,26 @@ void render() {
     size_t num_bytes;
     checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&d_output, &num_bytes, cuda_pbo));
 
-    if(SUPER_SAMPLING > 1 ) {
-        deviceClearImage(d_output, make_float3(0.0f), RES_X, RES_Y, gridSize, blockSize);
+    if(!stopRender) {
+        if(SUPER_SAMPLING > 1 ) {
+            deviceClearImage(d_output, make_float3(0.0f), RES_X, RES_Y, gridSize, blockSize);
+        }
+
+        dim3 ssgridSize = dim3(gridSize.x * SUPER_SAMPLING, gridSize.y * SUPER_SAMPLING, gridSize.z);
+        // call CUDA kernel, writing results to PBO
+        deviceDrawScene(scene->getDShapes(), scene->getDShapesSize(), scene->getDLights(), scene->getDLightsSize(), 
+                        scene->getBackcolor(), RES_X, RES_Y, camera->width, camera->height, camera->atDistance, 
+                        camera->xe, camera->ye, camera->ze, camera->from, d_output, ssgridSize, blockSize, 
+                        d_rays, d_locals, d_reflectionCols, d_refractionCols);
+
+        cudaError_t error = cudaGetLastError();
+        if(error != cudaSuccess) {
+            std::cerr << cudaGetErrorString(error) << std::endl;
+        }
+
+        //stopRender = true;
     }
 
-    dim3 ssgridSize = dim3(gridSize.x * SUPER_SAMPLING, gridSize.y * SUPER_SAMPLING, gridSize.z);
-    // call CUDA kernel, writing results to PBO
-    deviceDrawScene(scene->getDShapes(), scene->getDShapesSize(), scene->getDLights(), scene->getDLightsSize(), 
-                    scene->getBackcolor(), RES_X, RES_Y, camera->width, camera->height, camera->atDistance, 
-                    camera->xe, camera->ye, camera->ze, camera->from, d_output, ssgridSize, blockSize, 
-                    d_rays, d_locals, d_reflectionCols, d_refractionCols);
-
-    cudaError_t error = cudaGetLastError();
-    if(error != cudaSuccess) {
-        std::cerr << cudaGetErrorString(error) << std::endl;
-    }
-    
     checkCudaErrors(cudaGraphicsUnmapResources(1, &cuda_pbo, 0));
 }
 
@@ -399,8 +408,8 @@ void buildBVH() {
         clock_t end = clock();
 
         //debug info
-        std::cout << "bvh construction" << std::endl;
-        std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
+        //std::cout << "bvh construction" << std::endl;
+        //std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
     }
 }
 
@@ -424,7 +433,7 @@ int main(int argc, char *argv[]) {
 	}
 
     /*if (!load_hair(path + sceneName, scene)) {
-        delete scene;
+        cleanup();
 
         getchar();
 		return -1;
@@ -452,7 +461,10 @@ int main(int argc, char *argv[]) {
     glewInit();
     if (!glewIsSupported("GL_VERSION_2_0 GL_ARB_pixel_buffer_object")) {
         printf("Required OpenGL extensions missing.");
-        exit(EXIT_SUCCESS);
+        cleanup();
+
+        getchar();
+		return -1;
     }
 
     glDisable(GL_DEPTH_TEST);

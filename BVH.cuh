@@ -5,7 +5,7 @@
 
 #include "Intersection.cuh"
 
-#define StackSize 32
+#define StackSize 64
 #define sizeMul 6
 
 //mul array
@@ -20,60 +20,184 @@ bool traverse(CylinderNode *bvh, uint bvhSize, Ray ray, RayIntersection *minInte
 
     RayIntersection curr = *minIntersect;
 
-
     CylinderNode *stackNodes[StackSize];
-    CylinderNode *stackChildren[StackSize];
-
-    CylinderNode **stackNodesPtr = stackNodes;
-    CylinderNode **stackChildrenPtr = stackChildren;
-
+    
     uint stackIndex = 0;
-    uint stackCIndex = 0;
 
-    stackNodes[stackIndex] = stackChildren[stackCIndex] = nullptr;
+    stackNodes[stackIndex++] = nullptr;
     
-    stackNodes[++stackIndex] = &bvh[0];
+    CylinderNode *childL, *childR, *node = &bvh[0];
 
+    if(node->type == AABB) {
+        intersectionFound = AABBIntersection(ray, node->min, node->max);
+    } else {
+        intersectionFound = OBBIntersection(ray, node->min, node->max, node->matrix, node->translation);
+    }
     
-    CylinderNode *node;
+    if(!intersectionFound) {
+        return false;
+    }
+
     bool result = false;
-    while((node = stackNodesPtr[stackIndex]) != nullptr) {
-        nBBIntersected++;
-        if(node->type == AABB) {
-            intersectionFound = AABBIntersection(ray, node->min, node->max);
-        } else {
-            intersectionFound = OBBIntersection(ray, node->min, node->max, node->matrix, node->translation);
-        }
+    bool lIntersection, rIntersection, traverseL, traverseR; 
+    while(node != nullptr) {
+        lIntersection = rIntersection = traverseL = traverseR = false;
 
-        stackIndex--;
-        if (intersectionFound) {
-            // Leaf node
-            if (node->shape != nullptr) {
-                nShapesIntersected++;
-                intersectionFound = intersection(ray, &curr, node->shape);
-
-                if(intersectionFound && (curr.distance < minIntersect->distance)) {
-                    result = true;
-                    *minIntersect = curr;
-                }
-
-            // Internal node
+        childL = node->lchild;
+        if(childL != nullptr) {
+            nBBIntersected++;
+            if(childL->type == AABB) {
+                lIntersection = AABBIntersection(ray, childL->min, childL->max);
             } else {
-                stackChildrenPtr[++stackCIndex] = node->lchild;
-                stackChildrenPtr[++stackCIndex] = node->rchild;
+                lIntersection = OBBIntersection(ray, childL->min, childL->max, childL->matrix, childL->translation);
             }
 
-            if(stackNodes[stackIndex] == nullptr) {
-                CylinderNode **tmp;
-                int tmpIndex;
+            if (lIntersection) {
+                // Leaf node
+                if (childL->shape != nullptr) {
+                    nShapesIntersected++;
+                    intersectionFound = intersection(ray, &curr, childL->shape);
 
-                tmp = stackNodesPtr;
-                stackNodesPtr = stackChildrenPtr;
-                stackChildrenPtr = tmp;
+                    if(intersectionFound && (curr.distance < minIntersect->distance)) {
+                        result = true;
+                        *minIntersect = curr;
+                    }
 
-                tmpIndex = stackIndex;
-                stackIndex = stackCIndex;
-                stackCIndex = tmpIndex;
+                } else {
+                    traverseL = true;
+                }
+            }
+        }
+
+        childR = node->rchild;
+        if(childR != nullptr) {
+            nBBIntersected++;
+            if(childR->type == AABB) {
+                rIntersection = AABBIntersection(ray, childR->min, childR->max);
+            } else {
+                rIntersection = OBBIntersection(ray, childR->min, childR->max, childR->matrix, childR->translation);
+            }
+
+            if (rIntersection) {
+                // Leaf node
+                if (childR->shape != nullptr) {
+                    nShapesIntersected++;
+                    intersectionFound = intersection(ray, &curr, childR->shape);
+
+                    if(intersectionFound && (curr.distance < minIntersect->distance)) {
+                        result = true;
+                        *minIntersect = curr;
+                    }
+
+                } else {
+                    traverseR = true;
+                }
+            }
+        }
+
+        
+        if (!traverseL && !traverseR) {
+            node = stackNodes[--stackIndex]; // pop
+
+        } else {
+            node = (traverseL) ? childL : childR;
+            if (traverseL && traverseR) {
+                stackNodes[stackIndex++] = childR; // push
+            }
+        }
+    }
+
+    return result;
+}
+
+__device__
+bool traverseShadow(CylinderNode *bvh, uint bvhSize, Ray ray) {
+    bool intersectionFound = false;
+    
+    int nBBIntersected = 0;
+    int nShapesIntersected = 0;
+
+    CylinderNode *stackNodes[StackSize];
+    
+    uint stackIndex = 0;
+
+    stackNodes[stackIndex++] = nullptr;
+    
+    CylinderNode *childL, *childR, *node = &bvh[0];
+
+    if(node->type == AABB) {
+        intersectionFound = AABBIntersection(ray, node->min, node->max);
+    } else {
+        intersectionFound = OBBIntersection(ray, node->min, node->max, node->matrix, node->translation);
+    }
+    
+    if(!intersectionFound) {
+        return false;
+    }
+
+    bool result = false;
+    bool lIntersection, rIntersection, traverseL, traverseR; 
+    while(node != nullptr) {
+        lIntersection = rIntersection = traverseL = traverseR = false;
+
+        childL = node->lchild;
+        if(childL != nullptr) {
+            nBBIntersected++;
+            if(childL->type == AABB) {
+                lIntersection = AABBIntersection(ray, childL->min, childL->max);
+            } else {
+                lIntersection = OBBIntersection(ray, childL->min, childL->max, childL->matrix, childL->translation);
+            }
+
+            if (lIntersection) {
+                // Leaf node
+                if (childL->shape != nullptr) {
+                    nShapesIntersected++;
+                    intersectionFound = intersection(ray, nullptr, childL->shape);
+
+                    if(intersectionFound) {
+                        return true;
+                    }
+
+                } else {
+                    traverseL = true;
+                }
+            }
+        }
+
+        childR = node->rchild;
+        if(childR != nullptr) {
+            nBBIntersected++;
+            if(childR->type == AABB) {
+                rIntersection = AABBIntersection(ray, childR->min, childR->max);
+            } else {
+                rIntersection = OBBIntersection(ray, childR->min, childR->max, childR->matrix, childR->translation);
+            }
+
+            if (rIntersection) {
+                // Leaf node
+                if (childR->shape != nullptr) {
+                    nShapesIntersected++;
+                    intersectionFound = intersection(ray, nullptr, childR->shape);
+
+                    if(intersectionFound) {
+                        return true;
+                    }
+
+                } else {
+                    traverseR = true;
+                }
+            }
+        }
+
+        
+        if (!traverseL && !traverseR) {
+            node = stackNodes[--stackIndex]; // pop
+
+        } else {
+            node = (traverseL) ? childL : childR;
+            if (traverseL && traverseR) {
+                stackNodes[stackIndex++] = childR; // push
             }
         }
     }

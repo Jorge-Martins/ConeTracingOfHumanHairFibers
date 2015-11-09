@@ -79,6 +79,13 @@ bool findShadow(int **d_shapes, uint *d_shapeSizes, Ray feeler) {
 }
 
 __device__
+bool cylFindShadow(int **d_shapes, uint *d_shapeSizes, Ray feeler) {
+    CylinderNode *bvh = (CylinderNode*) d_shapes[cylinderIndex];
+
+    return traverseShadow(bvh, d_shapeSizes[cylinderIndex], feeler);
+}
+
+__device__
 bool cylNearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersection *out) {
 	RayIntersection minIntersect(FLT_MAX, make_float3(0.0f), make_float3(0.0f));
 	bool intersectionFound = false;
@@ -123,21 +130,7 @@ bool nearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersecti
 		        }
 
                 break;
-                //uint leafOffset = d_shapeSizes[shapeType] - 1;
-
                 
-                /*CylinderNode *node = &cylinderNode[leafOffset + i];
-                if(node->type == AABB) {
-                    intersectionFound = AABBIntersection(ray, node->min, node->max);
-                } else {
-                    intersectionFound = OBBIntersection(ray, node->min, node->max, 
-                                                        node->matrix, node->translation);
-                }
-
-                if(intersectionFound) {
-                    intersectionFound = intersection(ray, &curr, node->shape);
-                }*/
-
             } else if(shapeType == triangleIndex) {
                 TriangleNode *triangleNode = (TriangleNode*) d_shapes[shapeType];
 
@@ -224,8 +217,9 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
             continue;
         }
 
-	    bool foundIntersect = nearestIntersect(d_shapes, d_shapeSizes, ray[rayOffset + rayIndex(rayN)], &intersect);
-
+        //bool foundIntersect = nearestIntersect(d_shapes, d_shapeSizes, ray[rayOffset + rayIndex(rayN)], &intersect);
+	    bool foundIntersect = cylNearestIntersect(d_shapes, d_shapeSizes, ray[rayOffset + rayIndex(rayN)], &intersect);
+        
 	    if (!foundIntersect) {
             if(rayN == 0) {
                 return backcolor;
@@ -251,8 +245,9 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
 		    float3 feelerDir = normalize(lights[li].position - intersect.point);
             feeler.update(intersect.point, feelerDir);
             
-            bool inShadow = findShadow(d_shapes, d_shapeSizes, feeler);
-                
+            //bool inShadow = findShadow(d_shapes, d_shapeSizes, feeler);
+            bool inShadow = cylFindShadow(d_shapes, d_shapeSizes, feeler);
+            
 		    if(!inShadow) {
                 float3 reflectDir = reflect(-feelerDir, intersect.normal);
                 float Lspec = powf(fmaxf(dot(reflectDir, -ray[rayOffset + rayIndex(rayN)].direction), 0.0f), 
@@ -337,22 +332,24 @@ void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize
 
     uint index = y * (resX * SUPER_SAMPLING) + x;
 
-    if(index < res_xy * SUPER_SAMPLING * SUPER_SAMPLING) {
-        float3 zeFactor = -ze * atDistance; 
-        float3 yeFactor = ye * height * ((y + 0.5f) / (float)(resY * SUPER_SAMPLING) - 0.5f);
-	    float3 xeFactor = xe * width * ((x + 0.5f) / (float)(resX * SUPER_SAMPLING) - 0.5f);
+    if(index >= res_xy * SUPER_SAMPLING * SUPER_SAMPLING) {
+        return;
+    }
 
-	    float3 direction = normalize(zeFactor + yeFactor + xeFactor);
-	
-        float3 color = rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
-                                  ray, d_locals, d_reflectionCols, d_refractionCols, index);
-    
-        if(SUPER_SAMPLING > 1) {
-            index = (uint)(y / (float)SUPER_SAMPLING) * resX + (uint)(x / (float)SUPER_SAMPLING);
-            d_output[index] += color; // (SUPER_SAMPLING * SUPER_SAMPLING);
-        } else {
-            d_output[index] = color;
-        }
+    float3 zeFactor = -ze * atDistance; 
+    float3 yeFactor = ye * height * ((y + 0.5f) / (float)(resY * SUPER_SAMPLING) - 0.5f);
+    float3 xeFactor = xe * width * ((x + 0.5f) / (float)(resX * SUPER_SAMPLING) - 0.5f);
+
+    float3 direction = normalize(zeFactor + yeFactor + xeFactor);
+
+    float3 color = rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
+                              ray, d_locals, d_reflectionCols, d_refractionCols, index);
+
+    if(SUPER_SAMPLING > 1) {
+        index = (uint)(y / (float)SUPER_SAMPLING) * resX + (uint)(x / (float)SUPER_SAMPLING);
+        d_output[index] += color; // (SUPER_SAMPLING * SUPER_SAMPLING);
+    } else {
+        d_output[index] = color;
     }
 }
 
@@ -363,9 +360,11 @@ void clearImage(float3 *d_output, float3 value, int resX, int res) {
 
     uint index = y * resX + x;
 
-    if(index < res) {
-        d_output[index] = value;
+    if(index >= res) {
+        return;
     }
+    d_output[index] = value;
+
 }
 
 void deviceClearImage(float3 *d_output, float3 value, int resX, int resY, dim3 gridSize, dim3 blockSize) {

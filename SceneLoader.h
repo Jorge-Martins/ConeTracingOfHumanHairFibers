@@ -99,6 +99,8 @@ bool load_hair(std::string filePath, Scene *sc) {
     float transparency = hairfile.GetHeader().d_transparency;
     float thickness = hairfile.GetHeader().d_thickness;
 
+    float scale = 2E-4f/thickness;
+
     float3 color, base, top, translation;
     color = make_float3(hairfile.GetHeader().d_color[0], hairfile.GetHeader().d_color[1], hairfile.GetHeader().d_color[2]);
     
@@ -138,7 +140,8 @@ bool load_hair(std::string filePath, Scene *sc) {
 
                 base = make_float3(pointsArray[cpIndex], pointsArray[cpIndex + 1], pointsArray[cpIndex + 2]) + translation;
                 top = make_float3(pointsArray[cpIndex + 3], pointsArray[cpIndex + 4], pointsArray[cpIndex + 5]) + translation;
-                sc->addCylinder(base, top, thickness);
+                sc->addCylinder(make_float3(scale) * base, make_float3(scale) * top, scale * thickness);
+                //sc->addCylinder(base, top, thickness);
             }
             
             pointIndex += segmentSize + 1;
@@ -148,11 +151,11 @@ bool load_hair(std::string filePath, Scene *sc) {
         int index = 3 * (segmentSize - 1);
         float3 lastPoint = make_float3(pointsArray[index], pointsArray[index + 1], pointsArray[index + 2]);
         float3 hairAxis = hairRoot - lastPoint;
-        float d = 2 * length(hairAxis) / 3.0f;
+        float d = length(hairAxis) / 3.0f;
         hairAxis = normalize(hairAxis);
         translation = -(lastPoint + d * hairAxis);
 
-        for (int segment = 0; segment < 4; segment++ ) {
+        for (int segment = 0; segment < nSegments; segment++ ) {
             for(int point = pointIndex; point < pointIndex + segmentSize; point++) {
                 int cpIndex = point * 3;
 
@@ -172,7 +175,8 @@ bool load_hair(std::string filePath, Scene *sc) {
 
                 base = make_float3(pointsArray[cpIndex], pointsArray[cpIndex + 1], pointsArray[cpIndex + 2]) + translation;
                 top = make_float3(pointsArray[cpIndex + 3], pointsArray[cpIndex + 4], pointsArray[cpIndex + 5]) + translation;
-                sc->addCylinder(base, top, thickness);
+                sc->addCylinder(make_float3(scale) * base, make_float3(scale) * top, scale * thickness);
+                //sc->addCylinder(base, top, thickness);
             }
 
             pointIndex += segmentSize + 1;

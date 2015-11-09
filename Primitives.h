@@ -16,13 +16,26 @@ enum BBType {
     OBB
 };
 
+/* N - Negative
+ * O - zero
+ * P - Positive
+ */
+enum RayClassification {
+    NNN, NNO, NNP, NON, NOO, NOP, NPN, NPO, NPP,
+    ONN, ONO, ONP, OON, OOO, OOP, OPN, OPO, OPP,
+    PNN, PNO, PNP, PON, POO, POP, PPN, PPO, PPP
+        
+};
+
 struct Ray {
     float3 origin;
     float3 direction;
-    float3 invDirection;
     bool exists;
+
+    /*williams implementation
     int sign[3];
-    
+    float3 invDirection;
+
     __host__ __device__
     void computeSign() {
         invDirection = 1.0f / direction;
@@ -30,6 +43,58 @@ struct Ray {
         sign[0] = (invDirection.x < 0);
         sign[1] = (invDirection.y < 0);
         sign[2] = (invDirection.z < 0);
+    }*/
+
+    //slope
+    short classification;
+    float x_y, y_x, y_z, z_y, x_z, z_x; 
+	float c_xy, c_xz, c_yx, c_yz, c_zx, c_zy;
+
+    __host__ __device__
+    void computeSlopes() {
+        float3 invDirection = 1.0f / direction;
+        x_y = direction.x * invDirection.y;
+	    y_x = direction.y * invDirection.x;
+	    y_z = direction.y * invDirection.z;
+	    z_y = direction.z * invDirection.y;
+	    x_z = direction.x * invDirection.z;
+	    z_x = direction.z * invDirection.x;
+
+	    c_xy = origin.y - y_x * origin.x;
+	    c_xz = origin.z - z_x * origin.x;
+	    c_yx = origin.x - x_y * origin.y;
+	    c_yz = origin.z - z_y * origin.y;
+	    c_zx = origin.x - x_z * origin.z;
+	    c_zy = origin.y - y_z * origin.z;
+
+        
+        if(direction.x < 0) {
+			classification = NNN;
+
+		} else if(direction.x > 0){
+			classification = PNN;
+
+		} else {
+			classification = ONN;
+		}
+
+        if(direction.y < 0) {
+			//ignore
+		} else if(direction.y > 0){
+			classification += 6;
+
+		} else {
+			classification += 3;
+		}
+
+        if(direction.z < 0) {
+			//ignore
+		} else if(direction.z > 0){
+			classification += 2;
+
+		} else {
+			classification += 1;
+		}
     }
 
     __host__ __device__ 
@@ -38,7 +103,8 @@ struct Ray {
         direction = make_float3(0.0f, 0.0f, 1.0f);
         exists = true;
 
-        computeSign();
+        //computeSign();
+        computeSlopes();
     }
 
     __device__ 
@@ -47,7 +113,8 @@ struct Ray {
         this->direction = direction;
         this->exists = true;
 
-        computeSign();
+        //computeSign();
+        computeSlopes();
     }
 
     __device__
@@ -56,7 +123,8 @@ struct Ray {
         this->direction = direction;
         this->exists = true;
 
-        computeSign();
+        //computeSign();
+        computeSlopes();
     }
 };
 
