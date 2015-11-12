@@ -7,8 +7,11 @@
 #include <helper_cuda.h>
 
 #define SUPER_SAMPLING 1
+#define SUPER_SAMPLING_2 SUPER_SAMPLING * SUPER_SAMPLING
+#define SUPER_SAMPLING_2_F 1.0f / SUPER_SAMPLING_2
 #define MAX_DEPTH 2
-#define EPSILON 1E-4f
+#define EPSILON 1E-3f
+#define OBB_AABB_EPSILON 1.1f
 
 #define sphereIndex 0
 #define cylinderIndex 1
@@ -139,8 +142,8 @@ inline __device__ int imin(int a, int b)
     return a < b ? a : b;
 }
 
-inline __host__ __device__ int iDivUp(int a, int b) {
-    return (a % b != 0) ? (a / b + 1) : (a / b);
+inline __host__ __device__ int iceil(int a, int b) {
+    return (a + b - 1) / b;
 }
 
 inline __host__ __device__

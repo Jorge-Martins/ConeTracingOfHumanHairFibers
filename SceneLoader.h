@@ -4,7 +4,6 @@
 #define _SCENELOADER_H_
 
 #include "Scene.h"
-#include <time.h>
 #include "parsing/mc_driver.hpp"
 #include "parsing/cyHairFile.h"
 
@@ -99,26 +98,20 @@ bool load_hair(std::string filePath, Scene *sc) {
     float transparency = hairfile.GetHeader().d_transparency;
     float thickness = hairfile.GetHeader().d_thickness;
 
-    float scale = 2E-4f/thickness;
+    float scale = 0.1f;
 
-    float3 color, base, top, translation;
+    float3 color, base, top, translation = make_float3(0.0f, 0.0f, -20.0f);
     color = make_float3(hairfile.GetHeader().d_color[0], hairfile.GetHeader().d_color[1], hairfile.GetHeader().d_color[2]);
     
     float3 hairRoot = make_float3(pointsArray[0], pointsArray[1], pointsArray[2]);
     
     sc->setBackcolor(make_float3(0.8f, 0.8f, 0.8f));
-    sc->addLight(hairRoot + make_float3(0.0f, 0.0f, 60.0f));
+    sc->addLight(make_float3(0.0f, 0.0f, 10.0f));
 
     if (segments) {
         // If segments array exists
-        int index = 3 * (segments[0] - 1);
-        float3 lastPoint = make_float3(pointsArray[index], pointsArray[index + 1], pointsArray[index + 2]);
-        float3 hairAxis = hairRoot - lastPoint;
-        float d = 2 * length(hairAxis) / 3.0f;
-        hairAxis = normalize(hairAxis);
-        translation = -(lastPoint + d * hairAxis);
-
-        for (int segment = 0; segment < nSegments; segment++ ) {
+        
+        for (int segment = 0; segment < 5000; segment++ ) {
             segmentSize = segments[segment];
 
             for(int point = pointIndex; point < pointIndex + segmentSize; point++) {
@@ -147,15 +140,9 @@ bool load_hair(std::string filePath, Scene *sc) {
             pointIndex += segmentSize + 1;
         }
     } else {
-        // If segments array does not exist, use default segment count
-        int index = 3 * (segmentSize - 1);
-        float3 lastPoint = make_float3(pointsArray[index], pointsArray[index + 1], pointsArray[index + 2]);
-        float3 hairAxis = hairRoot - lastPoint;
-        float d = length(hairAxis) / 3.0f;
-        hairAxis = normalize(hairAxis);
-        translation = -(lastPoint + d * hairAxis);
-
-        for (int segment = 0; segment < nSegments; segment++ ) {
+        // If segments array does not exist, use default segment count      
+        
+        for (int segment = 0; segment < 5000; segment++ ) {
             for(int point = pointIndex; point < pointIndex + segmentSize; point++) {
                 int cpIndex = point * 3;
 

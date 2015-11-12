@@ -52,7 +52,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>./;$(CudaToolkitDir)/include;../../dependencies/inc;../../dependencies/FreeImage/Dist/x64/;../../dependencies/FreeImage/Wrapper/FreeImagePlus/dist/x64/</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./;$(CudaToolkitDir)/include;../../dependencies/inc;../../dependencies/FreeImage/Dist/x64/;../../dependencies/FreeImage/Wrapper/FreeImagePlus/dist/x64/;../../dependencies/glm/glm/</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

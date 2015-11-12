@@ -22,11 +22,11 @@ int fpsCount = 0;
 int fpsLimit = 1;        // FPS limit for sampling
 
 int RES_X = 512, RES_Y = 512;
-dim3 blockSize(16, 16);
+dim3 blockSize(8, 8);
 dim3 gridSize;
 
 float horizontalAngle, verticalAngle, radius;
-float initHorizontalAngle = 100.0f, initVerticalAngle = 90.0f, initRadius = 0.2f, initFov = 70.0f;//initRadius = 60.0f, initFov = 90.0f;
+float initHorizontalAngle = 100.0f, initVerticalAngle = 90.0f, initRadius = 8.0f, initFov = 80.0f;//initRadius = 60.0f, initFov = 90.0f;
 
 int xDragStart, yDragStart, dragging, zooming;
 float fov;
@@ -46,8 +46,9 @@ StopWatchInterface *timer = NULL;
 
 const char* windowTitle = "Msc Ray Tracing";
 
-std::string sceneName = "rings";
+//std::string sceneName = "rings_low";
 //std::string sceneName = "straight";
+std::string sceneName = "wCurly";
 
 extern void deviceClearImage(float3 *d_output, float3 value, int resX, int resY, dim3 gridSize, dim3 blockSize);
 
@@ -75,12 +76,15 @@ float3 computeFromCoordinates(float3 up){
 }
 
 void cleanup() {
+    std::cout << "cleanup" << std::endl;
     if(scene) {
         delete scene;
+        std::cout << "scene done" << std::endl;
     }
 
     if(camera) {
         delete camera;
+        std::cout << "camera done" << std::endl;
     }
 
     if(d_rays) {
@@ -88,6 +92,7 @@ void cleanup() {
         checkCudaErrors(cudaFree(d_locals));
         checkCudaErrors(cudaFree(d_reflectionCols));
         checkCudaErrors(cudaFree(d_refractionCols));
+        std::cout << "rays done" << std::endl;
     }
 
     sdkDeleteTimer(&timer);
@@ -96,11 +101,13 @@ void cleanup() {
         cudaGraphicsUnregisterResource(cuda_pbo);
         glDeleteBuffersARB(1, &pbo);
         glDeleteTextures(1, &tex);
+        std::cout << "pbo done" << std::endl;
     }
 
+    std::cout << "reseting device" << std::endl;
     checkCudaErrors(cudaDeviceReset());
+    std::cout << "reseting device done" << std::endl;
 
-    cudaDeviceReset();
 }
 
 void computeFPS() {
@@ -130,7 +137,7 @@ void cudaInit() {
     }
 
     //size local array
-    size = RES_X * RES_Y * SUPER_SAMPLING * SUPER_SAMPLING;
+    size = RES_X * RES_Y * SUPER_SAMPLING_2;
     uint localsSize = size * ((2 << MAX_DEPTH) - 1);
 
     //size reflection and refraction arrays 
@@ -233,7 +240,7 @@ void reshape(int w, int h) {
     RES_Y = h;
     
     // calculate new grid size
-    gridSize = dim3(iDivUp(RES_X, blockSize.x), iDivUp(RES_Y, blockSize.y));
+    gridSize = dim3(iceil(RES_X, blockSize.x), iceil(RES_Y, blockSize.y));
     
     camera->update(RES_X / (float)RES_Y);
 
@@ -400,7 +407,7 @@ void buildBVH() {
     uint size = scene->h_shapeSizes[cylinderIndex];
 
     if(size > 1) {
-        dim3 grid = dim3(iDivUp(size, blockSize.x));
+        dim3 grid = dim3(iceil(size, blockSize.x));
         dim3 vectorBlock = dim3(blockSize.x);
 
         clock_t start = clock();
@@ -415,8 +422,8 @@ void buildBVH() {
 
 int main(int argc, char *argv[]) {
     sdkCreateTimer(&timer);
-	std::string path = "../../resources/nffFiles/";
-    //std::string path = "../../resources/HairModels/";
+	//std::string path = "../../resources/nffFiles/";
+    std::string path = "../../resources/HairModels/";
     scene = new Scene();
 
     //Explicitly set device 0 
@@ -425,19 +432,19 @@ int main(int argc, char *argv[]) {
     float3 at = make_float3(0.0f);
     float3 up = make_float3(0.0f , 0.0f, 1.0f);
 
-	if (!load_nff(path + sceneName, scene, &initRadius, &initVerticalAngle, &initHorizontalAngle, &initFov, &up)) {
+	/*if (!load_nff(path + sceneName, scene, &initRadius, &initVerticalAngle, &initHorizontalAngle, &initFov, &up)) {
         delete scene;
 
         getchar();
 		return -1;
-	}
+	}*/
 
-    /*if (!load_hair(path + sceneName, scene)) {
+    if (!load_hair(path + sceneName, scene)) {
         cleanup();
 
         getchar();
 		return -1;
-	}*/
+	}
 
     initPosition();
     
@@ -446,7 +453,7 @@ int main(int argc, char *argv[]) {
     buildBVH();
     
     // calculate new grid size
-    gridSize = dim3(iDivUp(RES_X, blockSize.x), iDivUp(RES_Y, blockSize.y));
+    gridSize = dim3(iceil(RES_X, blockSize.x), iceil(RES_Y, blockSize.y));
 
     camera = new Camera(from, at, up, fov, (float)RES_X / (float)RES_Y);
 

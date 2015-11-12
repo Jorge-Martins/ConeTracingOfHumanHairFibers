@@ -10,6 +10,9 @@
 #include <sstream>
 
 #include "MathUtil.h"
+#include <glm.hpp>
+#include <gtc/quaternion.hpp>
+#include <gtc/matrix_transform.hpp>
 
 enum BBType {
     AABB,
@@ -355,6 +358,42 @@ struct CylinderNode {
     
     CylinderNode *lchild, *rchild, *parent;
 
+    __host__
+    void computeOBB() {
+        float3 v = make_float3(0.0f, 0.0f, 1.0f);
+        float3 u = shape->top - shape->base;
+
+        float normU = length(shape->top - shape->base);
+        float real_part = normU + dot(u, v);
+        float3 w;
+
+        /* If u and v are exactly opposite, rotate 180 degrees
+         * around an arbitrary orthogonal axis. Axis normalisation
+         * can happen later, when we normalise the quaternion. */
+        if (real_part < 1.e-6f * normU) {
+            real_part = 0.0f;
+            w = fabsf(u.x) > fabsf(u.z) ? make_float3(-u.y, u.x, 0.f) : make_float3(0.f, -u.z, u.y);
+
+        } else {
+            w = cross(u, v);
+        }
+
+        glm::mat4 RotationMatrix = glm::mat4_cast(normalize(glm::quat(real_part, w.x, w.y, w.z)));
+        glm::mat4 TranslationMatrix = glm::translate(glm::mat4(), glm::vec3(-shape->base.x, -shape->base.y, -shape->base.z));
+		glm::mat4 ModelMatrix = TranslationMatrix * RotationMatrix;
+
+        glm::vec4 c0(ModelMatrix[0]);
+        glm::vec4 c1(ModelMatrix[1]);
+        glm::vec4 c2(ModelMatrix[2]);
+        glm::vec4 c3(ModelMatrix[3]);
+
+        translation = new float3(make_float3(c3.x, c3.y, c3.z));
+
+        matrix = new Matrix(c0.x, c1.x, c2.x,
+                            c0.y, c1.y, c2.y,
+                            c0.z, c1.z, c2.z);
+    }
+
     __host__ __device__
     CylinderNode() {
         type = AABB;
@@ -379,41 +418,15 @@ struct CylinderNode {
         this->type = type;
         this->shape = shape;
 
+        min = fminf(shape->base, shape->top) - shape->radius;
+        max = fmaxf(shape->base, shape->top) + shape->radius;
+
         if(type == AABB) {
-            min = fminf(shape->base, shape->top) - shape->radius;
-            max = fmaxf(shape->base, shape->top) + shape->radius;
             matrix = nullptr;
             translation = nullptr;
 
         } else {
-            translation = new float3(-shape->base);
-            float3 B = make_float3(0.0f, 0.0f, 1.0f);
-            float3 A = shape->top - shape->base;
-
-            float height = length(A);
-
-            A = normalize(A);
-            
-            float dotAB = dot(A, B);
-            float3 AxB = cross(A, B);
-
-            /*Matrix R = Matrix(dotAB, -length(AxB), 0.0f,
-                              length(AxB), dotAB,  0.0f,
-                              0.0f, 0.0f, 1.0f);
-
-            Matrix Fi = Matrix(A, (B - dotAB * A) / length(B - dotAB * A), -AxB);
-            
-            matrix = new Matrix((Fi * R * Fi.inverse()).M);*/
-
-           
-            matrix = new Matrix(AxB, cross(AxB, A), A);  
-
-            //debug
-            B = *matrix * (shape->top + *translation);
-
-            max = make_float3(shape->radius, shape->radius, height);
-            min = make_float3(-shape->radius, -shape->radius, 0);
-
+            computeOBB();
         }
     }
 
@@ -430,13 +443,33 @@ struct CylinderNode {
 
         min = fminf(shape->base, shape->top) - shape->radius;
         max = fmaxf(shape->base, shape->top) + shape->radius;
+
+        float vAABB = volumeAABB();
+        float vOBB = volumeOBB();
+
+        if(vOBB * OBB_AABB_EPSILON < vAABB) {
+            type = OBB;
+            computeOBB();
+        }
     }
 
-    __host__ __device__
-    float volume() {
+    __host__
+    float volumeAABB() {
         float3 len = max - min;
 
-        return abs(len.x * len.y * len.z);
+        return fabsf(len.x * len.y * len.z);
+    }
+
+    __host__
+    float volumeOBB() {
+        if(shape != nullptr) {
+            float height = length(shape->top - shape->base);
+            float3 len = make_float3(shape->radius, shape->radius, height) - make_float3(-shape->radius, -shape->radius, 0);
+
+            return fabsf(len.x * len.y * len.z);
+        }
+
+        return FLT_MAX;
     }
 };
 

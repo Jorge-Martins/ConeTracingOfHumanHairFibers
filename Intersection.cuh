@@ -7,7 +7,7 @@
 
 __device__
 bool equal(float f1, float f2) {
-	float diffAbs = abs(f1 - f2);
+	float diffAbs = fabsf(f1 - f2);
 	return diffAbs < EPSILON;
 }
 
@@ -236,7 +236,7 @@ bool OBBIntersection(Ray ray, float3 min, float3 max, Matrix *m, float3 *transla
     float3 origin = ray.origin;
     float3 direction = ray.direction;
 
-    ray.update(getTransformed(m, translation, ray.origin), getTransformed(m, translation, ray.direction)); 
+    ray.update(*m * (ray.origin + *translation), *m * ray.direction); 
 
     bool res = AABBIntersection(ray, min, max);
 
@@ -375,7 +375,7 @@ bool infiniteCylinderIntersection(Ray ray, RayIntersection *out, Cylinder *cylin
     }
     n = normalize(n);
 
-    float d = fabs(dot(r_c, n));
+    float d = fabsf(dot(r_c, n));
 
     if (d <= cylinder->radius) {
         float3 O = cross(r_c, axis);
@@ -384,7 +384,7 @@ bool infiniteCylinderIntersection(Ray ray, RayIntersection *out, Cylinder *cylin
     
         O = normalize(cross(n, axis));
 
-        float s = fabs(sqrtf(r_2 - d*d) / dot(ray.direction, O));
+        float s = fabsf(sqrtf(r_2 - d*d) / dot(ray.direction, O));
 
         *inD = t - s;
         *outD = t + s;
@@ -521,7 +521,7 @@ bool intersection(Ray ray, RayIntersection *out, Cylinder *cylinder) {
         out->point = point;
         out->normal = normal;
 
-        out->point += normal * EPSILON;
+        out->point += normal * 2 * EPSILON;
 	}
 
     return true;

@@ -372,5 +372,22 @@ __global__ void computeBVHBB(CylinderNode *bvh, uint nObjects) {
     }
 }
 
+__global__ void computeLeavesOBBs(CylinderNode *bvh, uint nObjects) {
+    CylinderNode *bvhLeaves = &bvh[nObjects - 1];
+    
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (i > nObjects - 1) {
+        return;
+    }
+
+    CylinderNode *node = &bvhLeaves[i];
+
+    if(node->shape != nullptr && node->type == OBB) {
+        float radius = node->shape->radius;
+        node->max = make_float3(radius, radius, length(node->shape->top - node->shape->base));
+        node->min = make_float3(-radius, -radius, 0);
+    }
+}
 
 #endif;

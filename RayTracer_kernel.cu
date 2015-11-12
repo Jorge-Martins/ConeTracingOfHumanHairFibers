@@ -173,11 +173,10 @@ int rayIndex(int index) {
 __device__
 float3 refract(float3 inDir, float3 normal, float eta) {
     float cosi = dot(-inDir, normal);
-    float cost2 = 1.0f - eta * eta * (1.0f - cosi*cosi);
-    float3 t = eta*inDir + ((eta*cosi - sqrt(abs(cost2))) * normal);
+    float k = 1.0f - eta * eta * (1.0f - cosi*cosi);
 
-    if(cost2 > 0) {
-        return t;
+    if(k > 0) {
+        return eta*inDir + (eta*cosi - sqrtf(k)) * normal;
     } 
 
     return make_float3(0.0f);
@@ -332,7 +331,7 @@ void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize
 
     uint index = y * (resX * SUPER_SAMPLING) + x;
 
-    if(index >= res_xy * SUPER_SAMPLING * SUPER_SAMPLING) {
+    if(index >= res_xy * SUPER_SAMPLING_2) {
         return;
     }
 
@@ -347,7 +346,7 @@ void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize
 
     if(SUPER_SAMPLING > 1) {
         index = (uint)(y / (float)SUPER_SAMPLING) * resX + (uint)(x / (float)SUPER_SAMPLING);
-        d_output[index] += color; // (SUPER_SAMPLING * SUPER_SAMPLING);
+        d_output[index] += color * SUPER_SAMPLING_2_F;
     } else {
         d_output[index] = color;
     }
@@ -389,5 +388,8 @@ void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockS
     buildBVH<<<gridSize, blockSize>>>(bvh, nObjects);
 
     computeBVHBB<<<gridSize, blockSize>>>(bvh, nObjects);
+
+    computeLeavesOBBs<<<gridSize, blockSize>>>(bvh, nObjects);
 }
+
 #endif

@@ -5,6 +5,7 @@
 
 #include "Primitives.h"
 #include <thrust/sort.h>
+#include <time.h>
 
 std::string const sSize[] = {"B", "KB", "MB", "GB"};
 int const bSize[] = {1, 1000, 1000000, 1000000000};
@@ -108,7 +109,7 @@ public:
     std::string printSize(size_t size) {
         std::ostringstream os;
         
-        int index = (int) log10f(size) / 3.0f;
+        int index = (int)(log10f((float)size) / 3.0f);
         float out = (float) size / (float)bSize[index];
         std::string s = sSize[index];
 
@@ -180,7 +181,7 @@ public:
         //cylinders
         size = (uint)h_cylinders.size();
         if(size > 0) {
-            CylinderNode *cylVector = new CylinderNode[2 * size - 1];
+            CylinderNode **cylVector = new CylinderNode*[size];
             uint *codes = new uint[size];
             uint *values = new uint[size];
 
@@ -200,62 +201,67 @@ public:
                 values[i] = i;
             }
 
+            std::cout << "Morton codes sort: " << std::endl;
+            
             //sort morton codes
+            clock_t start = clock();
             thrust::sort_by_key(codes, codes + size, values);
+            clock_t end = clock();
+
+            std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
 
             CylinderNode *node;
             uint leafOffset = size - 1;
             for(uint i = 0; i < size; i++) {
                 node = &h_cylinders[values[i]];
 
-                cylVector[leafOffset + i] = *node;
+                cylVector[i] = node;
 
                 h_cylinder = node->shape;
                 if(h_cylinder != nullptr) {
                     //copy shape
                     sceneSize += cylinderSize;
-                    checkCudaErrors(cudaMalloc((void**) &cylVector[leafOffset + i].shape, cylinderSize));
-                    checkCudaErrors(cudaMemcpy(cylVector[leafOffset + i].shape, h_cylinder, cylinderSize, cudaMemcpyHostToDevice));
+                    checkCudaErrors(cudaMalloc((void**) &cylVector[i]->shape, cylinderSize));
+                    checkCudaErrors(cudaMemcpy(cylVector[i]->shape, h_cylinder, cylinderSize, cudaMemcpyHostToDevice));
+
+                    delete h_cylinder;
                 }
 
                 if(node->type == OBB) {
                     //copy matrix
                     h_m = node->matrix;
                     sceneSize += sizeof(Matrix);
-                    checkCudaErrors(cudaMalloc((void**) &cylVector[leafOffset + i].matrix, sizeof(Matrix)));
-                    checkCudaErrors(cudaMemcpy(cylVector[leafOffset + i].matrix, h_m, sizeof(Matrix), cudaMemcpyHostToDevice));
+                    checkCudaErrors(cudaMalloc((void**) &cylVector[i]->matrix, sizeof(Matrix)));
+                    checkCudaErrors(cudaMemcpy(cylVector[i]->matrix, h_m, sizeof(Matrix), cudaMemcpyHostToDevice));
+
+                    delete h_m;
 
                     //copy translation
                     h_translation = node->translation;
                     sceneSize += sizeof(float3);
-                    checkCudaErrors(cudaMalloc((void**) &cylVector[leafOffset + i].translation, sizeof(float3)));
-                    checkCudaErrors(cudaMemcpy(cylVector[leafOffset + i].translation, h_translation, sizeof(float3), cudaMemcpyHostToDevice));
+                    checkCudaErrors(cudaMalloc((void**) &cylVector[i]->translation, sizeof(float3)));
+                    checkCudaErrors(cudaMemcpy(cylVector[i]->translation, h_translation, sizeof(float3), cudaMemcpyHostToDevice));
+
+                    delete h_translation;
                 }
             }
 
-            size = (2 * size - 1) * sizeof(CylinderNode);
-            sceneSize += size;
+            uint sizebvh = (2 * size - 1) * sizeof(CylinderNode);
+            sceneSize += sizebvh;
 
-            checkCudaErrors(cudaMalloc((void**) &d_cylinders, size));
-            checkCudaErrors(cudaMemcpy(d_cylinders, cylVector, size, cudaMemcpyHostToDevice));
+            checkCudaErrors(cudaMalloc((void**) &d_cylinders, sizebvh));
+            CylinderNode emptyNode = CylinderNode(); 
+            for(uint i = 0; i < size - 1; i++) {
+                checkCudaErrors(cudaMemcpy(&d_cylinders[i], &emptyNode, sizeof(CylinderNode), cudaMemcpyHostToDevice));
+            }
 
+            for(uint i = 0; i < size; i++) {
+                checkCudaErrors(cudaMemcpy(&d_cylinders[leafOffset + i], cylVector[i], sizeof(CylinderNode), cudaMemcpyHostToDevice));
+            }
+            
             delete[] cylVector;
             delete[] codes;
             delete[] values;
-            Cylinder *c;
-            for(uint i = 0; i < h_cylinders.size(); i++) {
-                node = &h_cylinders[i];
-                c = node->shape;
-
-                if(c != nullptr) {
-                    delete c;
-                }
-
-                if(node->type == OBB) {
-                    delete node->matrix;
-                    delete node->translation;
-                }
-            }
             h_cylinders.clear();
         }
 
