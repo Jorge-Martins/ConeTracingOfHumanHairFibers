@@ -15,7 +15,7 @@
 Scene *scene = 0;
 Camera *camera = 0;
 
-Ray *d_rays = 0;
+RayInfo *d_raysInfo = 0;
 float3 *d_locals = 0, *d_reflectionCols = 0, *d_refractionCols = 0;
 
 int fpsCount = 0;
@@ -26,7 +26,7 @@ dim3 blockSize(8, 8);
 dim3 gridSize;
 
 float horizontalAngle, verticalAngle, radius;
-float initHorizontalAngle = 100.0f, initVerticalAngle = 90.0f, initRadius = 8.0f, initFov = 80.0f;//initRadius = 60.0f, initFov = 90.0f;
+float initHorizontalAngle = 100.0f, initVerticalAngle = 90.0f, initRadius = 20.0f, initFov = 60.0f;//initRadius = 60.0f, initFov = 90.0f;
 
 int xDragStart, yDragStart, dragging, zooming;
 float fov;
@@ -55,7 +55,7 @@ extern void deviceClearImage(float3 *d_output, float3 value, int resX, int resY,
 extern void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
                             int resX, int resY, float width, float height, float atDistance, float3 xe, 
                             float3 ye, float3 ze, float3 from, float3 *d_output, dim3 ssgridSize, dim3 blockSize,
-                            Ray *d_rays, float3 *d_locals, float3 *d_reflectionCols, float3 *d_refractionCols);
+                            RayInfo *d_raysInfo, float3 *d_locals, float3 *d_reflectionCols, float3 *d_refractionCols);
 
 extern void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize);
 
@@ -87,8 +87,8 @@ void cleanup() {
         std::cout << "camera done" << std::endl;
     }
 
-    if(d_rays) {
-        checkCudaErrors(cudaFree(d_rays));
+    if(d_raysInfo) {
+        checkCudaErrors(cudaFree(d_raysInfo));
         checkCudaErrors(cudaFree(d_locals));
         checkCudaErrors(cudaFree(d_reflectionCols));
         checkCudaErrors(cudaFree(d_refractionCols));
@@ -106,6 +106,7 @@ void cleanup() {
 
     std::cout << "reseting device" << std::endl;
     checkCudaErrors(cudaDeviceReset());
+    cudaDeviceReset();
     std::cout << "reseting device done" << std::endl;
 
 }
@@ -129,8 +130,8 @@ void computeFPS() {
 void cudaInit() {
     uint size, totalSize = 0;
     clock_t start = clock();
-    if(d_rays) {
-        checkCudaErrors(cudaFree(d_rays));
+    if(d_raysInfo) {
+        checkCudaErrors(cudaFree(d_raysInfo));
         checkCudaErrors(cudaFree(d_locals));
         checkCudaErrors(cudaFree(d_reflectionCols));
         checkCudaErrors(cudaFree(d_refractionCols));
@@ -145,27 +146,27 @@ void cudaInit() {
     
     uint raysSize = size * (2 << (MAX_DEPTH - 1));
 
-    Ray *rays = new Ray[raysSize]; 
+    RayInfo *raysInfo = new RayInfo[raysSize]; 
     float3 *colors = new float3[localsSize];
 
-    size = raysSize * sizeof(Ray);
+    size = raysSize * sizeof(RayInfo);
     totalSize += size; 
-    checkCudaErrors(cudaMalloc((void**) &d_rays, size));
-    checkCudaErrors(cudaMemcpy(d_rays, rays, size, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMalloc((void**) &d_raysInfo, size));
+    checkCudaErrors(cudaMemcpyAsync(d_raysInfo, raysInfo, size, cudaMemcpyHostToDevice));
 
     size = localsSize * sizeof(float3);
     totalSize += size;
     checkCudaErrors(cudaMalloc((void**) &d_locals, size));
-    checkCudaErrors(cudaMemcpy(d_locals, colors, size, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpyAsync(d_locals, colors, size, cudaMemcpyHostToDevice));
 
     size = sizeRRArrays * sizeof(float3);
     totalSize += size * 2;
     checkCudaErrors(cudaMalloc((void**) &d_reflectionCols, size));
-    checkCudaErrors(cudaMemcpy(d_reflectionCols, colors, size, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpyAsync(d_reflectionCols, colors, size, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMalloc((void**) &d_refractionCols, size));
-    checkCudaErrors(cudaMemcpy(d_refractionCols, colors, size, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpyAsync(d_refractionCols, colors, size, cudaMemcpyHostToDevice));
 
-    delete[] rays;
+    delete[] raysInfo;
     delete[] colors;
     clock_t end = clock();
 
@@ -222,7 +223,7 @@ void render() {
         deviceDrawScene(scene->getDShapes(), scene->getDShapesSize(), scene->getDLights(), scene->getDLightsSize(), 
                         scene->getBackcolor(), RES_X, RES_Y, camera->width, camera->height, camera->atDistance, 
                         camera->xe, camera->ye, camera->ze, camera->from, d_output, ssgridSize, blockSize, 
-                        d_rays, d_locals, d_reflectionCols, d_refractionCols);
+                        d_raysInfo, d_locals, d_reflectionCols, d_refractionCols);
 
         cudaError_t error = cudaGetLastError();
         if(error != cudaSuccess) {

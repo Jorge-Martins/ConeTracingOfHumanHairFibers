@@ -34,16 +34,10 @@ bool AABBIntersection(Ray ray, float3 min, float3 max) {
     tzmin = (bb[ray.sign[2]]->z - ray.origin.z) * ray.invDirection.z;
     tzmax = (bb[1 - ray.sign[2]]->z - ray.origin.z) * ray.invDirection.z;
 
-    txmin = fmaxf(txmin, fmaxf(tymin, tzmin));
-    txmax = fminf(txmax, fminf(tymax, tzmax));
+    txmin = fmaxf(fminf(fminf(txmin, tymin), tzmin), 0.0f);
+    txmax = fmaxf(fmaxf(txmax, tymax), tzmax);
 
-    if(txmin < txmax  && txmin > 0) {
-        return true;
-    } else if(txmax > 0) {
-        return true;
-    }
-
-    return false;
+    return txmax >= txmin;
 }
 */
 
@@ -233,15 +227,9 @@ bool AABBIntersection(Ray ray, float3 min, float3 max) {
 
 __device__
 bool OBBIntersection(Ray ray, float3 min, float3 max, Matrix *m, float3 *translation) {
-    float3 origin = ray.origin;
-    float3 direction = ray.direction;
-
-    ray.update(*m * (ray.origin + *translation), *m * ray.direction); 
-
-    bool res = AABBIntersection(ray, min, max);
-
-    ray.update(origin, direction);
-    return res;
+    Ray temp = Ray(*m * (ray.origin + *translation), *m * ray.direction);
+    
+    return AABBIntersection(temp, min, max);
 }
 
 __device__

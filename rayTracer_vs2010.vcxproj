@@ -111,6 +111,10 @@
     <CustomBuildStep>
       <Inputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../dependencies\win_flex_bison;%(Inputs)</Inputs>
     </CustomBuildStep>
+    <ClCompile>
+      <OpenMPSupport Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+      </OpenMPSupport>
+    </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="parsing\mc_driver.cpp" />

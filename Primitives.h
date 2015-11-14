@@ -30,11 +30,30 @@ enum RayClassification {
         
 };
 
-struct Ray {
+struct RayInfo {
     float3 origin;
     float3 direction;
     bool exists;
 
+    __host__ __device__ 
+    RayInfo() {
+        origin = make_float3(0.0f);
+        direction = make_float3(0.0f, 0.0f, 1.0f);
+        exists = false;
+    }
+
+    __device__
+    void update(float3 origin, float3 direction) {
+        this->origin = origin;
+        this->direction = direction;
+        exists = true;
+    }
+};
+
+struct Ray {
+    float3 origin;
+    float3 direction;
+    
     /*williams implementation
     int sign[3];
     float3 invDirection;
@@ -104,8 +123,7 @@ struct Ray {
     Ray() {
         origin = make_float3(0.0f);
         direction = make_float3(0.0f, 0.0f, 1.0f);
-        exists = true;
-
+        
         //computeSign();
         computeSlopes();
     }
@@ -114,8 +132,7 @@ struct Ray {
     Ray(float3 origin, float3 direction) {
         this->origin = origin;
         this->direction = direction;
-        this->exists = true;
-
+        
         //computeSign();
         computeSlopes();
     }
@@ -124,8 +141,7 @@ struct Ray {
     void update(float3 origin, float3 direction) {
         this->origin = origin;
         this->direction = direction;
-        this->exists = true;
-
+        
         //computeSign();
         computeSlopes();
     }

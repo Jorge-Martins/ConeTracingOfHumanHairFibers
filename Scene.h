@@ -187,9 +187,7 @@ public:
 
             h_shapeSizes[cylinderIndex] = size;
 
-            Cylinder *h_cylinder;
-            float3 *h_translation;
-            Matrix *h_m;
+            
             uint cylinderSize = sizeof(Cylinder);
 
             uint code;
@@ -200,7 +198,7 @@ public:
                 codes[i] = code;
                 values[i] = i;
             }
-
+            
             std::cout << "Morton codes sort: " << std::endl;
             
             //sort morton codes
@@ -210,11 +208,23 @@ public:
 
             std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
 
-            CylinderNode *node;
+            std::cout << "data transfer: " << std::endl;
+            start = clock();
             uint leafOffset = size - 1;
+
+            uint sizebvh = (2 * size - 1) * sizeof(CylinderNode);
+            sceneSize += sizebvh;
+
+            checkCudaErrors(cudaMalloc((void**) &d_cylinders, sizebvh));
+            
+            CylinderNode emptyNode = CylinderNode(); 
+            Cylinder *h_cylinder;
+            float3 *h_translation;
+            Matrix *h_m;
+            CylinderNode *node;
+           
             for(uint i = 0; i < size; i++) {
                 node = &h_cylinders[values[i]];
-
                 cylVector[i] = node;
 
                 h_cylinder = node->shape;
@@ -222,7 +232,7 @@ public:
                     //copy shape
                     sceneSize += cylinderSize;
                     checkCudaErrors(cudaMalloc((void**) &cylVector[i]->shape, cylinderSize));
-                    checkCudaErrors(cudaMemcpy(cylVector[i]->shape, h_cylinder, cylinderSize, cudaMemcpyHostToDevice));
+                    checkCudaErrors(cudaMemcpyAsync(cylVector[i]->shape, h_cylinder, cylinderSize, cudaMemcpyHostToDevice));
 
                     delete h_cylinder;
                 }
@@ -232,7 +242,7 @@ public:
                     h_m = node->matrix;
                     sceneSize += sizeof(Matrix);
                     checkCudaErrors(cudaMalloc((void**) &cylVector[i]->matrix, sizeof(Matrix)));
-                    checkCudaErrors(cudaMemcpy(cylVector[i]->matrix, h_m, sizeof(Matrix), cudaMemcpyHostToDevice));
+                    checkCudaErrors(cudaMemcpyAsync(cylVector[i]->matrix, h_m, sizeof(Matrix), cudaMemcpyHostToDevice));
 
                     delete h_m;
 
@@ -240,25 +250,21 @@ public:
                     h_translation = node->translation;
                     sceneSize += sizeof(float3);
                     checkCudaErrors(cudaMalloc((void**) &cylVector[i]->translation, sizeof(float3)));
-                    checkCudaErrors(cudaMemcpy(cylVector[i]->translation, h_translation, sizeof(float3), cudaMemcpyHostToDevice));
+                    checkCudaErrors(cudaMemcpyAsync(cylVector[i]->translation, h_translation, sizeof(float3), cudaMemcpyHostToDevice));
 
                     delete h_translation;
+
                 }
-            }
 
-            uint sizebvh = (2 * size - 1) * sizeof(CylinderNode);
-            sceneSize += sizebvh;
-
-            checkCudaErrors(cudaMalloc((void**) &d_cylinders, sizebvh));
-            CylinderNode emptyNode = CylinderNode(); 
-            for(uint i = 0; i < size - 1; i++) {
-                checkCudaErrors(cudaMemcpy(&d_cylinders[i], &emptyNode, sizeof(CylinderNode), cudaMemcpyHostToDevice));
-            }
-
-            for(uint i = 0; i < size; i++) {
-                checkCudaErrors(cudaMemcpy(&d_cylinders[leafOffset + i], cylVector[i], sizeof(CylinderNode), cudaMemcpyHostToDevice));
+                if(i < size - 1) {
+                    checkCudaErrors(cudaMemcpyAsync(&d_cylinders[i], &emptyNode, sizeof(CylinderNode), cudaMemcpyHostToDevice));
+                }
+                checkCudaErrors(cudaMemcpyAsync(&d_cylinders[leafOffset + i], cylVector[i], sizeof(CylinderNode), cudaMemcpyHostToDevice));
             }
             
+            end = clock();
+            std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
+
             delete[] cylVector;
             delete[] codes;
             delete[] values;

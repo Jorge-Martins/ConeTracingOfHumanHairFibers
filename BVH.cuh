@@ -283,7 +283,7 @@ __global__ void buildBVH(CylinderNode *bvh, uint nObjects) {
     if (i >= nObjects - 1) {
         return;
     }
-
+    
     // Determine direction of the range (+1 or -1)
     int sign = longestCommonPrefix(i, i + 1, size, bvhLeaves) - longestCommonPrefix(i, i - 1, size, bvhLeaves); 
     
