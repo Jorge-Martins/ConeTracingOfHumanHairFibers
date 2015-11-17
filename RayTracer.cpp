@@ -26,12 +26,14 @@ dim3 blockSize(8, 8);
 dim3 gridSize;
 
 float horizontalAngle, verticalAngle, radius;
-float initHorizontalAngle = 100.0f, initVerticalAngle = 90.0f, initRadius = 20.0f, initFov = 60.0f;//initRadius = 60.0f, initFov = 90.0f;
+float initHorizontalAngle = 180.0f, initVerticalAngle = 90.0f, initRadius = 20.0f, initFov = 50.0f;//initRadius = 60.0f, initFov = 90.0f;
 
 int xDragStart, yDragStart, dragging, zooming;
 float fov;
 
-bool stopRender = false;
+bool stopRender = false, videoMode = true;
+
+cudaEvent_t c_start, c_end;
 
 // OpenGL pixel buffer object
 GLuint pbo;
@@ -47,14 +49,14 @@ StopWatchInterface *timer = NULL;
 const char* windowTitle = "Msc Ray Tracing";
 
 //std::string sceneName = "rings_low";
-//std::string sceneName = "straight";
-std::string sceneName = "wCurly";
+//std::string sceneName = "straight"; //initHorizontalAngle = 180.0f  -20z
+std::string sceneName = "wCurly"; //initHorizontalAngle = 100.0f
 
 extern void deviceClearImage(float3 *d_output, float3 value, int resX, int resY, dim3 gridSize, dim3 blockSize);
 
 extern void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
                             int resX, int resY, float width, float height, float atDistance, float3 xe, 
-                            float3 ye, float3 ze, float3 from, float3 *d_output, dim3 ssgridSize, dim3 blockSize,
+                            float3 ye, float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize,
                             RayInfo *d_raysInfo, float3 *d_locals, float3 *d_reflectionCols, float3 *d_refractionCols);
 
 extern void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize);
@@ -117,8 +119,8 @@ void computeFPS() {
     if (fpsCount == fpsLimit) {
         char fps[100];
         float ifps = 1.f / (sdkGetAverageTimerValue(&timer) / 1000.f);
-        sprintf(fps, "%s: %3.1f fps", windowTitle, ifps);
-        
+        sprintf(fps, "%s: %3.1f fps  HA: %.2f  VA: %.2f  FOV: %.2f", windowTitle, ifps, horizontalAngle, verticalAngle, fov);
+
         glutSetWindowTitle(fps);
         fpsCount = 0;
 
@@ -130,15 +132,15 @@ void computeFPS() {
 void cudaInit() {
     uint size, totalSize = 0;
     clock_t start = clock();
-    if(d_raysInfo) {
+   /* if(d_raysInfo) {
         checkCudaErrors(cudaFree(d_raysInfo));
         checkCudaErrors(cudaFree(d_locals));
         checkCudaErrors(cudaFree(d_reflectionCols));
         checkCudaErrors(cudaFree(d_refractionCols));
-    }
+    }*/
 
     //size local array
-    size = RES_X * RES_Y * SUPER_SAMPLING_2;
+    size = RES_X * RES_Y;
     uint localsSize = size * ((2 << MAX_DEPTH) - 1);
 
     //size reflection and refraction arrays 
@@ -206,23 +208,23 @@ void initPixelBuffer() {
 
 //Function that calls the kernel
 void render() {
-    float3 *d_output;
+    if(!stopRender || videoMode) {
+        float3 *d_output;
 
-    // map PBO to get CUDA device pointer
-    checkCudaErrors(cudaGraphicsMapResources(1, &cuda_pbo, 0));
-    size_t num_bytes;
-    checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&d_output, &num_bytes, cuda_pbo));
+        // map PBO to get CUDA device pointer
+        checkCudaErrors(cudaGraphicsMapResources(1, &cuda_pbo, 0));
+        size_t num_bytes;
+        checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&d_output, &num_bytes, cuda_pbo));
 
-    if(!stopRender) {
-        if(SUPER_SAMPLING > 1 ) {
+        cudaEventRecord(c_start);
+        /*if(SUPER_SAMPLING > 1 ) {
             deviceClearImage(d_output, make_float3(0.0f), RES_X, RES_Y, gridSize, blockSize);
-        }
+        }*/
 
-        dim3 ssgridSize = dim3(gridSize.x * SUPER_SAMPLING, gridSize.y * SUPER_SAMPLING, gridSize.z);
         // call CUDA kernel, writing results to PBO
         deviceDrawScene(scene->getDShapes(), scene->getDShapesSize(), scene->getDLights(), scene->getDLightsSize(), 
                         scene->getBackcolor(), RES_X, RES_Y, camera->width, camera->height, camera->atDistance, 
-                        camera->xe, camera->ye, camera->ze, camera->from, d_output, ssgridSize, blockSize, 
+                        camera->xe, camera->ye, camera->ze, camera->from, d_output, gridSize, blockSize, 
                         d_raysInfo, d_locals, d_reflectionCols, d_refractionCols);
 
         cudaError_t error = cudaGetLastError();
@@ -230,24 +232,27 @@ void render() {
             std::cerr << cudaGetErrorString(error) << std::endl;
         }
 
-        //stopRender = true;
-    }
+        if(!videoMode) {
+            cudaEventRecord(c_end);
+            cudaEventSynchronize(c_end);
+            float milliseconds = 0;
+            cudaEventElapsedTime(&milliseconds, c_start, c_end);
 
-    checkCudaErrors(cudaGraphicsUnmapResources(1, &cuda_pbo, 0));
+            //debug info
+            std::cout << "render time: " << milliseconds / 1000.0f << "s" << std::endl << std::endl;
+            stopRender = true;
+        }
+        checkCudaErrors(cudaGraphicsUnmapResources(1, &cuda_pbo, 0));
+    }
 }
 
 void reshape(int w, int h) {
-    RES_X = w;
-    RES_Y = h;
+    //RES_X = w;
+    //RES_Y = h;
     
     // calculate new grid size
-    gridSize = dim3(iceil(RES_X, blockSize.x), iceil(RES_Y, blockSize.y));
-    
-    camera->update(RES_X / (float)RES_Y);
-
-    cudaInit();
-    initPixelBuffer();
-    
+    //gridSize = dim3(iceil(RES_X, blockSize.x), iceil(RES_Y, blockSize.y));
+    //camera->update(RES_X / (float)RES_Y);
 
     glViewport(0, 0, RES_X, RES_Y);
 
@@ -340,6 +345,7 @@ void mouseMove(int x, int y) {
             fov = 1;
         }
 
+        //std::cout<< "fov: " << fov << std::endl;
         camera->update(computeFromCoordinates(camera->up), fov);
         //std::cout<< "From: " << camera->from().x << " " << camera->from().y << " " << camera->from().z << std::endl;
         //std::cout<< "radius: " << radius << std::endl;
@@ -398,6 +404,21 @@ void keyboardKey(unsigned char key, int x, int y) {
 
 		std::cout << "Snapshot saved" << std::endl;
 	}
+
+    if(key == 'f') {
+        std::cout << "rendering new frame" << std::endl << std::endl;
+        stopRender = false;
+    }
+
+    if(key == 'm') {
+        if(videoMode) {
+            std::cout << "frame Mode:" << std::endl << std::endl;
+        } else {
+            std::cout << "video Mode:" << std::endl << std::endl;
+        }
+
+        videoMode = !videoMode;
+    }
 }
 
 void idle() {
@@ -411,17 +432,23 @@ void buildBVH() {
         dim3 grid = dim3(iceil(size, blockSize.x));
         dim3 vectorBlock = dim3(blockSize.x);
 
-        clock_t start = clock();
+        cudaEventRecord(c_start);
         deviceBuildBVH(scene->d_cylinders, scene->h_shapeSizes[cylinderIndex], grid, vectorBlock);
-        clock_t end = clock();
+        cudaEventRecord(c_end);
+
+        cudaEventSynchronize(c_end);
+
+        float milliseconds = 0;
+        cudaEventElapsedTime(&milliseconds, c_start, c_end);
 
         //debug info
-        //std::cout << "bvh construction" << std::endl;
-        //std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
+        std::cout << "BVH building time: " << milliseconds / 1000.0f << "s" << std::endl << std::endl;
     }
 }
 
 int main(int argc, char *argv[]) {
+    cudaEventCreate(&c_start);
+    cudaEventCreate(&c_end);
     sdkCreateTimer(&timer);
 	//std::string path = "../../resources/nffFiles/";
     std::string path = "../../resources/HairModels/";
@@ -474,6 +501,9 @@ int main(int argc, char *argv[]) {
         getchar();
 		return -1;
     }
+
+    cudaInit();
+    initPixelBuffer();
 
     glDisable(GL_DEPTH_TEST);
 	glutReshapeFunc(reshape);

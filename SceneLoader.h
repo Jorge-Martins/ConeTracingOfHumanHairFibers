@@ -100,13 +100,20 @@ bool load_hair(std::string filePath, Scene *sc) {
 
     float scale = 0.1f;
 
-    float3 color, base, top, translation = make_float3(0.0f, 0.0f, -20.0f);
+    float3 color, base, top, translation = make_float3(0.0f, 0.0f, 0.0f);
     color = make_float3(hairfile.GetHeader().d_color[0], hairfile.GetHeader().d_color[1], hairfile.GetHeader().d_color[2]);
     
     float3 hairRoot = make_float3(pointsArray[0], pointsArray[1], pointsArray[2]);
     
     sc->setBackcolor(make_float3(0.8f, 0.8f, 0.8f));
-    sc->addLight(make_float3(0.0f, 0.0f, 10.0f));
+
+    float lightHeight = 10.0f;
+    float lightRadius = 10.0f;
+
+    sc->addLight(make_float3(-lightRadius, -lightRadius, lightHeight));
+    sc->addLight(make_float3(-lightRadius, lightRadius, lightHeight));
+    sc->addLight(make_float3(lightRadius, -lightRadius, lightHeight));
+    sc->addLight(make_float3(lightRadius, lightRadius, lightHeight));
 
     if (segments) {
         // If segments array exists

@@ -17,7 +17,28 @@ __device__ int const sizeRRArrays = (2 << (MAX_DEPTH - 1)) - 1;
 //size local array
 __device__ int const raysPerPixel = (2 << MAX_DEPTH) - 1;
 
+__device__
+float3 printRayHairIntersections(int rayHairIntersections, float3 finalColor, int nRays) {
+    if(rayHairIntersections == 0) {
+        return finalColor;
+    }
 
+    if(rayHairIntersections < 5 * nRays) {
+        return make_float3(0, 0, 10);
+
+    } else if (rayHairIntersections < 10 * nRays) {
+        return make_float3(0, 10, 0);
+
+    } else if(rayHairIntersections < 20 * nRays) {
+        return make_float3(10, 10, 0);
+
+    } else if(rayHairIntersections < 40 * nRays) {
+        return make_float3(10, 0, 0);
+
+    }
+
+    return make_float3(0.5, 0, 0);
+}
 
 __device__
 bool findShadow(int **d_shapes, uint *d_shapeSizes, Ray feeler) {
@@ -86,13 +107,13 @@ bool cylFindShadow(int **d_shapes, uint *d_shapeSizes, Ray feeler) {
 }
 
 __device__
-bool cylNearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersection *out) {
+bool cylNearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersection *out, int *rayHairIntersections) {
 	RayIntersection minIntersect(FLT_MAX, make_float3(0.0f), make_float3(0.0f));
 	bool intersectionFound = false;
     
     CylinderNode *bvh = (CylinderNode*) d_shapes[cylinderIndex];
 
-    intersectionFound = traverse(bvh, d_shapeSizes[cylinderIndex], ray, &minIntersect);
+    intersectionFound = traverse(bvh, d_shapeSizes[cylinderIndex], ray, &minIntersect, rayHairIntersections);
 
     if(intersectionFound) {      
         *out = minIntersect;
@@ -102,7 +123,7 @@ bool cylNearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayInterse
 }
 
 __device__
-bool nearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersection *out) {
+bool nearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersection *out, int *rayHairIntersections) {
 	RayIntersection minIntersect(FLT_MAX, make_float3(0.0f), make_float3(0.0f));
 	bool minIntersectionFound = false, intersectionFound = false;
 
@@ -123,7 +144,7 @@ bool nearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersecti
             } else if(shapeType == cylinderIndex) {
                 CylinderNode *bvh = (CylinderNode*) d_shapes[shapeType];
 
-                intersectionFound = traverse(bvh, d_shapeSizes[shapeType], ray, &minIntersect);
+                intersectionFound = traverse(bvh, d_shapeSizes[shapeType], ray, &minIntersect, rayHairIntersections);
 
                 if(intersectionFound) {
                     minIntersectionFound = true;
@@ -199,10 +220,12 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
     Ray ray = Ray();
 
     rayInfo[rayOffset].update(rayOrigin, rayDirection);
-    RayInfo *info;
+    RayInfo info;
     RayIntersection intersect;
     int level;
     float3 blackColor = make_float3(0.0f);
+
+    int rayHairIntersections = 0, nRays = 1;
     
     for(int rayN = 0; rayN < raysPerPixel; rayN++) {
         //skip secundary rays that don't exist
@@ -216,11 +239,11 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
             }
             continue;
         }
-
-        info = &rayInfo[rayOffset + rayIndex(rayN)];
-        ray.update(info->origin, info->direction);
+        nRays++;
+        info = rayInfo[rayOffset + rayIndex(rayN)];
+        ray.update(info.origin, info.direction);
         //bool foundIntersect = nearestIntersect(d_shapes, d_shapeSizes, ray[rayOffset + rayIndex(rayN)], &intersect);
-	    bool foundIntersect = cylNearestIntersect(d_shapes, d_shapeSizes, ray, &intersect);
+	    bool foundIntersect = cylNearestIntersect(d_shapes, d_shapeSizes, ray, &intersect, &rayHairIntersections);
         
 	    if (!foundIntersect) {
             if(rayN == 0) {
@@ -318,7 +341,11 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
         refractionCols[rrOffset + i] *= locals[localsOffset + level + 2];
     }
 
-    return locals[localsOffset] + reflectionCols[rrOffset] + refractionCols[rrOffset];
+    float3 finalColor = locals[localsOffset] + reflectionCols[rrOffset] + refractionCols[rrOffset];
+
+    //return printRayHairIntersections(rayHairIntersections, finalColor, nRays);
+
+    return finalColor;
 }
 
 
@@ -331,27 +358,24 @@ void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize
     uint x = blockIdx.x * blockDim.x + threadIdx.x;
     uint y = blockIdx.y * blockDim.y + threadIdx.y;
 
-    uint index = y * (resX * SUPER_SAMPLING) + x;
+    uint index = y * resX + x;
 
-    if(index >= res_xy * SUPER_SAMPLING_2) {
+    if(index >= res_xy) {
         return;
     }
 
     float3 zeFactor = -ze * atDistance; 
-    float3 yeFactor = ye * height * ((y + 0.5f) / (float)(resY * SUPER_SAMPLING) - 0.5f);
-    float3 xeFactor = xe * width * ((x + 0.5f) / (float)(resX * SUPER_SAMPLING) - 0.5f);
+    float3 yeFactor = ye * height * ((y + 0.5f) / (float)resY - 0.5f);
+    float3 xeFactor = xe * width * ((x + 0.5f) / (float)resX - 0.5f);
 
     float3 direction = normalize(zeFactor + yeFactor + xeFactor);
 
     float3 color = rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
                               rayInfo, d_locals, d_reflectionCols, d_refractionCols, index);
 
-    if(SUPER_SAMPLING > 1) {
-        index = (uint)(y / (float)SUPER_SAMPLING) * resX + (uint)(x / (float)SUPER_SAMPLING);
-        d_output[index] += color * SUPER_SAMPLING_2_F;
-    } else {
-        d_output[index] = color;
-    }
+    
+    d_output[index] = color;
+    
 }
 
 __global__
@@ -374,11 +398,11 @@ void deviceClearImage(float3 *d_output, float3 value, int resX, int resY, dim3 g
 
 void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightSize, float3 backcolor, 
                      int resX, int resY, float width, float height, float atDistance, float3 xe, float3 ye, 
-                     float3 ze, float3 from, float3 *d_output, dim3 ssgridSize, dim3 blockSize, RayInfo* rayInfo,
+                     float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize, RayInfo* rayInfo,
                      float3* d_locals, float3* d_reflectionCols, float3* d_refractionCols) {
     
     int res_xy = resX * resY;
-    drawScene<<<ssgridSize, blockSize>>>(d_shapes, d_shapeSizes, lights, lightSize, backcolor, resX, resY,
+    drawScene<<<gridSize, blockSize>>>(d_shapes, d_shapeSizes, lights, lightSize, backcolor, resX, resY,
                                        res_xy, width, height, atDistance, xe, ye, ze, from, d_output, rayInfo,
                                        d_locals, d_reflectionCols, d_refractionCols);
 

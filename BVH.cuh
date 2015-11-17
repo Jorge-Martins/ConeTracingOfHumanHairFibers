@@ -12,12 +12,9 @@
 __device__ int const mul[] = {10, 100, 1000, 10000, 100000, 1000000};
 
 __device__
-bool traverse(CylinderNode *bvh, uint bvhSize, Ray ray, RayIntersection *minIntersect) {
+bool traverse(CylinderNode *bvh, uint bvhSize, Ray ray, RayIntersection *minIntersect, int *rayHairIntersections) {
     bool intersectionFound = false;
-    
-    int nBBIntersected = 0;
-    int nShapesIntersected = 0;
-
+   
     RayIntersection curr = *minIntersect;
 
     CylinderNode *stackNodes[StackSize];
@@ -26,12 +23,13 @@ bool traverse(CylinderNode *bvh, uint bvhSize, Ray ray, RayIntersection *minInte
 
     stackNodes[stackIndex++] = nullptr;
     
-    CylinderNode *childL, *childR, *node = &bvh[0];
+    CylinderNode *childL, *childR, *node = &bvh[0], tmp;
 
-    if(node->type == AABB) {
-        intersectionFound = AABBIntersection(ray, node->min, node->max);
+    tmp = *node;
+    if(tmp.type == AABB) {
+        intersectionFound = AABBIntersection(ray, tmp.min, tmp.max);
     } else {
-        intersectionFound = OBBIntersection(ray, node->min, node->max, node->matrix, node->translation);
+        intersectionFound = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
     }
     
     if(!intersectionFound) {
@@ -45,17 +43,17 @@ bool traverse(CylinderNode *bvh, uint bvhSize, Ray ray, RayIntersection *minInte
 
         childL = node->lchild;
         if(childL != nullptr) {
-            nBBIntersected++;
-            if(childL->type == AABB) {
-                lIntersection = AABBIntersection(ray, childL->min, childL->max);
+            tmp = *childL;
+            if(tmp.type == AABB) {
+                lIntersection = AABBIntersection(ray, tmp.min, tmp.max);
             } else {
-                lIntersection = OBBIntersection(ray, childL->min, childL->max, childL->matrix, childL->translation);
+                lIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
             }
 
             if (lIntersection) {
                 // Leaf node
                 if (childL->shape != nullptr) {
-                    nShapesIntersected++;
+                    (*rayHairIntersections)++;
                     intersectionFound = intersection(ray, &curr, childL->shape);
 
                     if(intersectionFound && (curr.distance < minIntersect->distance)) {
@@ -71,17 +69,17 @@ bool traverse(CylinderNode *bvh, uint bvhSize, Ray ray, RayIntersection *minInte
 
         childR = node->rchild;
         if(childR != nullptr) {
-            nBBIntersected++;
-            if(childR->type == AABB) {
-                rIntersection = AABBIntersection(ray, childR->min, childR->max);
+            tmp = *childR;
+            if(tmp.type == AABB) {
+                rIntersection = AABBIntersection(ray, tmp.min, tmp.max);
             } else {
-                rIntersection = OBBIntersection(ray, childR->min, childR->max, childR->matrix, childR->translation);
+                rIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
             }
 
             if (rIntersection) {
                 // Leaf node
                 if (childR->shape != nullptr) {
-                    nShapesIntersected++;
+                    (*rayHairIntersections)++;
                     intersectionFound = intersection(ray, &curr, childR->shape);
 
                     if(intersectionFound && (curr.distance < minIntersect->distance)) {
@@ -113,9 +111,6 @@ bool traverse(CylinderNode *bvh, uint bvhSize, Ray ray, RayIntersection *minInte
 __device__
 bool traverseShadow(CylinderNode *bvh, uint bvhSize, Ray ray) {
     bool intersectionFound = false;
-    
-    int nBBIntersected = 0;
-    int nShapesIntersected = 0;
 
     CylinderNode *stackNodes[StackSize];
     
@@ -123,12 +118,13 @@ bool traverseShadow(CylinderNode *bvh, uint bvhSize, Ray ray) {
 
     stackNodes[stackIndex++] = nullptr;
     
-    CylinderNode *childL, *childR, *node = &bvh[0];
+    CylinderNode *childL, *childR, *node = &bvh[0], tmp;
 
-    if(node->type == AABB) {
-        intersectionFound = AABBIntersection(ray, node->min, node->max);
+    tmp = *node;
+    if(tmp.type == AABB) {
+        intersectionFound = AABBIntersection(ray, tmp.min, tmp.max);
     } else {
-        intersectionFound = OBBIntersection(ray, node->min, node->max, node->matrix, node->translation);
+        intersectionFound = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
     }
     
     if(!intersectionFound) {
@@ -142,17 +138,16 @@ bool traverseShadow(CylinderNode *bvh, uint bvhSize, Ray ray) {
 
         childL = node->lchild;
         if(childL != nullptr) {
-            nBBIntersected++;
-            if(childL->type == AABB) {
-                lIntersection = AABBIntersection(ray, childL->min, childL->max);
+            tmp = *childL;
+            if(tmp.type == AABB) {
+                lIntersection = AABBIntersection(ray, tmp.min, tmp.max);
             } else {
-                lIntersection = OBBIntersection(ray, childL->min, childL->max, childL->matrix, childL->translation);
+                lIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
             }
 
             if (lIntersection) {
                 // Leaf node
                 if (childL->shape != nullptr) {
-                    nShapesIntersected++;
                     intersectionFound = intersection(ray, nullptr, childL->shape);
 
                     if(intersectionFound) {
@@ -167,17 +162,16 @@ bool traverseShadow(CylinderNode *bvh, uint bvhSize, Ray ray) {
 
         childR = node->rchild;
         if(childR != nullptr) {
-            nBBIntersected++;
-            if(childR->type == AABB) {
-                rIntersection = AABBIntersection(ray, childR->min, childR->max);
+            tmp = *childR;
+            if(tmp.type == AABB) {
+                rIntersection = AABBIntersection(ray, tmp.min, tmp.max);
             } else {
-                rIntersection = OBBIntersection(ray, childR->min, childR->max, childR->matrix, childR->translation);
+                rIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
             }
 
             if (rIntersection) {
                 // Leaf node
                 if (childR->shape != nullptr) {
-                    nShapesIntersected++;
                     intersectionFound = intersection(ray, nullptr, childR->shape);
 
                     if(intersectionFound) {
