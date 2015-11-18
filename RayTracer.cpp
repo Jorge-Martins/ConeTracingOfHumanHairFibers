@@ -254,16 +254,16 @@ void reshape(int w, int h) {
     //gridSize = dim3(iceil(RES_X, blockSize.x), iceil(RES_Y, blockSize.y));
     //camera->update(RES_X / (float)RES_Y);
 
-    glViewport(0, 0, RES_X, RES_Y);
+    
 
 
     glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
+    glLoadIdentity();
 	
     glOrtho(0.0, 1.0, 0.0, 1.0, 0.0, 1.0);
     
 	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
+	glViewport(0, 0, RES_X, RES_Y);
 
 }
 

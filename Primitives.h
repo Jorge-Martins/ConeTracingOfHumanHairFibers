@@ -53,10 +53,11 @@ struct RayInfo {
 struct Ray {
     float3 origin;
     float3 direction;
-    
+    float3 invDirection;
+
     /*williams implementation
     int sign[3];
-    float3 invDirection;
+    
 
     __host__ __device__
     void computeSign() {
@@ -74,7 +75,7 @@ struct Ray {
 
     __host__ __device__
     void computeSlopes() {
-        float3 invDirection = 1.0f / direction;
+        invDirection = 1.0f / direction;
         x_y = direction.x * invDirection.y;
 	    y_x = direction.y * invDirection.x;
 	    y_z = direction.y * invDirection.z;

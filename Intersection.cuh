@@ -41,185 +41,638 @@ bool AABBIntersection(Ray ray, float3 min, float3 max) {
 }
 */
 
+__device__
+bool nnn(Ray ray, float3 min, float3 max) {	
+    return !((ray.origin.x < min.x) || (ray.origin.y < min.y) || (ray.origin.z < min.z)
+			|| (ray.y_x * min.x - max.y + ray.c_xy > 0)
+			|| (ray.x_y * min.y - max.x + ray.c_yx > 0)
+			|| (ray.y_z * min.z - max.y + ray.c_zy > 0)
+			|| (ray.z_y * min.y - max.z + ray.c_yz > 0)
+			|| (ray.z_x * min.x - max.z + ray.c_xz > 0)
+			|| (ray.x_z * min.z - max.x + ray.c_zx > 0));
+}
+
+__device__
+bool nnp(Ray ray, float3 min, float3 max) {	
+	return !((ray.origin.x < min.x) || (ray.origin.y < min.y) || (ray.origin.z > max.z)
+			|| (ray.y_x * min.x - max.y + ray.c_xy > 0)
+			|| (ray.x_y * min.y - max.x + ray.c_yx > 0)
+			|| (ray.y_z * max.z - max.y + ray.c_zy > 0)
+			|| (ray.z_y * min.y - min.z + ray.c_yz < 0)
+			|| (ray.z_x * min.x - min.z + ray.c_xz < 0)
+			|| (ray.x_z * max.z - max.x + ray.c_zx > 0));
+}
+
+__device__
+bool npn(Ray ray, float3 min, float3 max) {	
+	return !((ray.origin.x < min.x) || (ray.origin.y > max.y) || (ray.origin.z < min.z)
+			|| (ray.y_x * min.x - min.y + ray.c_xy < 0) 
+			|| (ray.x_y * max.y - max.x + ray.c_yx > 0)
+			|| (ray.y_z * min.z - min.y + ray.c_zy < 0) 
+			|| (ray.z_y * max.y - max.z + ray.c_yz > 0)
+			|| (ray.z_x * min.x - max.z + ray.c_xz > 0)
+			|| (ray.x_z * min.z - max.x + ray.c_zx > 0));
+}
+
+__device__
+bool npp(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.x < min.x) || (ray.origin.y > max.y) || (ray.origin.z > max.z)
+			|| (ray.y_x * min.x - min.y + ray.c_xy < 0) 
+			|| (ray.x_y * max.y - max.x + ray.c_yx > 0)
+			|| (ray.y_z * max.z - min.y + ray.c_zy < 0)
+			|| (ray.z_y * max.y - min.z + ray.c_yz < 0)
+			|| (ray.z_x * min.x - min.z + ray.c_xz < 0)
+			|| (ray.x_z * max.z - max.x + ray.c_zx > 0));
+}
+
+__device__
+bool pnn(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.x > max.x) || (ray.origin.y < min.y) || (ray.origin.z < min.z)
+			|| (ray.y_x * max.x - max.y + ray.c_xy > 0)
+			|| (ray.x_y * min.y - min.x + ray.c_yx < 0)
+			|| (ray.y_z * min.z - max.y + ray.c_zy > 0)
+			|| (ray.z_y * min.y - max.z + ray.c_yz > 0)
+			|| (ray.z_x * max.x - max.z + ray.c_xz > 0)
+			|| (ray.x_z * min.z - min.x + ray.c_zx < 0));
+}
+
+__device__
+bool pnp(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.x > max.x) || (ray.origin.y < min.y) || (ray.origin.z > max.z)
+			|| (ray.y_x * max.x - max.y + ray.c_xy > 0)
+			|| (ray.x_y * min.y - min.x + ray.c_yx < 0)
+			|| (ray.y_z * max.z - max.y + ray.c_zy > 0)
+			|| (ray.z_y * min.y - min.z + ray.c_yz < 0)
+			|| (ray.z_x * max.x - min.z + ray.c_xz < 0)
+			|| (ray.x_z * max.z - min.x + ray.c_zx < 0));
+}
+
+__device__
+bool ppn(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.x > max.x) || (ray.origin.y > max.y) || (ray.origin.z < min.z)
+			|| (ray.y_x * max.x - min.y + ray.c_xy < 0)
+			|| (ray.x_y * max.y - min.x + ray.c_yx < 0)
+			|| (ray.y_z * min.z - min.y + ray.c_zy < 0) 
+			|| (ray.z_y * max.y - max.z + ray.c_yz > 0)
+			|| (ray.z_x * max.x - max.z + ray.c_xz > 0)
+			|| (ray.x_z * min.z - min.x + ray.c_zx < 0));
+}
+
+__device__
+bool ppp(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.x > max.x) || (ray.origin.y > max.y) || (ray.origin.z > max.z)
+			|| (ray.y_x * max.x - min.y + ray.c_xy < 0)
+			|| (ray.x_y * max.y - min.x + ray.c_yx < 0)
+			|| (ray.y_z * max.z - min.y + ray.c_zy < 0)
+			|| (ray.z_y * max.y - min.z + ray.c_yz < 0)
+			|| (ray.z_x * max.x - min.z + ray.c_xz < 0)
+			|| (ray.x_z * max.z - min.x + ray.c_zx < 0));
+}
+
+__device__
+bool onn(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.x < min.x) || (ray.origin.x > max.x)
+			|| (ray.origin.y < min.y) || (ray.origin.z < min.z)
+			|| (ray.y_z * min.z - max.y + ray.c_zy > 0)
+			|| (ray.z_y * min.y - max.z + ray.c_yz > 0));
+}
+
+__device__
+bool onp(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.x < min.x) || (ray.origin.x > max.x)
+			|| (ray.origin.y < min.y) || (ray.origin.z > max.z)
+			|| (ray.y_z * max.z - max.y + ray.c_zy > 0)
+			|| (ray.z_y * min.y - min.z + ray.c_yz < 0));
+}
+
+__device__
+bool opn(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.x < min.x) || (ray.origin.x > max.x)
+			|| (ray.origin.y > max.y) || (ray.origin.z < min.z)
+			|| (ray.y_z * min.z - min.y + ray.c_zy < 0) 
+			|| (ray.z_y * max.y - max.z + ray.c_yz > 0));
+}
+
+__device__
+bool opp(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.x < min.x) || (ray.origin.x > max.x)
+			|| (ray.origin.y > max.y) || (ray.origin.z > max.z)
+			|| (ray.y_z * max.z - min.y + ray.c_zy < 0)
+			|| (ray.z_y * max.y - min.z + ray.c_yz < 0));
+}
+
+__device__
+bool non(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.y < min.y) || (ray.origin.y > max.y)
+			|| (ray.origin.x < min.x) || (ray.origin.z < min.z) 
+			|| (ray.z_x * min.x - max.z + ray.c_xz > 0)
+			|| (ray.x_z * min.z - max.x + ray.c_zx > 0));
+}
+
+__device__
+bool nop(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.y < min.y) || (ray.origin.y > max.y)
+			|| (ray.origin.x < min.x) || (ray.origin.z > max.z) 
+			|| (ray.z_x * min.x - min.z + ray.c_xz < 0)
+			|| (ray.x_z * max.z - max.x + ray.c_zx > 0));
+}
+
+__device__
+bool pon(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.y < min.y) || (ray.origin.y > max.y)
+			|| (ray.origin.x > max.x) || (ray.origin.z < min.z)
+			|| (ray.z_x * max.x - max.z + ray.c_xz > 0)
+			|| (ray.x_z * min.z - min.x + ray.c_zx < 0));
+}
+
+__device__
+bool pop(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.y < min.y) || (ray.origin.y > max.y)
+			|| (ray.origin.x > max.x) || (ray.origin.z > max.z)
+			|| (ray.z_x * max.x - min.z + ray.c_xz < 0)
+			|| (ray.x_z * max.z - min.x + ray.c_zx < 0));
+}
+
+__device__
+bool nno(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.z < min.z) || (ray.origin.z > max.z)
+			|| (ray.origin.x < min.x) || (ray.origin.y < min.y) 
+			|| (ray.y_x * min.x - max.y + ray.c_xy > 0)
+			|| (ray.x_y * min.y - max.x + ray.c_yx > 0));
+}
+
+__device__
+bool npo(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.z < min.z) || (ray.origin.z > max.z)
+			|| (ray.origin.x < min.x) || (ray.origin.y > max.y) 
+			|| (ray.y_x * min.x - min.y + ray.c_xy < 0) 
+			|| (ray.x_y * max.y - max.x + ray.c_yx > 0));
+}
+
+__device__
+bool pno(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.z < min.z) || (ray.origin.z > max.z)
+			|| (ray.origin.x > max.x) || (ray.origin.y < min.y) 
+			|| (ray.y_x * max.x - max.y + ray.c_xy > 0)
+			|| (ray.x_y * min.y - min.x + ray.c_yx < 0));
+}
+
+__device__
+bool ppo(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.z < min.z) || (ray.origin.z > max.z)
+			|| (ray.origin.x > max.x) || (ray.origin.y > max.y)
+			|| (ray.y_x * max.x - min.y + ray.c_xy < 0)
+			|| (ray.x_y * max.y - min.x + ray.c_yx < 0));
+}
+
+__device__
+bool noo(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.x < min.x)
+			|| (ray.origin.y < min.y) || (ray.origin.y > max.y)
+			|| (ray.origin.z < min.z) || (ray.origin.z > max.z));
+}
+
+__device__
+bool poo(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.x > max.x)
+			|| (ray.origin.y < min.y) || (ray.origin.y > max.y)
+			|| (ray.origin.z < min.z) || (ray.origin.z > max.z));
+}
+
+__device__
+bool ono(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.y < min.y)
+			|| (ray.origin.x < min.x) || (ray.origin.x > max.x)
+			|| (ray.origin.z < min.z) || (ray.origin.z > max.z));
+}
+
+__device__
+bool opo(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.y > max.y)
+			|| (ray.origin.x < min.x) || (ray.origin.x > max.x)
+			|| (ray.origin.z < min.z) || (ray.origin.z > max.z));
+}
+
+__device__
+bool oon(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.z < min.z)
+			|| (ray.origin.x < min.x) || (ray.origin.x > max.x)
+			|| (ray.origin.y < min.y) || (ray.origin.y > max.y));
+}
+
+__device__
+bool oop(Ray ray, float3 min, float3 max) {
+	return !((ray.origin.z > max.z)
+			|| (ray.origin.x < min.x) || (ray.origin.x > max.x)
+			|| (ray.origin.y < min.y) || (ray.origin.y > max.y));
+}
+
 /* AABB intersection with ray slopes */
 __device__
 bool AABBIntersection(Ray ray, float3 min, float3 max) {
     switch (ray.classification) {
 	    case NNN:	
-            return !((ray.origin.x < min.x) || (ray.origin.y < min.y) || (ray.origin.z < min.z)
-			        || (ray.y_x * min.x - max.y + ray.c_xy > 0)
-			        || (ray.x_y * min.y - max.x + ray.c_yx > 0)
-			        || (ray.y_z * min.z - max.y + ray.c_zy > 0)
-			        || (ray.z_y * min.y - max.z + ray.c_yz > 0)
-			        || (ray.z_x * min.x - max.z + ray.c_xz > 0)
-			        || (ray.x_z * min.z - max.x + ray.c_zx > 0));
+            return nnn(ray, min, max);
 			
 	    case NNP:	
-		    return !((ray.origin.x < min.x) || (ray.origin.y < min.y) || (ray.origin.z > max.z)
-			        || (ray.y_x * min.x - max.y + ray.c_xy > 0)
-			        || (ray.x_y * min.y - max.x + ray.c_yx > 0)
-			        || (ray.y_z * max.z - max.y + ray.c_zy > 0)
-			        || (ray.z_y * min.y - min.z + ray.c_yz < 0)
-			        || (ray.z_x * min.x - min.z + ray.c_xz < 0)
-			        || (ray.x_z * max.z - max.x + ray.c_zx > 0));
+		    return nnp(ray, min, max);
 
 	    case NPN:	
-		    return !((ray.origin.x < min.x) || (ray.origin.y > max.y) || (ray.origin.z < min.z)
-			        || (ray.y_x * min.x - min.y + ray.c_xy < 0) 
-			        || (ray.x_y * max.y - max.x + ray.c_yx > 0)
-			        || (ray.y_z * min.z - min.y + ray.c_zy < 0) 
-			        || (ray.z_y * max.y - max.z + ray.c_yz > 0)
-			        || (ray.z_x * min.x - max.z + ray.c_xz > 0)
-			        || (ray.x_z * min.z - max.x + ray.c_zx > 0));
+		    return npn(ray, min, max);
 			
 	    case NPP:
-		    return !((ray.origin.x < min.x) || (ray.origin.y > max.y) || (ray.origin.z > max.z)
-			        || (ray.y_x * min.x - min.y + ray.c_xy < 0) 
-			        || (ray.x_y * max.y - max.x + ray.c_yx > 0)
-			        || (ray.y_z * max.z - min.y + ray.c_zy < 0)
-			        || (ray.z_y * max.y - min.z + ray.c_yz < 0)
-			        || (ray.z_x * min.x - min.z + ray.c_xz < 0)
-			        || (ray.x_z * max.z - max.x + ray.c_zx > 0));
+		    return npp(ray, min, max);
 			
 	    case PNN:
-		    return !((ray.origin.x > max.x) || (ray.origin.y < min.y) || (ray.origin.z < min.z)
-			        || (ray.y_x * max.x - max.y + ray.c_xy > 0)
-			        || (ray.x_y * min.y - min.x + ray.c_yx < 0)
-			        || (ray.y_z * min.z - max.y + ray.c_zy > 0)
-			        || (ray.z_y * min.y - max.z + ray.c_yz > 0)
-			        || (ray.z_x * max.x - max.z + ray.c_xz > 0)
-			        || (ray.x_z * min.z - min.x + ray.c_zx < 0));
+		    return pnn(ray, min, max);
 			
 	    case PNP:
-		    return !((ray.origin.x > max.x) || (ray.origin.y < min.y) || (ray.origin.z > max.z)
-			        || (ray.y_x * max.x - max.y + ray.c_xy > 0)
-			        || (ray.x_y * min.y - min.x + ray.c_yx < 0)
-			        || (ray.y_z * max.z - max.y + ray.c_zy > 0)
-			        || (ray.z_y * min.y - min.z + ray.c_yz < 0)
-			        || (ray.z_x * max.x - min.z + ray.c_xz < 0)
-			        || (ray.x_z * max.z - min.x + ray.c_zx < 0));
+		    return pnp(ray, min, max);
 
 	    case PPN:
-		    return !((ray.origin.x > max.x) || (ray.origin.y > max.y) || (ray.origin.z < min.z)
-			        || (ray.y_x * max.x - min.y + ray.c_xy < 0)
-			        || (ray.x_y * max.y - min.x + ray.c_yx < 0)
-			        || (ray.y_z * min.z - min.y + ray.c_zy < 0) 
-			        || (ray.z_y * max.y - max.z + ray.c_yz > 0)
-			        || (ray.z_x * max.x - max.z + ray.c_xz > 0)
-			        || (ray.x_z * min.z - min.x + ray.c_zx < 0));
+		    return ppn(ray, min, max);
 			
 	    case PPP:
-		    return !((ray.origin.x > max.x) || (ray.origin.y > max.y) || (ray.origin.z > max.z)
-			        || (ray.y_x * max.x - min.y + ray.c_xy < 0)
-			        || (ray.x_y * max.y - min.x + ray.c_yx < 0)
-			        || (ray.y_z * max.z - min.y + ray.c_zy < 0)
-			        || (ray.z_y * max.y - min.z + ray.c_yz < 0)
-			        || (ray.z_x * max.x - min.z + ray.c_xz < 0)
-			        || (ray.x_z * max.z - min.x + ray.c_zx < 0));
+		    return ppp(ray, min, max);
 			
 	    case ONN:
-		    return !((ray.origin.x < min.x) || (ray.origin.x > max.x)
-			        || (ray.origin.y < min.y) || (ray.origin.z < min.z)
-			        || (ray.y_z * min.z - max.y + ray.c_zy > 0)
-			        || (ray.z_y * min.y - max.z + ray.c_yz > 0));
+		    return onn(ray, min, max);
 			
 	    case ONP:
-		    return !((ray.origin.x < min.x) || (ray.origin.x > max.x)
-			        || (ray.origin.y < min.y) || (ray.origin.z > max.z)
-			        || (ray.y_z * max.z - max.y + ray.c_zy > 0)
-			        || (ray.z_y * min.y - min.z + ray.c_yz < 0));
+		    return onp(ray, min, max);
 			
 	    case OPN:
-		    return !((ray.origin.x < min.x) || (ray.origin.x > max.x)
-			        || (ray.origin.y > max.y) || (ray.origin.z < min.z)
-			        || (ray.y_z * min.z - min.y + ray.c_zy < 0) 
-			        || (ray.z_y * max.y - max.z + ray.c_yz > 0));
+		    return opn(ray, min, max);
 			
 	    case OPP:
-		    return !((ray.origin.x < min.x) || (ray.origin.x > max.x)
-			        || (ray.origin.y > max.y) || (ray.origin.z > max.z)
-			        || (ray.y_z * max.z - min.y + ray.c_zy < 0)
-			        || (ray.z_y * max.y - min.z + ray.c_yz < 0));
+		    return opp(ray, min, max);
 			
 	    case NON:
-		    return !((ray.origin.y < min.y) || (ray.origin.y > max.y)
-			        || (ray.origin.x < min.x) || (ray.origin.z < min.z) 
-			        || (ray.z_x * min.x - max.z + ray.c_xz > 0)
-			        || (ray.x_z * min.z - max.x + ray.c_zx > 0));
+		    return non(ray, min, max);
 			
 	    case NOP:
-		    return !((ray.origin.y < min.y) || (ray.origin.y > max.y)
-			        || (ray.origin.x < min.x) || (ray.origin.z > max.z) 
-			        || (ray.z_x * min.x - min.z + ray.c_xz < 0)
-			        || (ray.x_z * max.z - max.x + ray.c_zx > 0));
+		    return nop(ray, min, max);
 			
 	    case PON:
-		    return !((ray.origin.y < min.y) || (ray.origin.y > max.y)
-			        || (ray.origin.x > max.x) || (ray.origin.z < min.z)
-			        || (ray.z_x * max.x - max.z + ray.c_xz > 0)
-			        || (ray.x_z * min.z - min.x + ray.c_zx < 0));
+		    return pon(ray, min, max);
 			
 	    case POP:
-		    return !((ray.origin.y < min.y) || (ray.origin.y > max.y)
-			        || (ray.origin.x > max.x) || (ray.origin.z > max.z)
-			        || (ray.z_x * max.x - min.z + ray.c_xz < 0)
-			        || (ray.x_z * max.z - min.x + ray.c_zx < 0));
+		    return pop(ray, min, max);
 			
 	    case NNO:
-		    return !((ray.origin.z < min.z) || (ray.origin.z > max.z)
-			        || (ray.origin.x < min.x) || (ray.origin.y < min.y) 
-			        || (ray.y_x * min.x - max.y + ray.c_xy > 0)
-			        || (ray.x_y * min.y - max.x + ray.c_yx > 0));
+		    return nno(ray, min, max);
 			
 	    case NPO:
-		    return !((ray.origin.z < min.z) || (ray.origin.z > max.z)
-			        || (ray.origin.x < min.x) || (ray.origin.y > max.y) 
-			        || (ray.y_x * min.x - min.y + ray.c_xy < 0) 
-			        || (ray.x_y * max.y - max.x + ray.c_yx > 0));
+		    return npo(ray, min, max);
 			
 	    case PNO:
-		    return !((ray.origin.z < min.z) || (ray.origin.z > max.z)
-			        || (ray.origin.x > max.x) || (ray.origin.y < min.y) 
-			        || (ray.y_x * max.x - max.y + ray.c_xy > 0)
-			        || (ray.x_y * min.y - min.x + ray.c_yx < 0));
+		    return pno(ray, min, max);
 			
 	    case PPO:
-		    return !((ray.origin.z < min.z) || (ray.origin.z > max.z)
-			        || (ray.origin.x > max.x) || (ray.origin.y > max.y)
-			        || (ray.y_x * max.x - min.y + ray.c_xy < 0)
-			        || (ray.x_y * max.y - min.x + ray.c_yx < 0));
+		    return ppo(ray, min, max);
 			
 	    case NOO:
-		    return !((ray.origin.x < min.x)
-			        || (ray.origin.y < min.y) || (ray.origin.y > max.y)
-			        || (ray.origin.z < min.z) || (ray.origin.z > max.z));
+		    return noo(ray, min, max);
 			
 	    case POO:
-		    return !((ray.origin.x > max.x)
-			        || (ray.origin.y < min.y) || (ray.origin.y > max.y)
-			        || (ray.origin.z < min.z) || (ray.origin.z > max.z));
+		    return poo(ray, min, max);
 			
 	    case ONO:
-		    return !((ray.origin.y < min.y)
-			        || (ray.origin.x < min.x) || (ray.origin.x > max.x)
-			        || (ray.origin.z < min.z) || (ray.origin.z > max.z));
+		    return ono(ray, min, max);
 			
 	    case OPO:
-		    return !((ray.origin.y > max.y)
-			        || (ray.origin.x < min.x) || (ray.origin.x > max.x)
-			        || (ray.origin.z < min.z) || (ray.origin.z > max.z));
+		    return opo(ray, min, max);
 			
 	    case OON:
-		    return !((ray.origin.z < min.z)
-			        || (ray.origin.x < min.x) || (ray.origin.x > max.x)
-			        || (ray.origin.y < min.y) || (ray.origin.y > max.y));
+		    return oon(ray, min, max);
 			
 	    case OOP:
-		    return !((ray.origin.z > max.z)
-			        || (ray.origin.x < min.x) || (ray.origin.x > max.x)
-			        || (ray.origin.y < min.y) || (ray.origin.y > max.y));
+		    return oop(ray, min, max);
 			
-	
+	}
+
+	return false;
+}
+
+__device__
+bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
+    float t1, t2;
+    switch (ray.classification) {
+	    case NNN:	
+            if(nnn(ray, min, max)) {
+                *distance = (max.x - ray.origin.x) * ray.invDirection.x;
+			    t1 = (max.y - ray.origin.y) * ray.invDirection.y;
+			    if(t1 > *distance) {
+				    *distance = t1;
+                }
+			    t2 = (max.z - ray.origin.z) * ray.invDirection.z;
+			    if(t2 > *distance) {
+				    *distance = t2;
+                }
+
+			    return true;
+            }
+			break;
+
+	    case NNP:	
+		    if(nnp(ray, min, max)) {
+                *distance = (max.x - ray.origin.x) * ray.invDirection.x;
+			    t1 = (max.y - ray.origin.y) * ray.invDirection.y;
+			    if(t1 > *distance) {
+				    *distance = t1;
+                }
+			    t2 = (min.z - ray.origin.z) * ray.invDirection.z;
+			    if(t2 > *distance) {
+				    *distance = t2;
+                }
+
+			    return true;
+            }
+            break;
+
+	    case NPN:	
+		    if(npn(ray, min, max)) {
+                *distance = (max.x - ray.origin.x) * ray.invDirection.x;
+		        t1 = (min.y - ray.origin.y) * ray.invDirection.y;
+		        if(t1 > *distance) {
+			        *distance = t1;
+                }
+		        t2 = (max.z - ray.origin.z) * ray.invDirection.z;
+		        if(t2 > *distance) {
+			        *distance = t2;
+                }
+
+		        return true;
+            }
+			break;
+
+	    case NPP:
+		    if(npp(ray, min, max)) {
+                *distance = (max.x - ray.origin.x) * ray.invDirection.x;
+                t1 = (min.y - ray.origin.y) * ray.invDirection.y;
+                if(t1 > *distance) {
+                    *distance = t1;
+                }
+                t2 = (min.z - ray.origin.z) * ray.invDirection.z;
+                if(t2 > *distance) {
+                    *distance = t2;
+                }
+
+                return true;
+            }
+			break;
+
+	    case PNN:
+		    if(pnn(ray, min, max)) {
+                *distance = (min.x - ray.origin.x) * ray.invDirection.x;
+                t1 = (max.y - ray.origin.y) * ray.invDirection.y;
+                if(t1 > *distance) {
+                    *distance = t1;
+                }
+                t2 = (max.z - ray.origin.z) * ray.invDirection.z;
+                if(t2 > *distance) {
+                    *distance = t2;
+                }
+
+                return true;
+            }
+			break;
+
+	    case PNP:
+		    if(pnp(ray, min, max)) {
+                *distance = (min.x - ray.origin.x) * ray.invDirection.x;
+                t1 = (max.y - ray.origin.y) * ray.invDirection.y;
+                if(t1 > *distance) {
+                    *distance = t1;
+                }
+                t2 = (min.z - ray.origin.z) * ray.invDirection.z;
+                if(t2 > *distance) {
+                    *distance = t2;
+                }
+
+                return true;
+            }
+            break;
+
+	    case PPN:
+		    if(ppn(ray, min, max)) {
+                *distance = (min.x - ray.origin.x) * ray.invDirection.x;
+                t1 = (min.y - ray.origin.y) * ray.invDirection.y;
+                if(t1 > *distance) {
+                    *distance = t1;
+                }
+                t2 = (max.z - ray.origin.z) * ray.invDirection.z;
+                if(t2 > *distance) {
+                    *distance = t2;
+                }
+
+                return true;
+            }
+			break;
+
+	    case PPP:
+		    if(ppp(ray, min, max)) {
+                *distance = (min.x - ray.origin.x) * ray.invDirection.x;
+                t1 = (min.y - ray.origin.y) * ray.invDirection.y;
+                if(t1 > *distance) {
+                    *distance = t1;
+                }
+                t2 = (min.z - ray.origin.z) * ray.invDirection.z;
+                if(t2 > *distance) {
+                    *distance = t2;
+                }
+
+                return true;
+            }
+			break;
+
+	    case ONN:
+		    if(onn(ray, min, max)) {
+                *distance = (max.y - ray.origin.y) * ray.invDirection.y;
+                t2 = (max.z - ray.origin.z) * ray.invDirection.z;
+                if(t2 > *distance) {
+                    *distance = t2;
+                }
+
+                return true;
+
+            }
+			break;
+
+	    case ONP:
+		    if(onp(ray, min, max)) {
+                *distance = (max.y - ray.origin.y) * ray.invDirection.y;
+                t2 = (min.z - ray.origin.z) * ray.invDirection.z;
+                if(t2 > *distance) {
+                    *distance = t2;
+                }
+
+                return true;
+
+            }
+			break;
+
+	    case OPN:
+		    if(opn(ray, min, max)) {
+                *distance = (min.y - ray.origin.y) * ray.invDirection.y;		
+                t2 = (max.z - ray.origin.z) * ray.invDirection.z;
+                if(t2 > *distance) {
+                    *distance = t2;
+                }
+
+                return true;
+            }
+			break;
+
+	    case OPP:
+		    if(opp(ray, min, max)) {
+                *distance = (min.y - ray.origin.y) * ray.invDirection.y;		
+                t2 = (min.z - ray.origin.z) * ray.invDirection.z;
+                if(t2 > *distance) {
+                    *distance = t2;
+                }
+
+                return true;
+            }
+			break;
+
+	    case NON:
+		    if(non(ray, min, max)) {
+                *distance = (max.x - ray.origin.x) * ray.invDirection.x;
+                t2 = (max.z - ray.origin.z) * ray.invDirection.z;
+                if(t2 > *distance) {
+                    *distance = t2;
+                }
+
+                return true;
+            }
+			break;
+
+	    case NOP:
+		    if(nop(ray, min, max)) {
+                *distance = (max.x - ray.origin.x) * ray.invDirection.x;
+                t2 = (min.z - ray.origin.z) * ray.invDirection.z;
+                if(t2 > *distance) {
+                    *distance = t2;
+                }
+
+                return true;
+            }
+			break;
+
+	    case PON:
+		    if(pon(ray, min, max)) {
+                *distance = (min.x - ray.origin.x) * ray.invDirection.x;
+                t2 = (max.z - ray.origin.z) * ray.invDirection.z;
+                if(t2 > *distance) {
+                    *distance = t2;
+                }
+
+                return true;
+            }
+			break;
+
+	    case POP:
+		    if(pop(ray, min, max)) {
+                *distance = (min.x - ray.origin.x) * ray.invDirection.x;
+                t2 = (min.z - ray.origin.z) * ray.invDirection.z;
+                if(t2 > *distance) {
+                    *distance = t2;
+                }
+
+                return true;
+            }
+			break;
+
+	    case NNO:
+		    if(nno(ray, min, max)) {
+                *distance = (max.x - ray.origin.x) * ray.invDirection.x;
+                t1 = (max.y - ray.origin.y) * ray.invDirection.y;
+                if(t1 > *distance) {
+                    *distance = t1;
+                }
+
+                return true;
+            }
+			break;
+
+	    case NPO:
+		    if(npo(ray, min, max)) {
+                *distance = (max.x - ray.origin.x) * ray.invDirection.x;
+                t1 = (min.y - ray.origin.y) * ray.invDirection.y;
+                if(t1 > *distance) {
+                    *distance = t1;
+                }
+
+                return true;
+            }
+			break;
+
+	    case PNO:
+		    if(pno(ray, min, max)) {
+                *distance = (min.x - ray.origin.x) * ray.invDirection.x;
+                t1 = (max.y - ray.origin.y) * ray.invDirection.y;
+                if(t1 > *distance) {
+                    *distance = t1;
+                }
+
+                return true;
+            }
+			break;
+
+	    case PPO:
+		    if(ppo(ray, min, max)) {
+                *distance = (min.x - ray.origin.x) * ray.invDirection.x;
+                t1 = (min.y - ray.origin.y) * ray.invDirection.y;
+                if(t1 > *distance) {
+                    *distance = t1;
+                }
+
+                return true;
+            }
+			
+	    case NOO:
+		    if(noo(ray, min, max)) {
+                *distance = (max.x - ray.origin.x) * ray.invDirection.x;
+                return true;
+            }
+			break;
+
+	    case POO:
+		    if(poo(ray, min, max)) {
+                *distance = (min.x - ray.origin.x) * ray.invDirection.x;
+                return true;
+            }
+			break;
+
+	    case ONO:
+		    if(ono(ray, min, max)) {
+                *distance = (max.y - ray.origin.y) * ray.invDirection.y;
+                return true;
+            }
+			break;
+
+	    case OPO:
+		    if(opo(ray, min, max)) {
+                *distance = (min.y - ray.origin.y) * ray.invDirection.y;
+                return true;
+            }
+			break;
+
+	    case OON:
+		    if(oon(ray, min, max)) {
+                *distance = (max.z - ray.origin.z) * ray.invDirection.z;
+                return true;
+            }
+			break;
+
+	    case OOP:
+		    if(oop(ray, min, max)) {
+                *distance = (min.z - ray.origin.z) * ray.invDirection.z;
+                return true;
+            }
+			break;
+
 	}
 
 	return false;
@@ -230,6 +683,13 @@ bool OBBIntersection(Ray ray, float3 min, float3 max, Matrix *m, float3 *transla
     Ray temp = Ray(*m * (ray.origin + *translation), *m * ray.direction);
     
     return AABBIntersection(temp, min, max);
+}
+
+__device__
+bool OBBIntersection(Ray ray, float3 min, float3 max, Matrix *m, float3 *translation, float *distance) {
+    Ray temp = Ray(*m * (ray.origin + *translation), *m * ray.direction);
+    
+    return AABBIntersection(temp, min, max, distance);
 }
 
 __device__

@@ -12,7 +12,7 @@
 
 #define MAX_DEPTH 2
 #define EPSILON 1E-3f
-#define OBB_AABB_EPSILON 1.1f
+#define OBB_AABB_EPSILON 1.5f
 
 #define sphereIndex 0
 #define cylinderIndex 1

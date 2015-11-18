@@ -141,7 +141,6 @@ bool load_hair(std::string filePath, Scene *sc) {
                 base = make_float3(pointsArray[cpIndex], pointsArray[cpIndex + 1], pointsArray[cpIndex + 2]) + translation;
                 top = make_float3(pointsArray[cpIndex + 3], pointsArray[cpIndex + 4], pointsArray[cpIndex + 5]) + translation;
                 sc->addCylinder(make_float3(scale) * base, make_float3(scale) * top, scale * thickness);
-                //sc->addCylinder(base, top, thickness);
             }
             
             pointIndex += segmentSize + 1;
@@ -170,7 +169,6 @@ bool load_hair(std::string filePath, Scene *sc) {
                 base = make_float3(pointsArray[cpIndex], pointsArray[cpIndex + 1], pointsArray[cpIndex + 2]) + translation;
                 top = make_float3(pointsArray[cpIndex + 3], pointsArray[cpIndex + 4], pointsArray[cpIndex + 5]) + translation;
                 sc->addCylinder(make_float3(scale) * base, make_float3(scale) * top, scale * thickness);
-                //sc->addCylinder(base, top, thickness);
             }
 
             pointIndex += segmentSize + 1;
