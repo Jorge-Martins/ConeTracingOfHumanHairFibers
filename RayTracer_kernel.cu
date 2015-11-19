@@ -9,13 +9,13 @@
 #include "BVH.cuh"
 
 //size ray array
-__device__ int const raysSize = 2 << (MAX_DEPTH - 1);
+#define raysSize (1 << MAX_DEPTH)
 
 //reflection and refraction arrays 
-__device__ int const sizeRRArrays = (2 << (MAX_DEPTH - 1)) - 1;
+#define sizeRRArrays ((1 << MAX_DEPTH) - 1)
 
 //size local array
-__device__ int const raysPerPixel = (2 << MAX_DEPTH) - 1;
+#define raysPerPixel ((2 << MAX_DEPTH) - 1)
 
 __device__
 float3 printRayHairIntersections(int rayHairIntersections, float3 finalColor, int nRays) {
@@ -409,11 +409,12 @@ void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lig
 }
 
 
-void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize) {
-
+void deviceBuildBVH(CylinderNode *bvh, uint nObjects, int *d_nodeCounter, dim3 gridSize, dim3 blockSize) {
     buildBVH<<<gridSize, blockSize>>>(bvh, nObjects);
 
     computeBVHBB<<<gridSize, blockSize>>>(bvh, nObjects);
+
+    //optimizeBVH<<<gridSize, blockSize>>>(bvh, nObjects, d_nodeCounter);
 
     computeLeavesOBBs<<<gridSize, blockSize>>>(bvh, nObjects);
 }

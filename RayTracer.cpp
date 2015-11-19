@@ -59,7 +59,7 @@ extern void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, u
                             float3 ye, float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize,
                             RayInfo *d_raysInfo, float3 *d_locals, float3 *d_reflectionCols, float3 *d_refractionCols);
 
-extern void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize);
+extern void deviceBuildBVH(CylinderNode *bvh, uint nObjects, int *d_nodeCounter, dim3 gridSize, dim3 blockSize);
 
 float3 computeFromCoordinates(float3 up){
     float ha, va;
@@ -144,9 +144,9 @@ void cudaInit() {
     uint localsSize = size * ((2 << MAX_DEPTH) - 1);
 
     //size reflection and refraction arrays 
-    uint sizeRRArrays = size * ((2 << (MAX_DEPTH - 1)) - 1);
+    uint sizeRRArrays = size * ((1 << MAX_DEPTH) - 1);
     
-    uint raysSize = size * (2 << (MAX_DEPTH - 1));
+    uint raysSize = size * (1 << MAX_DEPTH);
 
     RayInfo *raysInfo = new RayInfo[raysSize]; 
     float3 *colors = new float3[localsSize];
@@ -429,15 +429,22 @@ void buildBVH() {
     uint size = scene->h_shapeSizes[cylinderIndex];
 
     if(size > 1) {
+        int *d_nodeCounter;
+        uint counterSize =  sizeof(int) * size;
+
+        cudaEventRecord(c_start);
+        checkCudaErrors(cudaMalloc((void**) &d_nodeCounter, counterSize));
+        checkCudaErrors(cudaMemset(d_nodeCounter, 0, counterSize));
+
         dim3 grid = dim3(iceil(size, blockSize.x));
         dim3 vectorBlock = dim3(blockSize.x);
 
-        cudaEventRecord(c_start);
-        deviceBuildBVH(scene->d_cylinders, scene->h_shapeSizes[cylinderIndex], grid, vectorBlock);
+        deviceBuildBVH(scene->d_cylinders, size, d_nodeCounter, grid, vectorBlock);
         cudaEventRecord(c_end);
 
         cudaEventSynchronize(c_end);
 
+        cudaFree(d_nodeCounter);
         float milliseconds = 0;
         cudaEventElapsedTime(&milliseconds, c_start, c_end);
 

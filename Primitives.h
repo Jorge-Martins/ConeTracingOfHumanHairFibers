@@ -367,8 +367,10 @@ struct Triangle {
 struct CylinderNode {
     float3 max;
     float3 min;
-    short type;
+    unsigned char type;
     int lock;
+    float area;
+    float cost;
     Cylinder *shape;
     Matrix *matrix;
     float3 *translation;
@@ -421,19 +423,21 @@ struct CylinderNode {
         rchild = nullptr;
         parent = nullptr;
         lock = 0;
+        area = cost = FLT_MAX;
 
         min = make_float3(FLT_MAX);
         max = make_float3(-FLT_MAX);
     }
 
     __host__
-    CylinderNode(short type, Cylinder *shape) {
+    CylinderNode(unsigned char type, Cylinder *shape) {
         lchild = nullptr;
         rchild = nullptr;
         parent = nullptr;
         lock = 0;
         this->type = type;
         this->shape = shape;
+        area = cost = FLT_MAX;
 
         min = fminf(shape->base, shape->top) - shape->radius;
         max = fmaxf(shape->base, shape->top) + shape->radius;
@@ -457,6 +461,7 @@ struct CylinderNode {
         rchild = nullptr;
         parent = nullptr;
         lock = 0;
+        area = cost = FLT_MAX;
 
         min = fminf(shape->base, shape->top) - shape->radius;
         max = fmaxf(shape->base, shape->top) + shape->radius;
@@ -524,6 +529,12 @@ struct TriangleNode {
         max = fmaxf(fmaxf(shape->vertices[0], shape->vertices[1]), shape->vertices[2]);
         min = fminf(fminf(shape->vertices[0], shape->vertices[1]), shape->vertices[2]);
     }
+};
+
+struct PartitionEntry {
+    unsigned char partition;
+    bool left;
+    CylinderNode *parent;
 };
 
 #endif

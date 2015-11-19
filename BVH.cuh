@@ -7,12 +7,92 @@
 
 #define StackSize 64
 #define sizeMul 6
+#define RestructStackSize 4
+#define Ci 1.2
+
 
 //mul array
 __device__ int const mul[] = {10, 100, 1000, 10000, 100000, 1000000};
 
+__device__ float getArea(float3 min, float3 max) {
+    float3 len = max - min;
+    float dx = len.x;
+    float dy = len.y;
+    float dz = len.z;
+
+    return 2 * (dx * dy + dx * dz + dy * dz);
+}
+
+__device__ float getTotalArea(CylinderNode **leaves, int nLeaves, unsigned char s) {
+    float3 lmin, lmax, min = make_float3(FLT_MAX), max = make_float3(-FLT_MAX);
+    
+    for (int i = 0; i < nLeaves; i++) {
+        if ((s >> i) & 1 == 1) {
+            lmin = leaves[i]->min;
+            lmax = leaves[i]->max;
+
+            min = fminf(min, lmin);
+            max = fmaxf(max, lmax);           
+        }
+    }
+
+    return getArea(min, max);
+}
+
+__device__ void propagateAreaCost(CylinderNode *root, CylinderNode **leaves, int numLeaves) {
+    CylinderNode *cur;
+    CylinderNode lChild, rChild;
+    float3 min, max;
+    float area;
+
+    for (int i = 0; i < numLeaves; i++) {
+        cur = leaves[i];
+        cur = cur->parent;
+
+        while (cur != nullptr && cur->parent != nullptr) {
+            if (cur->cost == 0.0) {
+                if (cur->lchild->cost != 0.0 && cur->rchild->cost != 0.0) {
+                    lChild = *cur->lchild;
+                    rChild = *cur->rchild;
+
+                    min = fminf(lChild.min, rChild.min);
+                    max = fminf(lChild.max, rChild.max);
+
+                    cur->min = min;
+                    cur->max = max;
+                    
+                    area = getArea(min, max);
+                    cur->area = area;
+
+                    cur->cost = Ci * area + lChild.cost + rChild.cost;
+
+                } else {
+                    // Only one side propagated
+                    break;
+                }
+            }
+            cur = cur->parent;
+        }
+    }
+
+    // Propagate root
+    lChild = *root->lchild;
+    rChild = *root->rchild;
+
+    min = fminf(lChild.min, rChild.min);
+    max = fminf(lChild.max, rChild.max);
+
+    root->min = min;
+    root->max = max;
+                    
+    area = getArea(min, max);
+    root->area = area;
+    root->cost = Ci * area + lChild.cost + rChild.cost;
+}
+
 __device__
 bool traverse(CylinderNode *bvh, uint bvhSize, Ray ray, RayIntersection *minIntersect, int *rayHairIntersections) {
+    float distance;
     bool intersectionFound = false;
    
     RayIntersection curr = *minIntersect;
@@ -45,12 +125,12 @@ bool traverse(CylinderNode *bvh, uint bvhSize, Ray ray, RayIntersection *minInte
         if(childL != nullptr) {
             tmp = *childL;
             if(tmp.type == AABB) {
-                lIntersection = AABBIntersection(ray, tmp.min, tmp.max);
+                lIntersection = AABBIntersection(ray, tmp.min, tmp.max, &distance);
             } else {
-                lIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
+                lIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation, &distance);
             }
 
-            if (lIntersection) {
+            if (lIntersection && distance < minIntersect->distance) {
                 // Leaf node
                 if (childL->shape != nullptr) {
                     (*rayHairIntersections)++;
@@ -71,12 +151,12 @@ bool traverse(CylinderNode *bvh, uint bvhSize, Ray ray, RayIntersection *minInte
         if(childR != nullptr) {
             tmp = *childR;
             if(tmp.type == AABB) {
-                rIntersection = AABBIntersection(ray, tmp.min, tmp.max);
+                rIntersection = AABBIntersection(ray, tmp.min, tmp.max, &distance);
             } else {
-                rIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
+                rIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation, &distance);
             }
 
-            if (rIntersection) {
+            if (rIntersection && distance < minIntersect->distance) {
                 // Leaf node
                 if (childR->shape != nullptr) {
                     (*rayHairIntersections)++;
@@ -99,7 +179,7 @@ bool traverse(CylinderNode *bvh, uint bvhSize, Ray ray, RayIntersection *minInte
 
         } else {
             node = (traverseL) ? childL : childR;
-            if (traverseL && traverseR) {
+            if (traverseL && traverseR) {             
                 stackNodes[stackIndex++] = childR; // push
             }
         }
@@ -131,7 +211,6 @@ bool traverseShadow(CylinderNode *bvh, uint bvhSize, Ray ray) {
         return false;
     }
 
-    bool result = false;
     bool lIntersection, rIntersection, traverseL, traverseR; 
     while(node != nullptr) {
         lIntersection = rIntersection = traverseL = traverseR = false;
@@ -196,7 +275,7 @@ bool traverseShadow(CylinderNode *bvh, uint bvhSize, Ray ray) {
         }
     }
 
-    return result;
+    return false;
 }
 
 inline __device__ int longestCommonPrefix(int i, int j, uint nObjects, CylinderNode *bvhLeaves) {
@@ -267,6 +346,179 @@ inline __device__ int longestCommonPrefix(int i, int j, uint nObjects, CylinderN
     }
 }
 
+__device__ void restructTree(CylinderNode *parent, CylinderNode **leaves, CylinderNode **nodes, 
+                             unsigned char partition, unsigned char *optimal, int &index, bool left, int numLeaves) {
+
+    PartitionEntry stack[RestructStackSize];
+    int topIndex = RestructStackSize;
+    PartitionEntry tmp = {partition, left, parent};
+    stack[--topIndex] = tmp;
+
+    // Do while stack is not empty
+    while (topIndex != RestructStackSize) {
+        PartitionEntry *pe = &stack[topIndex++];
+        partition = pe->partition;
+        left = pe->left;
+        parent = pe->parent;
+
+        if (__popc(partition) == 1) {
+            // Leaf
+            int leafIndex = __ffs(partition) - 1;
+
+            CylinderNode *leaf = leaves[leafIndex];
+            if (left) {
+                parent->lchild = leaf;
+            } else {
+                parent->rchild = leaf;
+            }
+            leaf->parent = parent;
+
+        } else {
+            // Internal node
+            CylinderNode *node = nodes[index++];
+
+            // Set cost to 0 as a mark
+            node->cost = 0.0f;
+
+            if (left) {
+                parent->lchild = node;
+            } else {
+                parent->rchild = node;
+            }
+            node->parent = parent;
+
+            unsigned char leftPartition = optimal[partition];
+            unsigned char rightPartition = (~leftPartition) & partition;
+
+
+            PartitionEntry tmp1 = {leftPartition, true, node};
+            stack[--topIndex] = tmp1;
+            PartitionEntry tmp2 = {rightPartition, false, node};
+            stack[--topIndex] = tmp2;
+        }
+    }
+
+    propagateAreaCost(parent, leaves, numLeaves);
+}
+
+__device__ void calculateOptimalTreelet(CylinderNode **leaves, int nLeaves, unsigned char *p_opt) {
+    int const numSubsets = (1 << nLeaves) - 1;
+
+    float a[128];
+    float c_opt[128];
+
+    // Calculate surface area for each subset
+    for (unsigned char s = 1; s <= numSubsets; s++) {
+        a[s] = getTotalArea(leaves, nLeaves, s);
+    }
+
+    // Initialize costs of individual leaves
+    for (int i = 0; i <= (nLeaves - 1); i++) {
+        c_opt[(1 << i)] = leaves[i]->cost;
+    }
+
+    unsigned char p_s, d, p;
+    float c_s, c;
+    // Optimize every subset of leaves
+    for (int k = 2; k <= nLeaves; k++) {
+        // Try each way of partitioning the leaves
+        for (unsigned char s = 1; s <= numSubsets; s++) {
+            if (__popc(s) == k) {
+                c_s = FLT_MAX;
+                p_s = 0;
+                d = (s - 1) & s;
+                p = (-d) & s;
+
+                while (p != 0) {
+                    c = c_opt[p] + c_opt[s ^ p];
+                    if (c < c_s) {
+                        c_s = c;
+                        p_s = p;
+                    }
+                    
+                    p = (p - d) & s;
+                }
+
+                // Calculate final SAH cost
+                c_opt[s] = Ci * a[s] + c_s;
+                p_opt[s] = p_s;
+            }
+        }
+    }
+}
+
+__device__ void treeletOptimize(CylinderNode *root) {
+    if (root->shape != nullptr) {
+        return;
+    }
+
+    // Find a treelet with max number of leaves being 7
+    CylinderNode *leaves[7];
+
+    // Max 7 (leaves) - 1 (root doesn't count) - 1
+    CylinderNode *nodes[5];
+
+    int counter = 0;
+    int nodeCounter = 0;
+    float maxArea;
+    int maxIndex = 0;
+    leaves[counter++] = root->lchild;
+    leaves[counter++] = root->rchild;
+
+    CylinderNode *tmp;
+    while (counter < 7 && maxIndex != -1) {
+        maxIndex = -1;
+        maxArea = -1.0;
+
+        for (int i = 0; i < counter; i++) {
+            if (!(leaves[i]->shape != nullptr)) {
+                float area = leaves[i]->area;
+                if (area > maxArea) {
+                    maxArea = area;
+                    maxIndex = i;
+                }
+            }
+        }
+
+        if (maxIndex != -1) {
+            tmp = leaves[maxIndex];
+
+            nodes[nodeCounter++] = tmp;
+
+            leaves[maxIndex] = leaves[counter - 1];
+            leaves[counter - 1] = tmp->lchild;
+            leaves[counter++] = tmp->rchild;
+        }
+    }
+
+    unsigned char optimal[128];
+
+    // Call calculateOptimalCost here
+    calculateOptimalTreelet(leaves, counter, optimal);
+
+
+    unsigned char mask = (1 << counter) - 1;    
+    int index = 0;                              
+    unsigned char leftIndex = mask;
+    unsigned char left = optimal[leftIndex];
+
+    restructTree(root, leaves, nodes, left, optimal, index, true, counter);
+
+    unsigned char right = (~left) & mask;
+    restructTree(root, leaves, nodes, right, optimal, index, false, counter);
+
+
+    CylinderNode lChild = *root->lchild;
+    CylinderNode rChild = *root->rchild;
+    float3 rMin = fminf(lChild.min, rChild.min);
+    float3 rMax = fminf(lChild.max, rChild.max);
+    float rArea = getArea(rMin, rMax);
+
+    root->min = rMin;
+    root->max = rMax;
+    root->area = rArea;
+    root->cost = Ci * rArea + lChild.cost + rChild.cost;
+}
 
 __global__ void buildBVH(CylinderNode *bvh, uint nObjects) {
     CylinderNode *bvhLeaves = &bvh[nObjects - 1];
@@ -353,8 +605,10 @@ __global__ void computeBVHBB(CylinderNode *bvh, uint nObjects) {
             return;
         }
 
-        node->min = fminf(node->lchild->min, node->rchild->min);
-        node->max = fmaxf(node->lchild->max, node->rchild->max);
+        CylinderNode lChild = *node->lchild;
+        CylinderNode rChild = *node->rchild;
+        node->min = fminf(lChild.min, rChild.min);
+        node->max = fmaxf(lChild.max, rChild.max);
 
         //if root
         if(node->parent == nullptr) {
@@ -381,6 +635,44 @@ __global__ void computeLeavesOBBs(CylinderNode *bvh, uint nObjects) {
         float radius = node->shape->radius;
         node->max = make_float3(radius, radius, length(node->shape->top - node->shape->base));
         node->min = make_float3(-radius, -radius, 0);
+    }
+}
+
+__global__ void optimizeBVH(CylinderNode *bvh, uint nObjects, int *nodeCounter) {
+    CylinderNode *bvhLeaves = &bvh[nObjects - 1];
+    
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    
+    if (index >= nObjects) {
+        return;
+    }
+
+    CylinderNode *leaf = &bvhLeaves[index];
+
+    float area = getArea(leaf->min, leaf->max);
+    leaf->area = area;
+    leaf->cost = area;
+
+    CylinderNode *current = leaf->parent;
+    int currentIndex = current - bvh;
+    int res = atomicAdd(&nodeCounter[currentIndex], 1);
+
+    // internal nodes
+    while (1) {
+        if (res == 0) {
+            return;
+        }
+
+        treeletOptimize(current);
+
+        // If root
+        if (current->parent == nullptr) {
+            return;
+        }
+
+        current = current->parent;
+        currentIndex = current - bvh;
+        res = atomicAdd(&nodeCounter[currentIndex], 1);
     }
 }
 
