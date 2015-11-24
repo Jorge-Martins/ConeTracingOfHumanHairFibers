@@ -7,12 +7,35 @@
 
 #define StackSize 64
 #define sizeMul 6
-#define RestructStackSize 4
+#define RestructStackSize 32
 #define Ci 1.2
-
+#define TRBVHIterations 7
 
 //mul array
 __device__ int const mul[] = {10, 100, 1000, 10000, 100000, 1000000};
+
+__device__ void computeNodeBB(CylinderNode *node) {
+    CylinderNode lChild = *node->lchild;
+    CylinderNode rChild = *node->rchild;
+    node->min = fminf(lChild.min, rChild.min);
+    node->max = fmaxf(lChild.max, rChild.max);
+}
+
+__device__ void computeNodeBB(CylinderNode *node, float3 *rMin, float3 *rMax, float *costL, float *costR) {
+    CylinderNode lChild = *node->lchild;
+    CylinderNode rChild = *node->rchild;
+
+    float3 min = fminf(lChild.min, rChild.min);
+    float3 max = fmaxf(lChild.max, rChild.max);
+
+    node->min = min;
+    node->max = max;
+
+    *rMin = min;
+    *rMax = max;
+    *costL = lChild.cost;
+    *costR = rChild.cost;
+}
 
 __device__ float getArea(float3 min, float3 max) {
     float3 len = max - min;
@@ -26,8 +49,8 @@ __device__ float getArea(float3 min, float3 max) {
 __device__ float getTotalArea(CylinderNode **leaves, int nLeaves, unsigned char s) {
     float3 lmin, lmax, min = make_float3(FLT_MAX), max = make_float3(-FLT_MAX);
     
-    for (int i = 0; i < nLeaves; i++) {
-        if ((s >> i) & 1 == 1) {
+    for(int i = 0; i < nLeaves; i++) {
+        if((s >> i) & 1 == 1) {
             lmin = leaves[i]->min;
             lmax = leaves[i]->max;
 
@@ -43,28 +66,21 @@ __device__ void propagateAreaCost(CylinderNode *root, CylinderNode **leaves, int
     CylinderNode *cur;
     CylinderNode lChild, rChild;
     float3 min, max;
-    float area;
+    float area, costL, costR;
 
-    for (int i = 0; i < numLeaves; i++) {
+    for(int i = 0; i < numLeaves; i++) {
         cur = leaves[i];
         cur = cur->parent;
 
-        while (cur != nullptr && cur->parent != nullptr) {
-            if (cur->cost == 0.0) {
-                if (cur->lchild->cost != 0.0 && cur->rchild->cost != 0.0) {
-                    lChild = *cur->lchild;
-                    rChild = *cur->rchild;
-
-                    min = fminf(lChild.min, rChild.min);
-                    max = fminf(lChild.max, rChild.max);
-
-                    cur->min = min;
-                    cur->max = max;
+        while(cur != nullptr && cur != root) {
+            if(cur->cost == 0.0) {
+                if(cur->lchild->cost != 0.0 && cur->rchild->cost != 0.0) {
+                    computeNodeBB(cur, &min, &max, &costL, &costR);
                     
                     area = getArea(min, max);
                     cur->area = area;
 
-                    cur->cost = Ci * area + lChild.cost + rChild.cost;
+                    cur->cost = Ci * area + costL + costR;
 
                 } else {
                     // Only one side propagated
@@ -76,18 +92,11 @@ __device__ void propagateAreaCost(CylinderNode *root, CylinderNode **leaves, int
     }
 
     // Propagate root
-    lChild = *root->lchild;
-    rChild = *root->rchild;
-
-    min = fminf(lChild.min, rChild.min);
-    max = fminf(lChild.max, rChild.max);
-
-    root->min = min;
-    root->max = max;
+    computeNodeBB(root, &min, &max, &costL, &costR);
                     
     area = getArea(min, max);
     root->area = area;
-    root->cost = Ci * area + lChild.cost + rChild.cost;
+    root->cost = Ci * area + costL + costR;
 }
 
 __device__
@@ -278,7 +287,7 @@ bool traverseShadow(CylinderNode *bvh, uint bvhSize, Ray ray) {
     return false;
 }
 
-inline __device__ int longestCommonPrefix(int i, int j, uint nObjects, CylinderNode *bvhLeaves) {
+__device__ int longestCommonPrefix(int i, int j, uint nObjects, CylinderNode *bvhLeaves) {
     if (j >= 0 && j < nObjects) {
         size_t mci = bvhLeaves[i].shape->mortonCode;
         size_t mcj = bvhLeaves[j].shape->mortonCode;
@@ -351,50 +360,67 @@ __device__ void restructTree(CylinderNode *parent, CylinderNode **leaves, Cylind
 
     PartitionEntry stack[RestructStackSize];
     int topIndex = RestructStackSize;
-    PartitionEntry tmp = {partition, left, parent};
-    stack[--topIndex] = tmp;
+    stack[--topIndex] = PartitionEntry(partition, left, parent);
+    CylinderNode *tmpNode;
+    unsigned char leftPartition, rightPartition;
 
     // Do while stack is not empty
-    while (topIndex != RestructStackSize) {
+    while(topIndex != RestructStackSize) {
         PartitionEntry *pe = &stack[topIndex++];
         partition = pe->partition;
         left = pe->left;
         parent = pe->parent;
 
-        if (__popc(partition) == 1) {
-            // Leaf
+        //process leaf
+        if(__popc(partition) == 1) {
             int leafIndex = __ffs(partition) - 1;
 
-            CylinderNode *leaf = leaves[leafIndex];
-            if (left) {
-                parent->lchild = leaf;
+            tmpNode = leaves[leafIndex];
+            if(left) {
+                parent->lchild = tmpNode;
             } else {
-                parent->rchild = leaf;
+                parent->rchild = tmpNode;
             }
-            leaf->parent = parent;
+            tmpNode->parent = parent;
+
 
         } else {
-            // Internal node
-            CylinderNode *node = nodes[index++];
+            // process internal node
 
-            // Set cost to 0 as a mark
-            node->cost = 0.0f;
-
-            if (left) {
-                parent->lchild = node;
-            } else {
-                parent->rchild = node;
+            //debug
+            if (index >= TRBVHIterations) {
+                printf("index out of range\n");
+                return;
             }
-            node->parent = parent;
 
-            unsigned char leftPartition = optimal[partition];
-            unsigned char rightPartition = (~leftPartition) & partition;
+            tmpNode = nodes[index++];
 
+            // Mark node cost with 0
+            tmpNode->cost = 0.0f;
 
-            PartitionEntry tmp1 = {leftPartition, true, node};
-            stack[--topIndex] = tmp1;
-            PartitionEntry tmp2 = {rightPartition, false, node};
-            stack[--topIndex] = tmp2;
+            if(left) {
+                parent->lchild = tmpNode;
+            } else {
+                parent->rchild = tmpNode;
+            }
+            tmpNode->parent = parent;
+
+            //debug
+            if (partition >= 128) {
+                printf("partition out of range\n");
+                return;
+            }
+
+            leftPartition = optimal[partition];
+            rightPartition = (~leftPartition) & partition;
+
+            //debug
+            if (topIndex < 2) {
+                printf("restructTree stack not big enough. Increase RESTRUCT_STACK_SIZE!\n");
+            }
+
+            stack[--topIndex] = PartitionEntry(leftPartition, true, tmpNode);
+            stack[--topIndex] = PartitionEntry(rightPartition, false, tmpNode);
         }
     }
 
@@ -413,7 +439,7 @@ __device__ void calculateOptimalTreelet(CylinderNode **leaves, int nLeaves, unsi
     }
 
     // Initialize costs of individual leaves
-    for (int i = 0; i <= (nLeaves - 1); i++) {
+    for (int i = 0; i < nLeaves; i++) {
         c_opt[(1 << i)] = leaves[i]->cost;
     }
 
@@ -448,15 +474,15 @@ __device__ void calculateOptimalTreelet(CylinderNode **leaves, int nLeaves, unsi
 }
 
 __device__ void treeletOptimize(CylinderNode *root) {
-    if (root->shape != nullptr) {
+    if (root == nullptr || root->shape != nullptr) {
         return;
     }
 
     // Find a treelet with max number of leaves being 7
-    CylinderNode *leaves[7];
+    CylinderNode *leaves[TRBVHIterations];
 
     // Max 7 (leaves) - 1 (root doesn't count) - 1
-    CylinderNode *nodes[5];
+    CylinderNode *nodes[TRBVHIterations];
 
     int counter = 0;
     int nodeCounter = 0;
@@ -466,9 +492,9 @@ __device__ void treeletOptimize(CylinderNode *root) {
     leaves[counter++] = root->rchild;
 
     CylinderNode *tmp;
-    while (counter < 7 && maxIndex != -1) {
+    while (counter < TRBVHIterations && maxIndex != -1) {
         maxIndex = -1;
-        maxArea = -1.0;
+        maxArea = -1.0f;
 
         for (int i = 0; i < counter; i++) {
             if (!(leaves[i]->shape != nullptr)) {
@@ -507,39 +533,35 @@ __device__ void treeletOptimize(CylinderNode *root) {
     unsigned char right = (~left) & mask;
     restructTree(root, leaves, nodes, right, optimal, index, false, counter);
 
+    float3 rMin, rMax;
+    float costL, costR;
+    computeNodeBB(root, &rMin, &rMax, &costL, &costR);
 
-    CylinderNode lChild = *root->lchild;
-    CylinderNode rChild = *root->rchild;
-    float3 rMin = fminf(lChild.min, rChild.min);
-    float3 rMax = fminf(lChild.max, rChild.max);
     float rArea = getArea(rMin, rMax);
 
-    root->min = rMin;
-    root->max = rMax;
     root->area = rArea;
-    root->cost = Ci * rArea + lChild.cost + rChild.cost;
+    root->cost = Ci * rArea + costL + costR;
 }
 
 __global__ void buildBVH(CylinderNode *bvh, uint nObjects) {
-    CylinderNode *bvhLeaves = &bvh[nObjects - 1];
-    uint size = nObjects;
-
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (i >= nObjects - 1) {
         return;
     }
     
+    CylinderNode *bvhLeaves = &bvh[nObjects - 1];
+
     // Determine direction of the range (+1 or -1)
-    int sign = longestCommonPrefix(i, i + 1, size, bvhLeaves) - longestCommonPrefix(i, i - 1, size, bvhLeaves); 
+    int sign = longestCommonPrefix(i, i + 1, nObjects, bvhLeaves) - longestCommonPrefix(i, i - 1, nObjects, bvhLeaves); 
     
     int d = sign > 0 ? 1 : -1;
     
     // Compute upper bound for the length of the range
-    int sigMin = longestCommonPrefix(i, i - d, size, bvhLeaves);
+    int sigMin = longestCommonPrefix(i, i - d, nObjects, bvhLeaves);
     int lmax = 2;
 
-    while (longestCommonPrefix(i, i + lmax * d, size, bvhLeaves) > sigMin) {
+    while (longestCommonPrefix(i, i + lmax * d, nObjects, bvhLeaves) > sigMin) {
         lmax *= 2;
     }
 
@@ -547,7 +569,7 @@ __global__ void buildBVH(CylinderNode *bvh, uint nObjects) {
     int l = 0;
     float divider = 2.0f;
     for (int t = lmax / divider; t >= 1.0f; divider *= 2.0f) {
-        if (longestCommonPrefix(i, i + (l + t) * d, size, bvhLeaves) > sigMin) {
+        if (longestCommonPrefix(i, i + (l + t) * d, nObjects, bvhLeaves) > sigMin) {
             l += t;
         }
         t = lmax / divider;
@@ -556,12 +578,12 @@ __global__ void buildBVH(CylinderNode *bvh, uint nObjects) {
     int j = i + l * d;
   
     // Find the split position using binary search
-    int sigNode = longestCommonPrefix(i, j, size, bvhLeaves);
+    int sigNode = longestCommonPrefix(i, j, nObjects, bvhLeaves);
     int s = 0;
 
     divider = 2.0f;
     for (int t = ceilf(l / divider); t >= 1.0f; divider *= 2.0f) {
-        if (longestCommonPrefix(i, i + (s + t) * d, size, bvhLeaves) > sigNode) {
+        if (longestCommonPrefix(i, i + (s + t) * d, nObjects, bvhLeaves) > sigNode) {
             s += t;
         }
         t = ceilf(l / divider);
@@ -589,13 +611,13 @@ __global__ void buildBVH(CylinderNode *bvh, uint nObjects) {
 }
 
 __global__ void computeBVHBB(CylinderNode *bvh, uint nObjects) {
-    CylinderNode *bvhLeaves = &bvh[nObjects - 1];
-    
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (i > nObjects - 1) {
         return;
     }
+
+    CylinderNode *bvhLeaves = &bvh[nObjects - 1];
     CylinderNode *node = &bvhLeaves[i];
     node = node->parent;
 
@@ -605,10 +627,7 @@ __global__ void computeBVHBB(CylinderNode *bvh, uint nObjects) {
             return;
         }
 
-        CylinderNode lChild = *node->lchild;
-        CylinderNode rChild = *node->rchild;
-        node->min = fminf(lChild.min, rChild.min);
-        node->max = fmaxf(lChild.max, rChild.max);
+        computeNodeBB(node);
 
         //if root
         if(node->parent == nullptr) {
@@ -620,15 +639,14 @@ __global__ void computeBVHBB(CylinderNode *bvh, uint nObjects) {
     }
 }
 
-__global__ void computeLeavesOBBs(CylinderNode *bvh, uint nObjects) {
-    CylinderNode *bvhLeaves = &bvh[nObjects - 1];
-    
+__global__ void computeLeavesOBBs(CylinderNode *bvh, uint nObjects) {    
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (i > nObjects - 1) {
         return;
     }
 
+    CylinderNode *bvhLeaves = &bvh[nObjects - 1];
     CylinderNode *node = &bvhLeaves[i];
 
     if(node->shape != nullptr && node->type == OBB) {
@@ -639,14 +657,13 @@ __global__ void computeLeavesOBBs(CylinderNode *bvh, uint nObjects) {
 }
 
 __global__ void optimizeBVH(CylinderNode *bvh, uint nObjects, int *nodeCounter) {
-    CylinderNode *bvhLeaves = &bvh[nObjects - 1];
-    
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     
     if (index >= nObjects) {
         return;
     }
 
+    CylinderNode *bvhLeaves = &bvh[nObjects - 1];
     CylinderNode *leaf = &bvhLeaves[index];
 
     float area = getArea(leaf->min, leaf->max);
@@ -655,6 +672,7 @@ __global__ void optimizeBVH(CylinderNode *bvh, uint nObjects, int *nodeCounter) 
 
     CylinderNode *current = leaf->parent;
     int currentIndex = current - bvh;
+
     int res = atomicAdd(&nodeCounter[currentIndex], 1);
 
     // internal nodes
@@ -666,12 +684,13 @@ __global__ void optimizeBVH(CylinderNode *bvh, uint nObjects, int *nodeCounter) 
         treeletOptimize(current);
 
         // If root
-        if (current->parent == nullptr) {
+        if (current == nullptr || current->parent == nullptr) {
             return;
         }
 
         current = current->parent;
         currentIndex = current - bvh;
+
         res = atomicAdd(&nodeCounter[currentIndex], 1);
     }
 }

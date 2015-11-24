@@ -22,7 +22,7 @@ int fpsCount = 0;
 int fpsLimit = 1;        // FPS limit for sampling
 
 int RES_X = 512, RES_Y = 512;
-dim3 blockSize(8, 8);
+dim3 blockSize(16, 16);
 dim3 gridSize;
 
 float horizontalAngle, verticalAngle, radius;
@@ -429,6 +429,7 @@ void buildBVH() {
     uint size = scene->h_shapeSizes[cylinderIndex];
 
     if(size > 1) {
+        int warpSize = blockSize.x * blockSize.y;
         int *d_nodeCounter;
         uint counterSize =  sizeof(int) * size;
 
@@ -436,8 +437,8 @@ void buildBVH() {
         checkCudaErrors(cudaMalloc((void**) &d_nodeCounter, counterSize));
         checkCudaErrors(cudaMemset(d_nodeCounter, 0, counterSize));
 
-        dim3 grid = dim3(iceil(size, blockSize.x));
-        dim3 vectorBlock = dim3(blockSize.x);
+        dim3 grid = dim3(iceil(size, warpSize));
+        dim3 vectorBlock = dim3(warpSize);
 
         deviceBuildBVH(scene->d_cylinders, size, d_nodeCounter, grid, vectorBlock);
         cudaEventRecord(c_end);
