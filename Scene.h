@@ -28,6 +28,96 @@ private:
     uint *d_shapeSizes;
     uint d_lightsSize;
 
+    uint cylinderTransfer(uint size) {
+        CylinderNode **cylVector = new CylinderNode*[size];
+        uint *codes = new uint[size];
+        uint *values = new uint[size];
+
+        h_shapeSizes[cylinderIndex] = size;
+
+        uint cylinderSize = sizeof(Cylinder);
+
+        uint code;
+        for(uint i = 0; i < size; i++) {
+            code = morton3D(computeCenter(cmin, cmax, h_cylinders[i].min, h_cylinders[i].max));
+
+            h_cylinders[i].shape->mortonCode = code;
+            codes[i] = code;
+            values[i] = i;
+        }
+            
+        std::cout << "Cylinder morton codes sort: " << std::endl;
+            
+        //sort morton codes
+        clock_t start = clock();
+        thrust::sort_by_key(codes, codes + size, values);
+        clock_t end = clock();
+
+        std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
+
+        std::cout << "Cylinder data transfer: " << std::endl;
+        start = clock();
+        uint leafOffset = size - 1;
+
+        uint sizebvh = (2 * size - 1) * sizeof(CylinderNode);
+        uint sceneSize = sizebvh;
+
+        checkCudaErrors(cudaMalloc((void**) &d_cylinders, sizebvh));
+            
+        CylinderNode emptyNode = CylinderNode(); 
+        Cylinder *h_cylinder;
+        float3 *h_translation;
+        Matrix *h_m;
+        CylinderNode *node;
+           
+        for(uint i = 0; i < size; i++) {
+            node = &h_cylinders[values[i]];
+            cylVector[i] = node;
+
+            h_cylinder = node->shape;
+            if(h_cylinder != nullptr) {
+                //copy shape
+                sceneSize += cylinderSize;
+                checkCudaErrors(cudaMalloc((void**) &cylVector[i]->shape, cylinderSize));
+                checkCudaErrors(cudaMemcpyAsync(cylVector[i]->shape, h_cylinder, cylinderSize, cudaMemcpyHostToDevice));
+
+                delete h_cylinder;
+            }
+
+            if(node->type == OBB) {
+                //copy matrix
+                h_m = node->matrix;
+                sceneSize += sizeof(Matrix);
+                checkCudaErrors(cudaMalloc((void**) &cylVector[i]->matrix, sizeof(Matrix)));
+                checkCudaErrors(cudaMemcpyAsync(cylVector[i]->matrix, h_m, sizeof(Matrix), cudaMemcpyHostToDevice));
+
+                //copy translation
+                h_translation = node->translation;
+                sceneSize += sizeof(float3);
+                checkCudaErrors(cudaMalloc((void**) &cylVector[i]->translation, sizeof(float3)));
+                checkCudaErrors(cudaMemcpyAsync(cylVector[i]->translation, h_translation, sizeof(float3), cudaMemcpyHostToDevice));
+
+                delete h_translation;
+                delete h_m;
+            }
+
+            if(i < size - 1) {
+                checkCudaErrors(cudaMemcpyAsync(&d_cylinders[i], &emptyNode, sizeof(CylinderNode), cudaMemcpyHostToDevice));
+            }
+            checkCudaErrors(cudaMemcpyAsync(&d_cylinders[leafOffset + i], cylVector[i], sizeof(CylinderNode), cudaMemcpyHostToDevice));
+        }
+
+        end = clock();
+        std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
+
+        delete[] cylVector;
+        delete[] codes;
+        delete[] values;
+        h_cylinders.clear();
+
+        return sceneSize;
+    }
+
 public:
     SphereNode *d_spheres;
     CylinderNode *d_cylinders;
@@ -181,94 +271,7 @@ public:
         //cylinders
         size = (uint)h_cylinders.size();
         if(size > 0) {
-            CylinderNode **cylVector = new CylinderNode*[size];
-            uint *codes = new uint[size];
-            uint *values = new uint[size];
-
-            h_shapeSizes[cylinderIndex] = size;
-
-            
-            uint cylinderSize = sizeof(Cylinder);
-
-            uint code;
-            for(uint i = 0; i < size; i++) {
-                code = morton3D(computeCenter(cmin, cmax, h_cylinders[i].min, h_cylinders[i].max));
-
-                h_cylinders[i].shape->mortonCode = code;
-                codes[i] = code;
-                values[i] = i;
-            }
-            
-            std::cout << "Morton codes sort: " << std::endl;
-            
-            //sort morton codes
-            clock_t start = clock();
-            thrust::sort_by_key(codes, codes + size, values);
-            clock_t end = clock();
-
-            std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
-
-            std::cout << "data transfer: " << std::endl;
-            start = clock();
-            uint leafOffset = size - 1;
-
-            uint sizebvh = (2 * size - 1) * sizeof(CylinderNode);
-            sceneSize += sizebvh;
-
-            checkCudaErrors(cudaMalloc((void**) &d_cylinders, sizebvh));
-            
-            CylinderNode emptyNode = CylinderNode(); 
-            Cylinder *h_cylinder;
-            float3 *h_translation;
-            Matrix *h_m;
-            CylinderNode *node;
-           
-            for(uint i = 0; i < size; i++) {
-                node = &h_cylinders[values[i]];
-                cylVector[i] = node;
-
-                h_cylinder = node->shape;
-                if(h_cylinder != nullptr) {
-                    //copy shape
-                    sceneSize += cylinderSize;
-                    checkCudaErrors(cudaMalloc((void**) &cylVector[i]->shape, cylinderSize));
-                    checkCudaErrors(cudaMemcpyAsync(cylVector[i]->shape, h_cylinder, cylinderSize, cudaMemcpyHostToDevice));
-
-                    delete h_cylinder;
-                }
-
-                if(node->type == OBB) {
-                    //copy matrix
-                    h_m = node->matrix;
-                    sceneSize += sizeof(Matrix);
-                    checkCudaErrors(cudaMalloc((void**) &cylVector[i]->matrix, sizeof(Matrix)));
-                    checkCudaErrors(cudaMemcpyAsync(cylVector[i]->matrix, h_m, sizeof(Matrix), cudaMemcpyHostToDevice));
-
-                    delete h_m;
-
-                    //copy translation
-                    h_translation = node->translation;
-                    sceneSize += sizeof(float3);
-                    checkCudaErrors(cudaMalloc((void**) &cylVector[i]->translation, sizeof(float3)));
-                    checkCudaErrors(cudaMemcpyAsync(cylVector[i]->translation, h_translation, sizeof(float3), cudaMemcpyHostToDevice));
-
-                    delete h_translation;
-
-                }
-
-                if(i < size - 1) {
-                    checkCudaErrors(cudaMemcpyAsync(&d_cylinders[i], &emptyNode, sizeof(CylinderNode), cudaMemcpyHostToDevice));
-                }
-                checkCudaErrors(cudaMemcpyAsync(&d_cylinders[leafOffset + i], cylVector[i], sizeof(CylinderNode), cudaMemcpyHostToDevice));
-            }
-            
-            end = clock();
-            std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
-
-            delete[] cylVector;
-            delete[] codes;
-            delete[] values;
-            h_cylinders.clear();
+            sceneSize += cylinderTransfer(size);
         }
 
         //triangles
@@ -349,8 +352,6 @@ public:
         checkCudaErrors(cudaMemcpy(d_shapeSizes, h_shapeSizes, size, cudaMemcpyHostToDevice));
         
         std::cout << "size: " << printSize(sceneSize) << std::endl;
-        
-        
         
         return true;
     }

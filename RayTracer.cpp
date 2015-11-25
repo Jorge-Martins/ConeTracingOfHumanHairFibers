@@ -22,7 +22,7 @@ int fpsCount = 0;
 int fpsLimit = 1;        // FPS limit for sampling
 
 int RES_X = 512, RES_Y = 512;
-dim3 blockSize(16, 16);
+dim3 blockSize(8, 8);
 dim3 gridSize;
 
 float horizontalAngle, verticalAngle, radius;
@@ -429,7 +429,7 @@ void buildBVH() {
     uint size = scene->h_shapeSizes[cylinderIndex];
 
     if(size > 1) {
-        int warpSize = blockSize.x * blockSize.y;
+        int warpSize = 32;
         int *d_nodeCounter;
         uint counterSize =  sizeof(int) * size;
 
@@ -445,12 +445,12 @@ void buildBVH() {
 
         cudaEventSynchronize(c_end);
 
-        cudaFree(d_nodeCounter);
         float milliseconds = 0;
         cudaEventElapsedTime(&milliseconds, c_start, c_end);
 
         //debug info
         std::cout << "BVH building time: " << milliseconds / 1000.0f << "s" << std::endl << std::endl;
+        cudaFree(d_nodeCounter);
     }
 }
 

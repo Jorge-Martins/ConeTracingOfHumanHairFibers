@@ -414,7 +414,7 @@ void deviceBuildBVH(CylinderNode *bvh, uint nObjects, int *d_nodeCounter, dim3 g
 
     computeBVHBB<<<gridSize, blockSize>>>(bvh, nObjects);
 
-    //optimizeBVH<<<gridSize, blockSize>>>(bvh, nObjects, d_nodeCounter);
+    optimizeBVH<<<gridSize, blockSize>>>(bvh, nObjects, d_nodeCounter);
 
     computeLeavesOBBs<<<gridSize, blockSize>>>(bvh, nObjects);
 }

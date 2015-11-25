@@ -15,26 +15,35 @@
 __device__ int const mul[] = {10, 100, 1000, 10000, 100000, 1000000};
 
 __device__ void computeNodeBB(CylinderNode *node) {
-    CylinderNode lChild = *node->lchild;
-    CylinderNode rChild = *node->rchild;
-    node->min = fminf(lChild.min, rChild.min);
-    node->max = fmaxf(lChild.max, rChild.max);
+    float3 lmin, lmax, rmin, rmax;
+    lmin = node->lchild->min;
+    lmax = node->lchild->max;
+
+    rmin = node->rchild->min;
+    rmax = node->rchild->max;
+
+    node->min = fminf(lmin, rmin);
+    node->max = fmaxf(lmax, rmax);
 }
 
 __device__ void computeNodeBB(CylinderNode *node, float3 *rMin, float3 *rMax, float *costL, float *costR) {
-    CylinderNode lChild = *node->lchild;
-    CylinderNode rChild = *node->rchild;
+    float3 lmin, lmax, rmin, rmax;
+    lmin = node->lchild->min;
+    lmax = node->lchild->max;
 
-    float3 min = fminf(lChild.min, rChild.min);
-    float3 max = fmaxf(lChild.max, rChild.max);
+    rmin = node->rchild->min;
+    rmax = node->rchild->max;
 
-    node->min = min;
-    node->max = max;
+    rmin = fminf(lmin, rmin);
+    rmax = fmaxf(lmax, rmax);
 
-    *rMin = min;
-    *rMax = max;
-    *costL = lChild.cost;
-    *costR = rChild.cost;
+    node->min = rmin;
+    node->max = rmax;
+
+    *rMin = rmin;
+    *rMax = rmax;
+    *costL = node->lchild->cost;
+    *costR = node->rchild->cost;
 }
 
 __device__ float getArea(float3 min, float3 max) {
@@ -64,7 +73,6 @@ __device__ float getTotalArea(CylinderNode **leaves, int nLeaves, unsigned char 
 
 __device__ void propagateAreaCost(CylinderNode *root, CylinderNode **leaves, int numLeaves) {
     CylinderNode *cur;
-    CylinderNode lChild, rChild;
     float3 min, max;
     float area, costL, costR;
 
@@ -72,7 +80,7 @@ __device__ void propagateAreaCost(CylinderNode *root, CylinderNode **leaves, int
         cur = leaves[i];
         cur = cur->parent;
 
-        while(cur != nullptr && cur != root) {
+        while(cur != nullptr && cur->parent != nullptr) {
             if(cur->cost == 0.0) {
                 if(cur->lchild->cost != 0.0 && cur->rchild->cost != 0.0) {
                     computeNodeBB(cur, &min, &max, &costL, &costR);
@@ -388,7 +396,7 @@ __device__ void restructTree(CylinderNode *parent, CylinderNode **leaves, Cylind
             // process internal node
 
             //debug
-            if (index >= TRBVHIterations) {
+            if (index >= TRBVHIterations || index < 0) {
                 printf("index out of range\n");
                 return;
             }
@@ -416,7 +424,7 @@ __device__ void restructTree(CylinderNode *parent, CylinderNode **leaves, Cylind
 
             //debug
             if (topIndex < 2) {
-                printf("restructTree stack not big enough. Increase RESTRUCT_STACK_SIZE!\n");
+                printf("restructTree stack not big enough. Increase RestructStackSize!\n");
             }
 
             stack[--topIndex] = PartitionEntry(leftPartition, true, tmpNode);
@@ -473,16 +481,14 @@ __device__ void calculateOptimalTreelet(CylinderNode **leaves, int nLeaves, unsi
     }
 }
 
-__device__ void treeletOptimize(CylinderNode *root) {
+__device__ void optimizeTreelet(CylinderNode *root) {
     if (root == nullptr || root->shape != nullptr) {
         return;
     }
 
-    // Find a treelet with max number of leaves being 7
     CylinderNode *leaves[TRBVHIterations];
-
-    // Max 7 (leaves) - 1 (root doesn't count) - 1
-    CylinderNode *nodes[TRBVHIterations];
+    CylinderNode *nodes[TRBVHIterations - 2];
+    unsigned char optimal[128];
 
     int counter = 0;
     int nodeCounter = 0;
@@ -517,9 +523,6 @@ __device__ void treeletOptimize(CylinderNode *root) {
         }
     }
 
-    unsigned char optimal[128];
-
-    // Call calculateOptimalCost here
     calculateOptimalTreelet(leaves, counter, optimal);
 
 
@@ -681,7 +684,7 @@ __global__ void optimizeBVH(CylinderNode *bvh, uint nObjects, int *nodeCounter) 
             return;
         }
 
-        treeletOptimize(current);
+        optimizeTreelet(current);
 
         // If root
         if (current == nullptr || current->parent == nullptr) {

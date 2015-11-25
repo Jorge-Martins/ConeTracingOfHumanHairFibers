@@ -423,7 +423,7 @@ struct CylinderNode {
         rchild = nullptr;
         parent = nullptr;
         lock = 0;
-        area = cost = -1.0f;
+        area = cost = FLT_MAX;
 
         min = make_float3(FLT_MAX);
         max = make_float3(-FLT_MAX);
@@ -437,7 +437,7 @@ struct CylinderNode {
         lock = 0;
         this->type = type;
         this->shape = shape;
-        area = cost = -1.0f;
+        area = cost = FLT_MAX;
 
         min = fminf(shape->base, shape->top) - shape->radius;
         max = fmaxf(shape->base, shape->top) + shape->radius;
@@ -461,7 +461,7 @@ struct CylinderNode {
         rchild = nullptr;
         parent = nullptr;
         lock = 0;
-        area = cost = -1.0f;
+        area = cost = FLT_MAX;
 
         min = fminf(shape->base, shape->top) - shape->radius;
         max = fmaxf(shape->base, shape->top) + shape->radius;
