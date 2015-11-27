@@ -119,6 +119,7 @@
   <ItemGroup>
     <ClCompile Include="parsing\mc_driver.cpp" />
     <ClCompile Include="RayTracer.cpp" />
+    <ClInclude Include="AOIT.cuh" />
     <ClInclude Include="BVH.cuh" />
     <ClInclude Include="Intersection.cuh" />
     <ClInclude Include="MathUtil.h" />

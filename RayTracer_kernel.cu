@@ -242,7 +242,7 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
         nRays++;
         info = rayInfo[rayOffset + rayIndex(rayN)];
         ray.update(info.origin, info.direction);
-        //bool foundIntersect = nearestIntersect(d_shapes, d_shapeSizes, ray[rayOffset + rayIndex(rayN)], &intersect);
+        //bool foundIntersect = nearestIntersect(d_shapes, d_shapeSizes, ray, &intersect, &rayHairIntersections);
 	    bool foundIntersect = cylNearestIntersect(d_shapes, d_shapeSizes, ray, &intersect, &rayHairIntersections);
         
 	    if (!foundIntersect) {
@@ -320,19 +320,16 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
     }
 
     int startLevel = sizeRRArrays - 1;
-    int rrLevel = -2;
+    int rrLevel = startLevel - (1 << (MAX_DEPTH - 1));
 
-    if(MAX_DEPTH > 2) {
-        rrLevel += 2 << (MAX_DEPTH - 2);
-    }
-
+    
     for(int i = startLevel; i >= 0 && i > rrLevel; i--) {
         level = 2 * i;       
         reflectionCols[rrOffset + i] *= locals[localsOffset + level + 1];
         refractionCols[rrOffset + i] *= locals[localsOffset + level + 2];
     }
 
-    for(int i = rrLevel; i >= 0; i--) {
+    for(int i = rrLevel; i >= 0 && MAX_DEPTH > 1; i--) {
         level = 2 * i;
         locals[localsOffset + level + 1] += reflectionCols[rrOffset + level + 1] + refractionCols[rrOffset + level + 1];
         locals[localsOffset + level + 2] += reflectionCols[rrOffset + level + 2] + refractionCols[rrOffset + level + 2];

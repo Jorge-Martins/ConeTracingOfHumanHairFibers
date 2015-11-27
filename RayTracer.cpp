@@ -26,12 +26,12 @@ dim3 blockSize(8, 8);
 dim3 gridSize;
 
 float horizontalAngle, verticalAngle, radius;
-float initHorizontalAngle = 180.0f, initVerticalAngle = 90.0f, initRadius = 20.0f, initFov = 50.0f;//initRadius = 60.0f, initFov = 90.0f;
+float initHorizontalAngle = 180.0f, initVerticalAngle = 90.0f, initRadius = 20.0f, initFov = 42.0f;//initRadius = 60.0f, initFov = 90.0f;
 
 int xDragStart, yDragStart, dragging, zooming;
 float fov;
 
-bool stopRender = false, videoMode = true;
+bool stopRender = false, videoMode = false;
 
 cudaEvent_t c_start, c_end;
 
@@ -48,9 +48,9 @@ StopWatchInterface *timer = NULL;
 
 const char* windowTitle = "Msc Ray Tracing";
 
-//std::string sceneName = "rings_low";
-//std::string sceneName = "straight"; //initHorizontalAngle = 180.0f  -20z
-std::string sceneName = "wCurly"; //initHorizontalAngle = 100.0f
+//std::string sceneName = "balls_low";
+std::string sceneName = "straight"; //initHorizontalAngle = 180.0f  -20z
+//std::string sceneName = "wCurly"; //initHorizontalAngle = 100.0f
 
 extern void deviceClearImage(float3 *d_output, float3 value, int resX, int resY, dim3 gridSize, dim3 blockSize);
 
@@ -464,7 +464,7 @@ int main(int argc, char *argv[]) {
     float3 up = make_float3(0.0f , 0.0f, 1.0f);
 
 	/*if (!load_nff(path + sceneName, scene, &initRadius, &initVerticalAngle, &initHorizontalAngle, &initFov, &up)) {
-        delete scene;
+        cleanup();
 
         getchar();
 		return -1;
