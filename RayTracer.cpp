@@ -59,7 +59,7 @@ extern void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, u
                             float3 ye, float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize,
                             RayInfo *d_raysInfo, float3 *d_locals, float3 *d_reflectionCols, float3 *d_refractionCols);
 
-extern void deviceBuildBVH(CylinderNode *bvh, uint nObjects, int *d_nodeCounter, dim3 gridSize, dim3 blockSize);
+extern void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes);
 
 float3 computeFromCoordinates(float3 up){
     float ha, va;
@@ -430,17 +430,13 @@ void buildBVH() {
 
     if(size > 1) {
         int warpSize = 32;
-        int *d_nodeCounter;
-        uint counterSize =  sizeof(int) * size;
 
         cudaEventRecord(c_start);
-        checkCudaErrors(cudaMalloc((void**) &d_nodeCounter, counterSize));
-        checkCudaErrors(cudaMemset(d_nodeCounter, 0, counterSize));
-
+        
         dim3 grid = dim3(iceil(size, warpSize));
         dim3 vectorBlock = dim3(warpSize);
 
-        deviceBuildBVH(scene->d_cylinders, size, d_nodeCounter, grid, vectorBlock);
+        deviceBuildBVH(scene->d_cylinders, size, grid, vectorBlock, (uint*)scene->mortonCodes[cylinderIndex]);
         cudaEventRecord(c_end);
 
         cudaEventSynchronize(c_end);
@@ -450,7 +446,6 @@ void buildBVH() {
 
         //debug info
         std::cout << "BVH building time: " << milliseconds / 1000.0f << "s" << std::endl << std::endl;
-        cudaFree(d_nodeCounter);
     }
 }
 

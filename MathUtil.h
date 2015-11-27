@@ -167,7 +167,7 @@ uint morton3D(float3 center) {
     uint xx = expandBits((uint)center.x);
     uint yy = expandBits((uint)center.y);
     uint zz = expandBits((uint)center.z);
-    return xx * 4 + yy * 2 + zz;
+    return (xx << 2) + (yy << 1) + zz;
 }
 
 //receives bvh top level min and max and the min and max of a BB

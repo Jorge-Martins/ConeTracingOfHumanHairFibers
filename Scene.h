@@ -20,7 +20,7 @@ private:
     std::vector<Plane> h_planes;
 	std::vector<Light> h_lights;
     
-    float3 cmin, cmax;
+    float3 cmin[nShapes], cmax[nShapes];
 
     Light *d_lights;
 
@@ -39,9 +39,7 @@ private:
 
         uint code;
         for(uint i = 0; i < size; i++) {
-            code = morton3D(computeCenter(cmin, cmax, h_cylinders[i].min, h_cylinders[i].max));
-
-            h_cylinders[i].shape->mortonCode = code;
+            code = morton3D(computeCenter(cmin[cylinderIndex], cmax[cylinderIndex], h_cylinders[i].min, h_cylinders[i].max));
             codes[i] = code;
             values[i] = i;
         }
@@ -63,7 +61,13 @@ private:
         uint sceneSize = sizebvh;
 
         checkCudaErrors(cudaMalloc((void**) &d_cylinders, sizebvh));
-            
+        
+        uint *d_cylMortonCodes;
+        checkCudaErrors(cudaMalloc((void**) &d_cylMortonCodes, size * sizeof(uint)));
+        checkCudaErrors(cudaMemcpyAsync(d_cylMortonCodes, codes, size * sizeof(uint), cudaMemcpyHostToDevice));
+
+        mortonCodes[cylinderIndex] = (int*)d_cylMortonCodes;
+
         CylinderNode emptyNode = CylinderNode(); 
         Cylinder *h_cylinder;
         float3 *h_translation;
@@ -126,6 +130,8 @@ public:
 
     uint *h_shapeSizes;
 
+    int **mortonCodes;
+
     Scene() {
         d_shapeSizes = nullptr;
         d_shapes = nullptr;
@@ -136,15 +142,15 @@ public:
         d_planes = nullptr; 
         
         h_shapeSizes = new uint[nShapes];
+        mortonCodes = new int*[nShapes];
         
         d_lights = nullptr;
 
         for(int i = 0; i < nShapes; i++) {
             h_shapeSizes[i] = 0;
+            cmin[i] = make_float3(FLT_MAX);
+            cmax[i] = make_float3(-FLT_MAX);
         }
-
-        cmin = make_float3(FLT_MAX);
-        cmax = make_float3(-FLT_MAX);
     }
 
 	~Scene() {
@@ -382,8 +388,8 @@ public:
 	    c->material = material;
         CylinderNode cn = CylinderNode(c);
 
-        cmin = fminf(cmin, cn.min);
-        cmax = fmaxf(cmax, cn.max);
+        cmin[cylinderIndex] = fminf(cmin[cylinderIndex], cn.min);
+        cmax[cylinderIndex] = fmaxf(cmax[cylinderIndex], cn.max);
 	    h_cylinders.push_back(cn);
     }
 

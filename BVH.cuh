@@ -26,7 +26,7 @@ __device__ void computeNodeBB(CylinderNode *node) {
     node->max = fmaxf(lmax, rmax);
 }
 
-__device__ void computeNodeBB(CylinderNode *node, float3 *rMin, float3 *rMax, float *costL, float *costR) {
+__device__ void computeNodeBB(CylinderNode *node, float3 *rMin, float3 *rMax) {
     float3 lmin, lmax, rmin, rmax;
     lmin = node->lchild->min;
     lmax = node->lchild->max;
@@ -42,8 +42,6 @@ __device__ void computeNodeBB(CylinderNode *node, float3 *rMin, float3 *rMax, fl
 
     *rMin = rmin;
     *rMax = rmax;
-    *costL = node->lchild->cost;
-    *costR = node->rchild->cost;
 }
 
 __device__ float getArea(float3 min, float3 max) {
@@ -71,24 +69,30 @@ __device__ float getTotalArea(CylinderNode **leaves, int nLeaves, unsigned char 
     return getArea(min, max);
 }
 
-__device__ void propagateAreaCost(CylinderNode *root, CylinderNode **leaves, int numLeaves) {
+__device__ void propagateAreaCost(CylinderNode *root, CylinderNode **leaves, int numLeaves, 
+                                  CylinderNode *bvh, float *areaVector, float *costVector) {
     CylinderNode *cur;
     float3 min, max;
     float area, costL, costR;
+    int currIndex, lChildIndex, rChildIndex;
 
     for(int i = 0; i < numLeaves; i++) {
         cur = leaves[i];
         cur = cur->parent;
 
         while(cur != nullptr && cur->parent != nullptr) {
-            if(cur->cost == 0.0) {
-                if(cur->lchild->cost != 0.0 && cur->rchild->cost != 0.0) {
-                    computeNodeBB(cur, &min, &max, &costL, &costR);
+            currIndex = cur - bvh;
+            lChildIndex = cur->lchild - bvh;
+            rChildIndex = cur->rchild - bvh;
+
+            if(costVector[currIndex] == 0.0) {
+                if((costL = costVector[lChildIndex]) != 0.0 && (costR = costVector[rChildIndex]) != 0.0) {
+                    computeNodeBB(cur, &min, &max);
                     
                     area = getArea(min, max);
-                    cur->area = area;
+                    areaVector[currIndex] = area;
 
-                    cur->cost = Ci * area + costL + costR;
+                    costVector[currIndex] = Ci * area + costL + costR;
 
                 } else {
                     // Only one side propagated
@@ -100,11 +104,18 @@ __device__ void propagateAreaCost(CylinderNode *root, CylinderNode **leaves, int
     }
 
     // Propagate root
-    computeNodeBB(root, &min, &max, &costL, &costR);
-                    
+    computeNodeBB(root, &min, &max);
+              
+    currIndex = root - bvh;
+    lChildIndex = root->lchild - bvh;
+    rChildIndex = root->rchild - bvh;
+
+    costL = costVector[lChildIndex];
+    costR = costVector[rChildIndex];
+
     area = getArea(min, max);
-    root->area = area;
-    root->cost = Ci * area + costL + costR;
+    areaVector[currIndex] = area;
+    costVector[currIndex] = Ci * area + costL + costR;
 }
 
 __device__
@@ -295,10 +306,10 @@ bool traverseShadow(CylinderNode *bvh, uint bvhSize, Ray ray) {
     return false;
 }
 
-__device__ int longestCommonPrefix(int i, int j, uint nObjects, CylinderNode *bvhLeaves) {
+__device__ int longestCommonPrefix(int i, int j, uint nObjects, uint *mortonCodes) {
     if (j >= 0 && j < nObjects) {
-        size_t mci = bvhLeaves[i].shape->mortonCode;
-        size_t mcj = bvhLeaves[j].shape->mortonCode;
+        size_t mci = mortonCodes[i];
+        size_t mcj = mortonCodes[j];
 
         //Concatenate index to key k' = k | index
         if(mci == mcj) {
@@ -364,10 +375,11 @@ __device__ int longestCommonPrefix(int i, int j, uint nObjects, CylinderNode *bv
 }
 
 __device__ void restructTree(CylinderNode *parent, CylinderNode **leaves, CylinderNode **nodes, 
-                             unsigned char partition, unsigned char *optimal, int &index, bool left, int numLeaves) {
+                             unsigned char partition, unsigned char *optimal, int &index, bool left, int numLeaves,
+                             CylinderNode *bvh, float *areaVector, float *costVector) {
 
     PartitionEntry stack[RestructStackSize];
-    int topIndex = RestructStackSize;
+    int topIndex = RestructStackSize, tmpNodeIndex;
     stack[--topIndex] = PartitionEntry(partition, left, parent);
     CylinderNode *tmpNode;
     unsigned char leftPartition, rightPartition;
@@ -404,7 +416,8 @@ __device__ void restructTree(CylinderNode *parent, CylinderNode **leaves, Cylind
             tmpNode = nodes[index++];
 
             // Mark node cost with 0
-            tmpNode->cost = 0.0f;
+            tmpNodeIndex = tmpNode - bvh; 
+            costVector[tmpNodeIndex] = 0.0f;
 
             if(left) {
                 parent->lchild = tmpNode;
@@ -432,10 +445,11 @@ __device__ void restructTree(CylinderNode *parent, CylinderNode **leaves, Cylind
         }
     }
 
-    propagateAreaCost(parent, leaves, numLeaves);
+    propagateAreaCost(parent, leaves, numLeaves, bvh, areaVector, costVector);
 }
 
-__device__ void calculateOptimalTreelet(CylinderNode **leaves, int nLeaves, unsigned char *p_opt) {
+__device__ void calculateOptimalTreelet(CylinderNode **leaves, int nLeaves, unsigned char *p_opt,
+                                        CylinderNode *bvh, float *areaVector, float *costVector) {
     int const numSubsets = (1 << nLeaves) - 1;
 
     float a[128];
@@ -447,8 +461,10 @@ __device__ void calculateOptimalTreelet(CylinderNode **leaves, int nLeaves, unsi
     }
 
     // Initialize costs of individual leaves
+    int index;
     for (int i = 0; i < nLeaves; i++) {
-        c_opt[(1 << i)] = leaves[i]->cost;
+        index = leaves[i] - bvh;
+        c_opt[(1 << i)] = costVector[index];
     }
 
     unsigned char p_s, d, p;
@@ -481,8 +497,8 @@ __device__ void calculateOptimalTreelet(CylinderNode **leaves, int nLeaves, unsi
     }
 }
 
-__device__ void optimizeTreelet(CylinderNode *root) {
-    if (root == nullptr || root->shape != nullptr) {
+__device__ void optimizeTreelet(CylinderNode *treeletRoot, CylinderNode *bvh, float *areaVector, float *costVector) {
+    if (treeletRoot == nullptr || treeletRoot->shape != nullptr) {
         return;
     }
 
@@ -490,12 +506,13 @@ __device__ void optimizeTreelet(CylinderNode *root) {
     CylinderNode *nodes[TRBVHIterations - 2];
     unsigned char optimal[128];
 
+    int nodeIndex;
     int counter = 0;
     int nodeCounter = 0;
     float maxArea;
     int maxIndex = 0;
-    leaves[counter++] = root->lchild;
-    leaves[counter++] = root->rchild;
+    leaves[counter++] = treeletRoot->lchild;
+    leaves[counter++] = treeletRoot->rchild;
 
     CylinderNode *tmp;
     while (counter < TRBVHIterations && maxIndex != -1) {
@@ -504,7 +521,8 @@ __device__ void optimizeTreelet(CylinderNode *root) {
 
         for (int i = 0; i < counter; i++) {
             if (!(leaves[i]->shape != nullptr)) {
-                float area = leaves[i]->area;
+                nodeIndex = leaves[i] - bvh;
+                float area = areaVector[nodeIndex];
                 if (area > maxArea) {
                     maxArea = area;
                     maxIndex = i;
@@ -523,7 +541,7 @@ __device__ void optimizeTreelet(CylinderNode *root) {
         }
     }
 
-    calculateOptimalTreelet(leaves, counter, optimal);
+    calculateOptimalTreelet(leaves, counter, optimal, bvh, areaVector, costVector);
 
 
     unsigned char mask = (1 << counter) - 1;    
@@ -531,22 +549,26 @@ __device__ void optimizeTreelet(CylinderNode *root) {
     unsigned char leftIndex = mask;
     unsigned char left = optimal[leftIndex];
 
-    restructTree(root, leaves, nodes, left, optimal, index, true, counter);
+    restructTree(treeletRoot, leaves, nodes, left, optimal, index, true, counter, bvh, areaVector, costVector);
 
     unsigned char right = (~left) & mask;
-    restructTree(root, leaves, nodes, right, optimal, index, false, counter);
+    restructTree(treeletRoot, leaves, nodes, right, optimal, index, false, counter, bvh, areaVector, costVector);
 
     float3 rMin, rMax;
-    float costL, costR;
-    computeNodeBB(root, &rMin, &rMax, &costL, &costR);
+    computeNodeBB(treeletRoot, &rMin, &rMax);
 
     float rArea = getArea(rMin, rMax);
 
-    root->area = rArea;
-    root->cost = Ci * rArea + costL + costR;
+    float costL = costVector[treeletRoot->lchild - bvh];
+
+    float costR = costVector[treeletRoot->rchild - bvh];
+    
+    nodeIndex = treeletRoot - bvh;
+    areaVector[nodeIndex] = rArea;
+    costVector[nodeIndex] = Ci * rArea + costL + costR;
 }
 
-__global__ void buildBVH(CylinderNode *bvh, uint nObjects) {
+__global__ void buildBVH(CylinderNode *bvh, uint nObjects, uint *mortonCodes) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (i >= nObjects - 1) {
@@ -556,15 +578,15 @@ __global__ void buildBVH(CylinderNode *bvh, uint nObjects) {
     CylinderNode *bvhLeaves = &bvh[nObjects - 1];
 
     // Determine direction of the range (+1 or -1)
-    int sign = longestCommonPrefix(i, i + 1, nObjects, bvhLeaves) - longestCommonPrefix(i, i - 1, nObjects, bvhLeaves); 
+    int sign = longestCommonPrefix(i, i + 1, nObjects, mortonCodes) - longestCommonPrefix(i, i - 1, nObjects, mortonCodes); 
     
     int d = sign > 0 ? 1 : -1;
     
     // Compute upper bound for the length of the range
-    int sigMin = longestCommonPrefix(i, i - d, nObjects, bvhLeaves);
+    int sigMin = longestCommonPrefix(i, i - d, nObjects, mortonCodes);
     int lmax = 2;
 
-    while (longestCommonPrefix(i, i + lmax * d, nObjects, bvhLeaves) > sigMin) {
+    while (longestCommonPrefix(i, i + lmax * d, nObjects, mortonCodes) > sigMin) {
         lmax *= 2;
     }
 
@@ -572,7 +594,7 @@ __global__ void buildBVH(CylinderNode *bvh, uint nObjects) {
     int l = 0;
     float divider = 2.0f;
     for (int t = lmax / divider; t >= 1.0f; divider *= 2.0f) {
-        if (longestCommonPrefix(i, i + (l + t) * d, nObjects, bvhLeaves) > sigMin) {
+        if (longestCommonPrefix(i, i + (l + t) * d, nObjects, mortonCodes) > sigMin) {
             l += t;
         }
         t = lmax / divider;
@@ -581,12 +603,12 @@ __global__ void buildBVH(CylinderNode *bvh, uint nObjects) {
     int j = i + l * d;
   
     // Find the split position using binary search
-    int sigNode = longestCommonPrefix(i, j, nObjects, bvhLeaves);
+    int sigNode = longestCommonPrefix(i, j, nObjects, mortonCodes);
     int s = 0;
 
     divider = 2.0f;
     for (int t = ceilf(l / divider); t >= 1.0f; divider *= 2.0f) {
-        if (longestCommonPrefix(i, i + (s + t) * d, nObjects, bvhLeaves) > sigNode) {
+        if (longestCommonPrefix(i, i + (s + t) * d, nObjects, mortonCodes) > sigNode) {
             s += t;
         }
         t = ceilf(l / divider);
@@ -613,7 +635,7 @@ __global__ void buildBVH(CylinderNode *bvh, uint nObjects) {
     current->rchild->parent = current;
 }
 
-__global__ void computeBVHBB(CylinderNode *bvh, uint nObjects) {
+__global__ void computeBVHBB(CylinderNode *bvh, uint nObjects, int *lock) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (i > nObjects - 1) {
@@ -623,8 +645,8 @@ __global__ void computeBVHBB(CylinderNode *bvh, uint nObjects) {
     CylinderNode *bvhLeaves = &bvh[nObjects - 1];
     CylinderNode *node = &bvhLeaves[i];
     node = node->parent;
-
-    int oldLock = atomicAdd(&node->lock, 1);
+    int index = node - bvh;
+    int oldLock = atomicAdd(&lock[index], 1);
     while(1) {
         if(oldLock == 0) {
             return;
@@ -638,7 +660,8 @@ __global__ void computeBVHBB(CylinderNode *bvh, uint nObjects) {
         }
 
         node = node->parent;
-        oldLock = atomicAdd(&node->lock, 1);
+        index = node - bvh;
+        oldLock = atomicAdd(&lock[index], 1);
     }
 }
 
@@ -659,7 +682,7 @@ __global__ void computeLeavesOBBs(CylinderNode *bvh, uint nObjects) {
     }
 }
 
-__global__ void optimizeBVH(CylinderNode *bvh, uint nObjects, int *nodeCounter) {
+__global__ void optimizeBVH(CylinderNode *bvh, uint nObjects, int *nodeCounter, float *areaVector, float *costVector) {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     
     if (index >= nObjects) {
@@ -668,13 +691,16 @@ __global__ void optimizeBVH(CylinderNode *bvh, uint nObjects, int *nodeCounter) 
 
     CylinderNode *bvhLeaves = &bvh[nObjects - 1];
     CylinderNode *leaf = &bvhLeaves[index];
+    int currentIndex;
 
     float area = getArea(leaf->min, leaf->max);
-    leaf->area = area;
-    leaf->cost = area;
+
+    currentIndex = leaf - bvh;
+    areaVector[currentIndex] = area;
+    costVector[currentIndex] = area;
 
     CylinderNode *current = leaf->parent;
-    int currentIndex = current - bvh;
+    currentIndex = current - bvh;
 
     int res = atomicAdd(&nodeCounter[currentIndex], 1);
 
@@ -684,7 +710,7 @@ __global__ void optimizeBVH(CylinderNode *bvh, uint nObjects, int *nodeCounter) 
             return;
         }
 
-        optimizeTreelet(current);
+        optimizeTreelet(current, bvh, areaVector, costVector);
 
         // If root
         if (current == nullptr || current->parent == nullptr) {

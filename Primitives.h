@@ -272,7 +272,6 @@ struct Cylinder {
 	float3 base, top;
     float radius;
     Material material;
-    uint mortonCode;
     
     __host__
 	Cylinder() {}
@@ -368,9 +367,6 @@ struct CylinderNode {
     float3 max;
     float3 min;
     unsigned char type;
-    int lock;
-    float area;
-    float cost;
     Cylinder *shape;
     Matrix *matrix;
     float3 *translation;
@@ -422,8 +418,6 @@ struct CylinderNode {
         lchild = nullptr;
         rchild = nullptr;
         parent = nullptr;
-        lock = 0;
-        area = cost = FLT_MAX;
 
         min = make_float3(FLT_MAX);
         max = make_float3(-FLT_MAX);
@@ -434,10 +428,8 @@ struct CylinderNode {
         lchild = nullptr;
         rchild = nullptr;
         parent = nullptr;
-        lock = 0;
         this->type = type;
         this->shape = shape;
-        area = cost = FLT_MAX;
 
         min = fminf(shape->base, shape->top) - shape->radius;
         max = fmaxf(shape->base, shape->top) + shape->radius;
@@ -460,8 +452,6 @@ struct CylinderNode {
         lchild = nullptr;
         rchild = nullptr;
         parent = nullptr;
-        lock = 0;
-        area = cost = FLT_MAX;
 
         min = fminf(shape->base, shape->top) - shape->radius;
         max = fmaxf(shape->base, shape->top) + shape->radius;

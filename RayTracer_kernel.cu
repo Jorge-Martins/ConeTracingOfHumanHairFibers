@@ -409,14 +409,37 @@ void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lig
 }
 
 
-void deviceBuildBVH(CylinderNode *bvh, uint nObjects, int *d_nodeCounter, dim3 gridSize, dim3 blockSize) {
-    buildBVH<<<gridSize, blockSize>>>(bvh, nObjects);
+void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes) {
+    float *areaVector, *costVector;
+    int *lock, *nodeCounter;
 
-    computeBVHBB<<<gridSize, blockSize>>>(bvh, nObjects);
+    uint size = (2 * nObjects - 1) * sizeof(float); 
+    checkCudaErrors(cudaMalloc((void**) &areaVector, size));
+    checkCudaErrors(cudaMemset(areaVector, INT_MAX, size));
 
-    optimizeBVH<<<gridSize, blockSize>>>(bvh, nObjects, d_nodeCounter);
+    checkCudaErrors(cudaMalloc((void**) &costVector, size));
+    checkCudaErrors(cudaMemset(costVector, INT_MAX, size));
+
+    size = (2 * nObjects - 1) * sizeof(int); 
+    checkCudaErrors(cudaMalloc((void**) &lock, size));
+    checkCudaErrors(cudaMemset(lock, 0, size));
+
+    
+    buildBVH<<<gridSize, blockSize>>>(bvh, nObjects, mortonCodes);
+
+    computeBVHBB<<<gridSize, blockSize>>>(bvh, nObjects, lock);
+
+    nodeCounter = lock;
+    size = nObjects * sizeof(int);
+    checkCudaErrors(cudaMemset(nodeCounter, 0, size));
+    optimizeBVH<<<gridSize, blockSize>>>(bvh, nObjects, nodeCounter, areaVector, costVector);
 
     computeLeavesOBBs<<<gridSize, blockSize>>>(bvh, nObjects);
+
+    checkCudaErrors(cudaFree(lock));
+    checkCudaErrors(cudaFree(areaVector));
+    checkCudaErrors(cudaFree(costVector));
+    checkCudaErrors(cudaFree(mortonCodes));
 }
 
 #endif
