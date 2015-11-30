@@ -10,9 +10,14 @@
 #define SUPER_SAMPLING_2 SUPER_SAMPLING * SUPER_SAMPLING
 #define SUPER_SAMPLING_2_F 1.0f / SUPER_SAMPLING_2
 
-#define MAX_DEPTH 2
+#define MAX_DEPTH 3
 #define EPSILON 1E-3f
 #define OBB_AABB_EPSILON 1.5f
+
+#define lightSampleRadius 1
+#define lightSamples (lightSampleRadius * lightSampleRadius)
+#define sumFactor (1.0f / lightSamples)
+#define LIGHT_SIZE 0.2f
 
 #define sphereIndex 0
 #define cylinderIndex 1
@@ -186,6 +191,11 @@ float3 computeCenter(float3 cmin, float3 cmax, float3 min, float3 max) {
     axis = normalize(axis);
 
     return tmpMin + d * axis;
+}
+
+inline __host__ __device__
+float3 projectVector(float3 a, float3 b) {
+    return b * dot(a, b);
 }
 
 #endif

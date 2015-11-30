@@ -263,24 +263,47 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
         } 
 
         Material mat = intersect.shapeMaterial;
-         
+
         // local illumination
-	    locals[localsOffset + rayN] = blackColor;
+        locals[localsOffset + rayN] = blackColor;
 	    for(uint li = 0; li < lightSize; li++) {
 		    float3 feelerDir = normalize(lights[li].position - intersect.point);
-            feeler.update(intersect.point, feelerDir);
-            
-            //bool inShadow = findShadow(d_shapes, d_shapeSizes, feeler);
-            bool inShadow = cylFindShadow(d_shapes, d_shapeSizes, feeler);
-            
-		    if(!inShadow) {
-                float3 reflectDir = reflect(-feelerDir, intersect.normal);
-                float Lspec = powf(fmaxf(dot(reflectDir, -ray.direction), 0.0f), mat.shininess);
-                float Ldiff = fmaxf(dot(feelerDir, intersect.normal), 0.0f);
+            float3 u, v;
+            const float3 xAxis = make_float3(1, 0, 0);
+            const float3 yAxis = make_float3(0, 1, 0);
 
-			    
-                locals[localsOffset + rayN] +=  (Ldiff * mat.color * mat.Kdiffuse + mat.color * Lspec * mat.Kspecular) * lights[li].color;
-		    }
+            if (equal(dot(xAxis, feelerDir), 1.0f)) {
+		        u = cross(feelerDir, yAxis);
+	        }
+	        else {
+		        u = cross(feelerDir, xAxis);
+	        }
+	        v = cross(feelerDir, u);
+            
+            float3 localColor = blackColor;
+            for (int x = 0; x < lightSampleRadius; ++x) {
+		        for (int y = 0; y < lightSampleRadius; ++y) {
+			        float xCoord = LIGHT_SIZE * ((y + 0.5f) / lightSamples - 0.5f);
+			        float yCoord = LIGHT_SIZE * ((x + 0.5f) / lightSamples - 0.5f);
+
+			        feelerDir = normalize((lights[li].position + xCoord*u + yCoord*v) - intersect.point);
+                    
+                    feeler.update(intersect.point, feelerDir);
+            
+                    //bool inShadow = findShadow(d_shapes, d_shapeSizes, feeler);
+                    bool inShadow = cylFindShadow(d_shapes, d_shapeSizes, feeler);
+            
+		            if(!inShadow) {
+                        float3 reflectDir = reflect(-feelerDir, intersect.normal);
+                        float Lspec = powf(fmaxf(dot(reflectDir, -ray.direction), 0.0f), mat.shininess);
+                        float Ldiff = fmaxf(dot(feelerDir, intersect.normal), 0.0f);
+
+                        localColor +=  (Ldiff * mat.color * mat.Kdiffuse + mat.color * Lspec * mat.Kspecular) * lights[li].color * sumFactor;
+		            }
+		        }
+	        }
+
+            locals[localsOffset + rayN] += localColor;
 	    }
     
         if(rayN < sizeRRArrays) {

@@ -845,7 +845,7 @@ bool infiniteCylinderIntersection(Ray ray, RayIntersection *out, Cylinder *cylin
 
 __device__
 bool intersection(Ray ray, RayIntersection *out, Cylinder *cylinder) {
-    float3 axis = normalize(cylinder->top - cylinder->base);
+    float3 axis = normalize(cylinder->top - cylinder->base;);
     float3 normal, point; 
 
     float baseDistance = -dot(-axis, cylinder->base);
@@ -854,8 +854,8 @@ bool intersection(Ray ray, RayIntersection *out, Cylinder *cylinder) {
     float dc, dw, t;
 	float inD, outD;		/* Object  intersection dists.	*/
     //0 top, 1 side, 2 base
-    short sideIn;
-    short sideOut;
+    unsigned char sideIn;
+    unsigned char sideOut;
 
     if(!infiniteCylinderIntersection(ray, out, cylinder, axis, &inD, &outD)) {
         return false;
@@ -937,8 +937,7 @@ bool intersection(Ray ray, RayIntersection *out, Cylinder *cylinder) {
             normal = axis;
         } else if(sideIn == 1) {
             float3 v1 = point - cylinder->base;
-	        float3 v2 = dot(v1, axis) * axis;
-            normal = normalize(v1 - v2);
+            normal = normalize(v1 - projectVector(v1, axis));
         } else {
             normal = -axis;
         }
@@ -952,8 +951,7 @@ bool intersection(Ray ray, RayIntersection *out, Cylinder *cylinder) {
             normal = -axis;
         } else if(sideOut == 1) {
             float3 v1 = point - cylinder->base;
-	        float3 v2 = dot(v1, axis) * axis;
-	        normal = normalize(v2 - v1);
+	        normal = -normalize(v1 - projectVector(v1, axis));
         } else {
             normal = axis;
         }
@@ -974,5 +972,6 @@ bool intersection(Ray ray, RayIntersection *out, Cylinder *cylinder) {
 
     return true;
 }
+
 
 #endif
