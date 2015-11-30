@@ -845,7 +845,7 @@ bool infiniteCylinderIntersection(Ray ray, RayIntersection *out, Cylinder *cylin
 
 __device__
 bool intersection(Ray ray, RayIntersection *out, Cylinder *cylinder) {
-    float3 axis = normalize(cylinder->top - cylinder->base;);
+    float3 axis = normalize(cylinder->top - cylinder->base);
     float3 normal, point; 
 
     float baseDistance = -dot(-axis, cylinder->base);
