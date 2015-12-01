@@ -929,45 +929,47 @@ bool intersection(Ray ray, RayIntersection *out, Cylinder *cylinder) {
 		return false;
     }
 
+    bool entering = true;
+    unsigned char side = sideIn;
 	if (inD < outD && inD > 0) {
 		t = inD;
         point = ray.origin + t * ray.direction;
 
-        if(sideIn == 0) {
-            normal = axis;
-        } else if(sideIn == 1) {
-            float3 v1 = point - cylinder->base;
-            normal = normalize(v1 - projectVector(v1, axis));
-        } else {
-            normal = -axis;
-        }
-        
     } else if (outD > 0) {
 		t = outD;
 
         point = ray.origin + t * ray.direction;
 
-        if(sideOut == 0) {
-            normal = -axis;
-        } else if(sideOut == 1) {
-            float3 v1 = point - cylinder->base;
-	        normal = -normalize(v1 - projectVector(v1, axis));
-        } else {
-            normal = axis;
-        }
+        side = sideOut;
+        entering = false;
         
     } else {
         return false;
     }
 
+    if(side == 0) {
+        normal = axis;
+    } else if(side == 1) {
+        float3 v1 = point - cylinder->base;
+        normal = normalize(v1 - projectVector(v1, axis));
+    } else {
+        normal = -axis;
+    }
+
     if (out != nullptr) {
-        out->isEntering = dot(normal, ray.direction) < 0.0f;
+        if(!entering) {
+            normal *= -1.0f;
+        }
+
+        out->isEntering = entering;
         out->shapeMaterial = cylinder->material;
         out->distance = t;
         out->point = point;
         out->normal = normal;
 
-        out->point += normal * 2 * EPSILON;
+        out->point += normal * EPSILON;
+        
+        //out->shapeMaterial.color = make_float3(fabsf(normal.x), fabsf(normal.y), fabsf(normal.z));
 	}
 
     return true;

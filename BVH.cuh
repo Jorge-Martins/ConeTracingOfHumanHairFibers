@@ -144,6 +144,18 @@ bool traverse(CylinderNode *bvh, uint bvhSize, Ray ray, RayIntersection *minInte
         return false;
     }
 
+    // Leaf node (if no bvh)
+    if (node->shape != nullptr) {
+        (*rayHairIntersections)++;
+        intersectionFound = intersection(ray, &curr, node->shape);
+
+        if(intersectionFound && (curr.distance < minIntersect->distance)) {
+            *minIntersect = curr;
+            return true;
+        }
+        return false;
+    }
+
     bool result = false;
     bool lIntersection, rIntersection, traverseL, traverseR; 
     while(node != nullptr) {
@@ -237,6 +249,12 @@ bool traverseShadow(CylinderNode *bvh, uint bvhSize, Ray ray) {
     
     if(!intersectionFound) {
         return false;
+    }
+
+    if (node->shape != nullptr) {
+        intersectionFound = intersection(ray, nullptr, node->shape);
+
+        return intersectionFound;
     }
 
     bool lIntersection, rIntersection, traverseL, traverseR; 

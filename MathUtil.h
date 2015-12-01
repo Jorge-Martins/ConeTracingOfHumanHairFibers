@@ -14,10 +14,10 @@
 #define EPSILON 1E-3f
 #define OBB_AABB_EPSILON 1.5f
 
-#define lightSampleRadius 1
-#define lightSamples (lightSampleRadius * lightSampleRadius)
-#define sumFactor (1.0f / lightSamples)
-#define LIGHT_SIZE 0.2f
+#define LIGHT_SAMPLE_RADIUS 5
+#define LIGHT_SAMPLES (LIGHT_SAMPLE_RADIUS * LIGHT_SAMPLE_RADIUS)
+#define SUM_FACTOR (1.0f / LIGHT_SAMPLES)
+#define LIGHT_SOURCE_SIZE 0.2f
 
 #define sphereIndex 0
 #define cylinderIndex 1
