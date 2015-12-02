@@ -14,10 +14,12 @@
 #include <gtc/quaternion.hpp>
 #include <gtc/matrix_transform.hpp>
 
-enum BBType {
-    AABB,
-    OBB
-};
+#define AABB 0
+#define OBB  1
+
+#define PRIMARY 0
+#define REFLECTED 1
+#define REFRACTED 2
 
 /* N - Negative
  * O - zero
@@ -34,12 +36,16 @@ struct RayInfo {
     float3 origin;
     float3 direction;
     bool exists;
+    unsigned char type;
+    unsigned char depth;
 
     __host__ __device__ 
     RayInfo() {
         origin = make_float3(0.0f);
         direction = make_float3(0.0f, 0.0f, 1.0f);
         exists = false;
+        type = PRIMARY;
+        depth = 0;
     }
 
     __device__
@@ -47,6 +53,17 @@ struct RayInfo {
         this->origin = origin;
         this->direction = direction;
         exists = true;
+        type = PRIMARY;
+        depth = 0;
+    }
+
+    __device__
+    void update(float3 origin, float3 direction, unsigned char type, unsigned char depth) {
+        this->origin = origin;
+        this->direction = direction;
+        exists = true;
+        this->type = type;
+        this->depth = depth;
     }
 };
 
