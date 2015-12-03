@@ -35,7 +35,6 @@ enum RayClassification {
 struct RayInfo {
     float3 origin;
     float3 direction;
-    bool exists;
     unsigned char type;
     unsigned char depth;
 
@@ -43,7 +42,6 @@ struct RayInfo {
     RayInfo() {
         origin = make_float3(0.0f);
         direction = make_float3(0.0f, 0.0f, 1.0f);
-        exists = false;
         type = PRIMARY;
         depth = 0;
     }
@@ -52,7 +50,6 @@ struct RayInfo {
     void update(float3 origin, float3 direction) {
         this->origin = origin;
         this->direction = direction;
-        exists = true;
         type = PRIMARY;
         depth = 0;
     }
@@ -61,7 +58,6 @@ struct RayInfo {
     void update(float3 origin, float3 direction, unsigned char type, unsigned char depth) {
         this->origin = origin;
         this->direction = direction;
-        exists = true;
         this->type = type;
         this->depth = depth;
     }

@@ -16,7 +16,8 @@ Scene *scene = 0;
 Camera *camera = 0;
 
 RayInfo *d_raysInfo = 0;
-float3 *d_locals = 0, *d_reflectionCols = 0, *d_refractionCols = 0;
+float3 *d_colors = 0;
+unsigned char *d_colorContributionType = 0;
 
 int fpsCount = 0;
 int fpsLimit = 1;        // FPS limit for sampling
@@ -31,7 +32,7 @@ float initHorizontalAngle = 180.0f, initVerticalAngle = 90.0f, initRadius = 20.0
 int xDragStart, yDragStart, dragging, zooming;
 float fov;
 
-bool stopRender = false, videoMode = false, nff = true;
+bool stopRender = false, videoMode = false, nff = false;
 
 cudaEvent_t c_start, c_end;
 
@@ -55,7 +56,7 @@ extern void deviceClearImage(float3 *d_output, float3 value, int resX, int resY,
 extern void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
                             int resX, int resY, float width, float height, float atDistance, float3 xe, 
                             float3 ye, float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize,
-                            RayInfo *d_raysInfo, float3 *d_locals, float3 *d_reflectionCols, float3 *d_refractionCols);
+                            RayInfo *d_raysInfo, float3 *d_colors, unsigned char * d_colorContributionType);
 
 extern void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes);
 
@@ -89,9 +90,8 @@ void cleanup() {
 
     if(d_raysInfo) {
         checkCudaErrors(cudaFree(d_raysInfo));
-        checkCudaErrors(cudaFree(d_locals));
-        checkCudaErrors(cudaFree(d_reflectionCols));
-        checkCudaErrors(cudaFree(d_refractionCols));
+        checkCudaErrors(cudaFree(d_colors));
+        checkCudaErrors(cudaFree(d_colorContributionType));
         std::cout << "rays done" << std::endl;
     }
 
@@ -137,34 +137,26 @@ void cudaInit() {
         checkCudaErrors(cudaFree(d_refractionCols));
     }*/
 
-    //size local array
-    size = RES_X * RES_Y;
-    uint localsSize = size * ((2 << MAX_DEPTH) - 1);
-
-    //size reflection and refraction arrays 
-    uint sizeRRArrays = size * ((1 << MAX_DEPTH) - 1);
+    //stack size 
+    uint stackSize = RES_X * RES_Y * (2 * MAX_DEPTH);
     
-    uint raysSize = size * (1 << MAX_DEPTH);
 
-    RayInfo *raysInfo = new RayInfo[raysSize]; 
-    float3 *colors = new float3[localsSize];
+    RayInfo *raysInfo = new RayInfo[stackSize]; 
+    float3 *colors = new float3[3 * stackSize];
 
-    size = raysSize * sizeof(RayInfo);
+    size = stackSize * sizeof(RayInfo);
     totalSize += size; 
     checkCudaErrors(cudaMalloc((void**) &d_raysInfo, size));
     checkCudaErrors(cudaMemcpyAsync(d_raysInfo, raysInfo, size, cudaMemcpyHostToDevice));
 
-    size = localsSize * sizeof(float3);
+    size = 3 * stackSize * sizeof(float3);
     totalSize += size;
-    checkCudaErrors(cudaMalloc((void**) &d_locals, size));
-    checkCudaErrors(cudaMemcpyAsync(d_locals, colors, size, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMalloc((void**) &d_colors, size));
+    checkCudaErrors(cudaMemcpyAsync(d_colors, colors, size, cudaMemcpyHostToDevice));
 
-    size = sizeRRArrays * sizeof(float3);
-    totalSize += size * 2;
-    checkCudaErrors(cudaMalloc((void**) &d_reflectionCols, size));
-    checkCudaErrors(cudaMemcpyAsync(d_reflectionCols, colors, size, cudaMemcpyHostToDevice));
-    checkCudaErrors(cudaMalloc((void**) &d_refractionCols, size));
-    checkCudaErrors(cudaMemcpyAsync(d_refractionCols, colors, size, cudaMemcpyHostToDevice));
+    size = stackSize * sizeof(unsigned char);
+    totalSize += size;
+    checkCudaErrors(cudaMalloc((void**) &d_colorContributionType, size));
 
     delete[] raysInfo;
     delete[] colors;
@@ -223,7 +215,7 @@ void render() {
         deviceDrawScene(scene->getDShapes(), scene->getDShapesSize(), scene->getDLights(), scene->getDLightsSize(), 
                         scene->getBackcolor(), RES_X, RES_Y, camera->width, camera->height, camera->atDistance, 
                         camera->xe, camera->ye, camera->ze, camera->from, d_output, gridSize, blockSize, 
-                        d_raysInfo, d_locals, d_reflectionCols, d_refractionCols);
+                        d_raysInfo, d_colors, d_colorContributionType);
 
         cudaError_t error = cudaGetLastError();
         if(error != cudaSuccess) {
@@ -461,7 +453,7 @@ int main(int argc, char *argv[]) {
 
     if(nff) {
         path = "../../resources/nffFiles/";
-        sceneName = "cyl";
+        sceneName = "balls_low";
 
 	    if (!load_nff(path + sceneName, scene, &initRadius, &initVerticalAngle, &initHorizontalAngle, &initFov, &up)) {
             cleanup();
@@ -471,8 +463,8 @@ int main(int argc, char *argv[]) {
 	    }
     } else {
         path = "../../resources/HairModels/";
-        sceneName = "straight"; //initHorizontalAngle = 180.0f  -20z
-        //sceneName = "wCurly"; //initHorizontalAngle = 100.0f
+        //sceneName = "straight"; //initHorizontalAngle = 180.0f  -20z
+        sceneName = "wCurly"; //initHorizontalAngle = 100.0f
         
         if (!load_hair(path + sceneName, scene)) {
             cleanup();

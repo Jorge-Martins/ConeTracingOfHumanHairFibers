@@ -92,7 +92,7 @@ bool load_hair(std::string filePath, Scene *sc) {
     int pointIndex = 0;
     int segmentSize = hairfile.GetHeader().d_segments;
     float hairIor = 1.55f; //paper Light Scattering from Human Hair Fibers
-    float Kd = 0.2f; //paper Light Scattering from Human Hair Fibers
+    float Kd = 0.6f; 
     float Ks = 0.4f;  //https://support.solidangle.com/display/NodeRef/hair
     float shininess = 50.0f;
     float transparency = hairfile.GetHeader().d_transparency;

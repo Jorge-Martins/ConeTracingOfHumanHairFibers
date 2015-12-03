@@ -8,14 +8,7 @@
 
 #include "BVH.cuh"
 
-//size ray array
-#define raysSize (1 << MAX_DEPTH)
-
-//reflection and refraction arrays 
-#define sizeRRArrays ((1 << MAX_DEPTH) - 1)
-
-//size local array
-#define raysPerPixel ((2 << MAX_DEPTH) - 1)
+#define rtStackSize (2 * MAX_DEPTH)
 
 __device__
 float3 printRayHairIntersections(int rayHairIntersections, float3 finalColor, int nRays) {
@@ -187,11 +180,6 @@ bool nearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersecti
 
 
 __device__
-int rayIndex(int index) {
-    return index % raysSize;
-}
-
-__device__
 float3 refract(float3 inDir, float3 normal, float eta) {
     float cosi = dot(-inDir, normal);
     float k = 1.0f - eta * eta * (1.0f - cosi*cosi);
@@ -213,15 +201,15 @@ float3 computeShadows(int **d_shapes, uint *d_shapeSizes, Light* lights, Ray ray
                       RayIntersection intersect, uint li, float3 feelerDir) {
     feeler.update(intersect.point, feelerDir);
             
-    bool inShadow = findShadow(d_shapes, d_shapeSizes, feeler);
-    //bool inShadow = cylFindShadow(d_shapes, d_shapeSizes, feeler);
+    //bool inShadow = findShadow(d_shapes, d_shapeSizes, feeler);
+    bool inShadow = cylFindShadow(d_shapes, d_shapeSizes, feeler);
             
 	if(!inShadow) {
         float3 reflectDir = reflect(-feelerDir, intersect.normal);
         float Lspec = powf(fmaxf(dot(reflectDir, -ray.direction), 0.0f), mat.shininess);
         float Ldiff = fmaxf(dot(feelerDir, intersect.normal), 0.0f);
 
-        return  (Ldiff * mat.color * mat.Kdiffuse + mat.color * Lspec * mat.Kspecular) * lights[li].color;
+        return (Ldiff * mat.color * mat.Kdiffuse + mat.color * Lspec * mat.Kspecular) * lights[li].color;
 	}
 
     return blackColor;
@@ -258,146 +246,20 @@ float3 computeSoftShadows(int **d_shapes, uint *d_shapeSizes, Light* lights, Ray
     return localColor;
 }
 
+
+
 __device__
 float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightSize, float3 backcolor, 
-                 float3 rayOrigin, float3 rayDirection, RayInfo *globalRayInfo, float3 *globalLocals,
-                 float3 *globalReflectionCols, float3 *globalRefractionCols, uint offset) {
+                 float3 rayOrigin, float3 rayDirection, RayInfo *globalRayInfo, float3 *globalColors, 
+                 unsigned char *globalColorContributionType, uint offset) {
 
-    RayInfo *rayInfo = &globalRayInfo[offset * raysSize];
-    float3 *locals = &globalLocals[offset * raysPerPixel];
-    float3 *reflectionCols = &globalReflectionCols[offset * sizeRRArrays];
-    float3 *refractionCols = &globalRefractionCols[offset * sizeRRArrays];
+    RayInfo *rayInfoStack = &globalRayInfo[offset * rtStackSize];
 
-    Ray feeler = Ray();
-    Ray ray = Ray();
+    float3 *localsStack = &globalColors[3 * offset * rtStackSize];
+    float3 *reflectionColsStack = &localsStack[rtStackSize];
+    float3 *refractionColsStack = &reflectionColsStack[rtStackSize];
 
-    rayInfo[0].update(rayOrigin, rayDirection);
-    RayInfo info;
-    RayIntersection intersect;
-    int level;
-    float3 blackColor = make_float3(0.0f);
-
-    int rayHairIntersections = 0, nRays = 1;
-    
-    for(int rayN = 0; rayN < raysPerPixel; rayN++) {
-        //skip secundary rays that don't exist
-        if(!rayInfo[rayIndex(rayN)].exists) {
-            if(rayN < sizeRRArrays) {
-                reflectionCols[rayN] = blackColor;
-                refractionCols[rayN] = blackColor;
-                level = 2 * rayN;
-                rayInfo[rayIndex(level + 1)].exists = false;
-                rayInfo[rayIndex(level + 2)].exists = false;
-            }
-            continue;
-        }
-        nRays++;
-        info = rayInfo[rayIndex(rayN)];
-        ray.update(info.origin, info.direction);
-        bool foundIntersect = nearestIntersect(d_shapes, d_shapeSizes, ray, &intersect, &rayHairIntersections);
-	    //bool foundIntersect = cylNearestIntersect(d_shapes, d_shapeSizes, ray, &intersect, &rayHairIntersections);
-        
-	    if (!foundIntersect) {
-            if(rayN == 0) {
-                return backcolor;
-            }
-
-            locals[rayN] = backcolor;
-
-            if(rayN < sizeRRArrays) {
-                reflectionCols[rayN] = blackColor;
-                refractionCols[rayN] = blackColor;
-                level = 2 * rayN;
-                rayInfo[rayIndex(level + 1)].exists = false;
-                rayInfo[rayIndex(level + 2)].exists = false;
-            }
-            continue;
-        } 
-
-        Material mat = intersect.shapeMaterial;
-
-        // local illumination
-        locals[rayN] = blackColor;
-	    for(uint li = 0; li < lightSize; li++) {
-            /*locals[rayN] += computeShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
-                                           li, normalize(lights[li].position - intersect.point));*/
-            locals[rayN] += computeSoftShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
-                                                 li, normalize(lights[li].position - intersect.point));
-	    }
-    
-        if(rayN < sizeRRArrays) {
-            reflectionCols[rayN] = blackColor;
-            refractionCols[rayN] = blackColor;
-            level = 2 * rayN;
-            rayInfo[rayIndex(level + 1)].exists = false;
-            rayInfo[rayIndex(level + 2)].exists = false;
-            // reflection
-            level = 2 * rayN + 1;
-	        if(mat.Kspecular > 0.0f) {
-                float3 reflectDir = reflect(ray.direction, intersect.normal);
-		        rayInfo[rayIndex(level)].update(intersect.point, reflectDir);
-                reflectionCols[rayN] = mat.color * mat.Kspecular;
-            }
-
-	        // transmission
-            level = 2 * rayN + 2;
-	        if(mat.transparency > 0.0f) {
-		        float ior1, ior2;
-		        if(intersect.isEntering) {
-			        ior1 = 1.0f;
-			        ior2 = mat.ior;
-		        }
-		        else {
-			        ior1 = mat.ior;
-			        ior2 = 1.0f;
-		        }
-		        float3 refractionDir = computeTransmissionDir(ray.direction, intersect.normal, ior1, ior2);
-		            
-                if (!equal(length(refractionDir), 0.0f)) {
-			        rayInfo[rayIndex(level)].update(intersect.point, refractionDir);
-                    refractionCols[rayN] = mat.color * mat.transparency;
-                }
-	        }
-        }
-    }
-
-    int startLevel = sizeRRArrays - 1;
-    int rrLevel = startLevel - (1 << (MAX_DEPTH - 1));
-
-    
-    for(int i = startLevel; i >= 0 && i > rrLevel; i--) {
-        level = 2 * i;       
-        reflectionCols[i] *= locals[level + 1];
-        refractionCols[i] *= locals[level + 2];
-    }
-
-    for(int i = rrLevel; i >= 0 && MAX_DEPTH > 1; i--) {
-        level = 2 * i;
-        locals[level + 1] += reflectionCols[level + 1] + refractionCols[level + 1];
-        locals[level + 2] += reflectionCols[level + 2] + refractionCols[level + 2];
-        
-        reflectionCols[i] *= locals[level + 1];
-        refractionCols[i] *= locals[level + 2];
-    }
-
-    float3 finalColor = locals[0] + reflectionCols[0] + refractionCols[0];
-
-    //return printRayHairIntersections(rayHairIntersections, finalColor, nRays);
-
-    return finalColor;
-}
-
-__device__
-float3 rayTracingStack(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightSize, float3 backcolor, 
-                 float3 rayOrigin, float3 rayDirection, RayInfo *globalRayInfo, float3 *globalLocals,
-                 float3 *globalReflectionCols, float3 *globalRefractionCols, uint offset) {
-
-    RayInfo *rayInfoStack = &globalRayInfo[offset * raysSize];
-    float3 *localsStack = &globalLocals[offset * raysPerPixel];
-    float3 *reflectionColsStack = &globalReflectionCols[offset * sizeRRArrays];
-    float3 *refractionColsStack = &globalRefractionCols[offset * sizeRRArrays];
-
-    unsigned char colorContributionType[1 << MAX_DEPTH];
+    unsigned char *colorContributionType = &globalColorContributionType[offset * rtStackSize];
 
     Ray feeler = Ray();
     Ray ray = Ray();
@@ -421,8 +283,8 @@ float3 rayTracingStack(int **d_shapes, uint *d_shapeSizes, Light* lights, uint l
         colorContributionType[contributionIndex++] = info.type;
         ray.update(info.origin, info.direction);
 
-        bool foundIntersect = nearestIntersect(d_shapes, d_shapeSizes, ray, &intersect, &rayHairIntersections);
-	    //bool foundIntersect = cylNearestIntersect(d_shapes, d_shapeSizes, ray, &intersect, &rayHairIntersections);
+        //bool foundIntersect = nearestIntersect(d_shapes, d_shapeSizes, ray, &intersect, &rayHairIntersections);
+	    bool foundIntersect = cylNearestIntersect(d_shapes, d_shapeSizes, ray, &intersect, &rayHairIntersections);
         
 	    if (!foundIntersect) {     
             localsStack[colorsIndex] = backcolor;
@@ -434,10 +296,10 @@ float3 rayTracingStack(int **d_shapes, uint *d_shapeSizes, Light* lights, uint l
             // local illumination
             colorAux = blackColor;
 	        for(uint li = 0; li < lightSize; li++) {
-                colorAux += computeShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
-                                           li, normalize(lights[li].position - intersect.point));
-                /*colorAux += computeSoftShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
-                                                 li, normalize(lights[li].position - intersect.point));*/
+                /*colorAux += computeShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
+                                           li, normalize(lights[li].position - intersect.point));*/
+                colorAux += computeSoftShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
+                                                 li, normalize(lights[li].position - intersect.point));
 	        }
             localsStack[colorsIndex] = colorAux;
      
@@ -482,30 +344,33 @@ float3 rayTracingStack(int **d_shapes, uint *d_shapeSizes, Light* lights, uint l
         }
 
         if(computeColor && info.type != PRIMARY) {
-            colorAux = localsStack[colorsIndex] + reflectionColsStack[colorsIndex] + refractionColsStack[colorsIndex];
-
-            unsigned char type;
             if(info.type == REFLECTED) {
-                while(colorsIndex > rayIndex) {
+                unsigned char type;
+                int prevColorsIndex;
+                while(1) {
                     colorAux = localsStack[colorsIndex] + reflectionColsStack[colorsIndex] + refractionColsStack[colorsIndex];
 
                     type = colorContributionType[--contributionIndex];
+                    prevColorsIndex = colorsIndex - 1;
                     if(type == REFLECTED) {
-                        reflectionColsStack[colorsIndex - 1] *= colorAux;
+                        reflectionColsStack[prevColorsIndex] *= colorAux;
                         
                     } else if(type == REFRACTED) {
-                        refractionColsStack[colorsIndex - 1] *= colorAux;
-                        break;
+                        refractionColsStack[prevColorsIndex] *= colorAux;
+                        
+                    } 
 
-                    } else {
+                    if(prevColorsIndex <= rayIndex) {
                         break;
-                    }
+                    } 
 
                     colorsIndex--;
                 }
 
             } else {
+                colorAux = localsStack[colorsIndex] + reflectionColsStack[colorsIndex] + refractionColsStack[colorsIndex];
                 refractionColsStack[colorsIndex - 1] *= colorAux;
+                contributionIndex--;
             }
         }
 
@@ -523,8 +388,8 @@ float3 rayTracingStack(int **d_shapes, uint *d_shapeSizes, Light* lights, uint l
 __global__
 void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, int resX,
                int resY, int res_xy, float width, float height, float atDistance, float3 xe, float3 ye, 
-               float3 ze, float3 from, float3 *d_output, RayInfo* rayInfo, float3* d_locals, 
-               float3* d_reflectionCols, float3* d_refractionCols) {
+               float3 ze, float3 from, float3 *d_output, RayInfo* rayInfo, float3* d_colors, 
+               unsigned char *d_colorContributionType) {
 
     uint x = blockIdx.x * blockDim.x + threadIdx.x;
     uint y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -546,7 +411,7 @@ void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize
             direction = normalize(zeFactor + yeFactor + xeFactor);
 
             color += SUPER_SAMPLING_2_F * rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
-                                                     rayInfo, d_locals, d_reflectionCols, d_refractionCols, index);
+                                                     rayInfo, d_colors, d_colorContributionType, index);
         }
     }
     
@@ -575,12 +440,12 @@ void deviceClearImage(float3 *d_output, float3 value, int resX, int resY, dim3 g
 void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightSize, float3 backcolor, 
                      int resX, int resY, float width, float height, float atDistance, float3 xe, float3 ye, 
                      float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize, RayInfo* rayInfo,
-                     float3* d_locals, float3* d_reflectionCols, float3* d_refractionCols) {
+                     float3* d_colors, unsigned char *d_colorContributionType) {
     
     int res_xy = resX * resY;
     drawScene<<<gridSize, blockSize>>>(d_shapes, d_shapeSizes, lights, lightSize, backcolor, resX, resY,
                                        res_xy, width, height, atDistance, xe, ye, ze, from, d_output, rayInfo,
-                                       d_locals, d_reflectionCols, d_refractionCols);
+                                       d_colors, d_colorContributionType);
 
 }
 
