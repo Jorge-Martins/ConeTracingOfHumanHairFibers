@@ -213,8 +213,8 @@ float3 computeShadows(int **d_shapes, uint *d_shapeSizes, Light* lights, Ray ray
                       RayIntersection intersect, uint li, float3 feelerDir) {
     feeler.update(intersect.point, feelerDir);
             
-    //bool inShadow = findShadow(d_shapes, d_shapeSizes, feeler);
-    bool inShadow = cylFindShadow(d_shapes, d_shapeSizes, feeler);
+    bool inShadow = findShadow(d_shapes, d_shapeSizes, feeler);
+    //bool inShadow = cylFindShadow(d_shapes, d_shapeSizes, feeler);
             
 	if(!inShadow) {
         float3 reflectDir = reflect(-feelerDir, intersect.normal);
@@ -243,10 +243,10 @@ float3 computeSoftShadows(int **d_shapes, uint *d_shapeSizes, Light* lights, Ray
 	v = cross(feelerDir, u);
             
     float3 localColor = blackColor;
-    for (int x = 0; x < LIGHT_SAMPLE_RADIUS; ++x) {
-		for (int y = 0; y < LIGHT_SAMPLE_RADIUS; ++y) {
-			float xCoord = LIGHT_SOURCE_SIZE * ((y + 0.5f) / LIGHT_SAMPLES - 0.5f);
-			float yCoord = LIGHT_SOURCE_SIZE * ((x + 0.5f) / LIGHT_SAMPLES - 0.5f);
+    for (int x = 0; x < LIGHT_SAMPLE_RADIUS; x++) {
+		for (int y = 0; y < LIGHT_SAMPLE_RADIUS; y++) {
+			float xCoord = LIGHT_SOURCE_SIZE * ((y + 0.5f) / LIGHT_SAMPLE_RADIUS - 0.5f);
+			float yCoord = LIGHT_SOURCE_SIZE * ((x + 0.5f) / LIGHT_SAMPLE_RADIUS - 0.5f);
 
 			feelerDir = normalize((lights[li].position + xCoord*u + yCoord*v) - intersect.point);
                     
@@ -294,8 +294,8 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
         nRays++;
         info = rayInfo[rayIndex(rayN)];
         ray.update(info.origin, info.direction);
-        //bool foundIntersect = nearestIntersect(d_shapes, d_shapeSizes, ray, &intersect, &rayHairIntersections);
-	    bool foundIntersect = cylNearestIntersect(d_shapes, d_shapeSizes, ray, &intersect, &rayHairIntersections);
+        bool foundIntersect = nearestIntersect(d_shapes, d_shapeSizes, ray, &intersect, &rayHairIntersections);
+	    //bool foundIntersect = cylNearestIntersect(d_shapes, d_shapeSizes, ray, &intersect, &rayHairIntersections);
         
 	    if (!foundIntersect) {
             if(rayN == 0) {
@@ -319,10 +319,10 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
         // local illumination
         locals[rayN] = blackColor;
 	    for(uint li = 0; li < lightSize; li++) {
-            locals[rayN] += computeShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
-                                           li, normalize(lights[li].position - intersect.point));
-            /*locals[rayN] += computeSoftShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
-                                                 li, normalize(lights[li].position - intersect.point));*/
+            /*locals[rayN] += computeShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
+                                           li, normalize(lights[li].position - intersect.point));*/
+            locals[rayN] += computeSoftShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
+                                                 li, normalize(lights[li].position - intersect.point));
 	    }
     
         if(rayN < sizeRRArrays) {
