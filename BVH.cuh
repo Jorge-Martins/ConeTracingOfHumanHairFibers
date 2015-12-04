@@ -424,10 +424,10 @@ __device__ void restructTree(CylinderNode *parent, CylinderNode **leaves, Cylind
             // process internal node
 
             //debug
-            if (index >= TRBVHIterations || index < 0) {
+            /*if (index >= TRBVHIterations || index < 0) {
                 printf("index out of range\n");
                 return;
-            }
+            }*/
 
             tmpNode = nodes[index++];
 
@@ -443,18 +443,18 @@ __device__ void restructTree(CylinderNode *parent, CylinderNode **leaves, Cylind
             tmpNode->parent = parent;
 
             //debug
-            if (partition >= 128) {
+            /*if (partition >= 128) {
                 printf("partition out of range\n");
                 return;
-            }
+            }*/
 
             leftPartition = optimal[partition];
             rightPartition = (~leftPartition) & partition;
 
             //debug
-            if (topIndex < 2) {
+            /*if (topIndex < 2) {
                 printf("restructTree stack not big enough. Increase RestructStackSize!\n");
-            }
+            }*/
 
             stack[--topIndex] = PartitionEntry(leftPartition, true, tmpNode);
             stack[--topIndex] = PartitionEntry(rightPartition, false, tmpNode);

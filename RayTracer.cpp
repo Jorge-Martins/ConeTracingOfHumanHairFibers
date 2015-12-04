@@ -27,7 +27,7 @@ dim3 blockSize(8, 8);
 dim3 gridSize;
 
 float horizontalAngle, verticalAngle, radius;
-float initHorizontalAngle = 180.0f, initVerticalAngle = 90.0f, initRadius = 20.0f, initFov = 42.0f;//initRadius = 60.0f, initFov = 90.0f;
+float initHorizontalAngle = 180.0f, initVerticalAngle = 90.0f, initRadius = 20.0f, initFov = 52.0f;//initRadius = 60.0f, initFov = 90.0f;
 
 int xDragStart, yDragStart, dragging, zooming;
 float fov;
@@ -58,7 +58,8 @@ extern void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, u
                             float3 ye, float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize,
                             RayInfo *d_raysInfo, float3 *d_colors, unsigned char * d_colorContributionType);
 
-extern void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes);
+extern void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes, 
+                           cudaEvent_t &c_start, cudaEvent_t &c_end);
 
 float3 computeFromCoordinates(float3 up){
     float ha, va;
@@ -132,9 +133,7 @@ void cudaInit() {
     clock_t start = clock();
    /* if(d_raysInfo) {
         checkCudaErrors(cudaFree(d_raysInfo));
-        checkCudaErrors(cudaFree(d_locals));
-        checkCudaErrors(cudaFree(d_reflectionCols));
-        checkCudaErrors(cudaFree(d_refractionCols));
+        checkCudaErrors(cudaFree(d_colors));
     }*/
 
     //stack size 
@@ -421,21 +420,10 @@ void buildBVH() {
     if(size > 1) {
         int warpSize = 32;
 
-        cudaEventRecord(c_start);
-        
         dim3 grid = dim3(iceil(size, warpSize));
         dim3 vectorBlock = dim3(warpSize);
 
-        deviceBuildBVH(scene->d_cylinders, size, grid, vectorBlock, (uint*)scene->mortonCodes[cylinderIndex]);
-        cudaEventRecord(c_end);
-
-        cudaEventSynchronize(c_end);
-
-        float milliseconds = 0;
-        cudaEventElapsedTime(&milliseconds, c_start, c_end);
-
-        //debug info
-        std::cout << "BVH building time: " << milliseconds / 1000.0f << "s" << std::endl << std::endl;
+        deviceBuildBVH(scene->d_cylinders, size, grid, vectorBlock, (uint*)scene->mortonCodes[cylinderIndex], c_start, c_end);
     }
 }
 
@@ -463,10 +451,10 @@ int main(int argc, char *argv[]) {
 	    }
     } else {
         path = "../../resources/HairModels/";
-        //sceneName = "straight"; //initHorizontalAngle = 180.0f  -20z
-        sceneName = "wCurly"; //initHorizontalAngle = 100.0f
+        sceneName = "straight"; //initHorizontalAngle = 180.0f  -20z
+        //sceneName = "wCurly"; //initHorizontalAngle = 100.0f
         
-        if (!load_hair(path + sceneName, scene)) {
+        if (!load_hair(path + sceneName, scene, sceneName)) {
             cleanup();
 
             getchar();

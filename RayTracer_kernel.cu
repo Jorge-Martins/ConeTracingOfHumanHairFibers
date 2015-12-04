@@ -209,7 +209,7 @@ float3 computeShadows(int **d_shapes, uint *d_shapeSizes, Light* lights, Ray ray
         float Lspec = powf(fmaxf(dot(reflectDir, -ray.direction), 0.0f), mat.shininess);
         float Ldiff = fmaxf(dot(feelerDir, intersect.normal), 0.0f);
 
-        return (Ldiff * mat.color * mat.Kdiffuse + mat.color * Lspec * mat.Kspecular) * lights[li].color;
+        return (Ldiff * mat.color * mat.Kdiffuse + Lspec * mat.Kspecular) * lights[li].color;
 	}
 
     return blackColor;
@@ -296,8 +296,8 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
             // local illumination
             colorAux = blackColor;
 	        for(uint li = 0; li < lightSize; li++) {
-                /*colorAux += computeShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
-                                           li, normalize(lights[li].position - intersect.point));*/
+                colorAux += computeShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
+                                           li, normalize(lights[li].position - intersect.point));
                 colorAux += computeSoftShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
                                                  li, normalize(lights[li].position - intersect.point));
 	        }
@@ -404,7 +404,6 @@ void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize
     float3 yeFactor, xeFactor, direction, color = make_float3(0.0f);
     for(int sx = 0; sx < SUPER_SAMPLING; sx++) {
         for(int sy = 0; sy < SUPER_SAMPLING; sy++) {
-
             yeFactor = ye * height * ((y + (sy + 0.5f) * SUPER_SAMPLING_F) / (float)resY - 0.5f);
             xeFactor = xe * width * ((x + (sx + 0.5f) * SUPER_SAMPLING_F) / (float)resX - 0.5f);
 
@@ -450,7 +449,8 @@ void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lig
 }
 
 
-void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes) {
+void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes, 
+                    cudaEvent_t &c_start, cudaEvent_t &c_end) {
     float *areaVector, *costVector;
     int *lock, *nodeCounter;
 
@@ -465,7 +465,7 @@ void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockS
     checkCudaErrors(cudaMalloc((void**) &lock, size));
     checkCudaErrors(cudaMemset(lock, 0, size));
 
-    
+    cudaEventRecord(c_start);
     buildBVH<<<gridSize, blockSize>>>(bvh, nObjects, mortonCodes);
 
     computeBVHBB<<<gridSize, blockSize>>>(bvh, nObjects, lock);
@@ -476,6 +476,15 @@ void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockS
     optimizeBVH<<<gridSize, blockSize>>>(bvh, nObjects, nodeCounter, areaVector, costVector);
 
     computeLeavesOBBs<<<gridSize, blockSize>>>(bvh, nObjects);
+    cudaEventRecord(c_end);
+
+    cudaEventSynchronize(c_end);
+
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, c_start, c_end);
+
+    //debug info
+    printf("BVH building time: %fs \n\n", milliseconds / 1000.0f);
 
     checkCudaErrors(cudaFree(lock));
     checkCudaErrors(cudaFree(areaVector));

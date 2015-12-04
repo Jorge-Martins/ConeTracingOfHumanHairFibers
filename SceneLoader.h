@@ -34,7 +34,7 @@ bool load_nff(std::string filePath, Scene *sc, float *initRadius, float *initLon
 }
 
 
-bool load_hair(std::string filePath, Scene *sc) {
+bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
     clock_t start, end;
     filePath += ".hair";
 	std::cout << "Loading: " << filePath << std::endl;
@@ -92,9 +92,27 @@ bool load_hair(std::string filePath, Scene *sc) {
     int pointIndex = 0;
     int segmentSize = hairfile.GetHeader().d_segments;
     float hairIor = 1.55f; //paper Light Scattering from Human Hair Fibers
-    float Kd = 0.6f; 
-    float Ks = 0.4f;  //https://support.solidangle.com/display/NodeRef/hair
-    float shininess = 50.0f;
+
+    float Kd, Ks, shininess;
+    //https://support.solidangle.com/display/NodeRef/hair
+    if(sceneName == "wCurly") {
+        Kd = 0.6f; 
+        Ks = 0.5f;  
+        shininess = 50.0f;
+
+    } else if(sceneName == "straight") {
+        Kd = 0.4f; 
+        Ks = 0.3f;  
+        shininess = 50.0f;
+
+    } else {
+        Kd = 0.5f; 
+        Ks = 0.5f;  
+        shininess = 50.0f;
+    }
+
+
+
     float transparency = hairfile.GetHeader().d_transparency;
     float thickness = hairfile.GetHeader().d_thickness;
 
