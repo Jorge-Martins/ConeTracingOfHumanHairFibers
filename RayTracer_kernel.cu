@@ -7,8 +7,30 @@
 #include <cfloat>
 
 #include "BVH.cuh"
+#include <thrust/random.h>
 
 #define rtStackSize (2 * MAX_DEPTH)
+
+
+__device__
+float2 cudaRandom(thrust::default_random_engine &rng) {
+    return make_float2((float)rng() / thrust::default_random_engine::max,
+                       (float)rng() / thrust::default_random_engine::max);
+}
+
+__device__
+float haltonSequance(int index, int base) {
+       float result = 0;
+       float f = 1;
+      
+       for(int i = index; i > 0; i = floorf(i / base)) {
+           f = f / base;
+           result = result + f * (i % base);
+           
+       }
+
+       return result;
+}
 
 __device__
 float3 printRayHairIntersections(int rayHairIntersections, float3 finalColor, int nRays) {
@@ -233,13 +255,13 @@ float3 computeSoftShadows(int **d_shapes, uint *d_shapeSizes, Light* lights, Ray
     float3 localColor = blackColor;
     for (int x = 0; x < LIGHT_SAMPLE_RADIUS; x++) {
 		for (int y = 0; y < LIGHT_SAMPLE_RADIUS; y++) {
-			float xCoord = LIGHT_SOURCE_SIZE * ((y + 0.5f) / LIGHT_SAMPLE_RADIUS - 0.5f);
-			float yCoord = LIGHT_SOURCE_SIZE * ((x + 0.5f) / LIGHT_SAMPLE_RADIUS - 0.5f);
+			float xCoord = LIGHT_SOURCE_SIZE * ((y + 0.5f) * LIGHT_SAMPLE_RADIUS_F - 0.5f);
+			float yCoord = LIGHT_SOURCE_SIZE * ((x + 0.5f) * LIGHT_SAMPLE_RADIUS_F - 0.5f);
 
 			feelerDir = normalize((lights[li].position + xCoord*u + yCoord*v) - intersect.point);
                     
             localColor += SUM_FACTOR * computeShadows(d_shapes, d_shapeSizes, lights, ray, feeler,
-                                         blackColor, mat, intersect, li, feelerDir);
+                                                      blackColor, mat, intersect, li, feelerDir);
 		}
 	}
 
@@ -385,11 +407,102 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
     return colorAux;
 }
 
+__device__
+float3 naiveSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
+                          float3 xe, float3 ye, float3 zeFactor, float3 from, RayInfo* rayInfo, float3* d_colors, 
+                          unsigned char *d_colorContributionType, uint index, uint x, uint y, int resX, int resY) {
+
+    float3 direction, color = make_float3(0.0f), yeFactor, xeFactor;
+    for(int sx = 0; sx < SUPER_SAMPLING; sx++) {
+        for(int sy = 0; sy < SUPER_SAMPLING; sy++) {
+            yeFactor = ye * ((y + (sy + 0.5f) * SUPER_SAMPLING_F) / (float)resY - 0.5f);
+            xeFactor = xe * ((x + (sx + 0.5f) * SUPER_SAMPLING_F) / (float)resX - 0.5f);
+
+            direction = normalize(zeFactor + yeFactor + xeFactor);
+
+            color += SUPER_SAMPLING_2_F * rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
+                                                     rayInfo, d_colors, d_colorContributionType, index);
+        }
+    }
+
+    return color;
+}
+
+__device__
+float3 naiveRdmSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
+                             float3 xe, float3 ye, float3 zeFactor, float3 from, RayInfo* rayInfo, float3* d_colors, 
+                             unsigned char *d_colorContributionType, uint index, uint x, uint y, int resX, int resY) {
+
+    thrust::default_random_engine rng;
+    rng.discard(2 * index);
+
+    float2 rdmEpsilon;
+    float3 direction, color = make_float3(0.0f), yeFactor, xeFactor;
+    for(int sx = 0; sx < SUPER_SAMPLING; sx++) {
+        for(int sy = 0; sy < SUPER_SAMPLING; sy++) {
+            rdmEpsilon = cudaRandom(rng);
+            yeFactor = ye * ((y + (sy + rdmEpsilon.y) * SUPER_SAMPLING_F) / (float)resY - 0.5f);
+            xeFactor = xe * ((x + (sx + rdmEpsilon.x) * SUPER_SAMPLING_F) / (float)resX - 0.5f);
+
+            direction = normalize(zeFactor + yeFactor + xeFactor);
+
+            color += SUPER_SAMPLING_2_F * rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
+                                                     rayInfo, d_colors, d_colorContributionType, index);
+        }
+    }
+
+    return color;
+}
+
+__device__
+float3 stocasticSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
+                              float3 xe, float3 ye, float3 zeFactor, float3 from, RayInfo* rayInfo, float3* d_colors, 
+                              unsigned char *d_colorContributionType, uint index, uint x, uint y, int resX, int resY) {
+
+    thrust::default_random_engine rng;
+    rng.discard(2 * index);
+
+    float2 rdmEpsilon;
+    float3 direction, color = make_float3(0.0f), yeFactor, xeFactor;
+    for(int i = 0; i < SUPER_SAMPLING_2; i++) {
+        rdmEpsilon = cudaRandom(rng);
+        yeFactor = ye * ((y + rdmEpsilon.y) / (float)resY - 0.5f);
+        xeFactor = xe * ((x + rdmEpsilon.x) / (float)resX - 0.5f);
+
+        direction = normalize(zeFactor + yeFactor + xeFactor);
+
+        color += SUPER_SAMPLING_2_F * rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
+                                                 rayInfo, d_colors, d_colorContributionType, index);
+    }
+
+    return color;
+}
+
+__device__
+float3 stocasticHSSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
+                              float3 xe, float3 ye, float3 zeFactor, float3 from, RayInfo* rayInfo, float3* d_colors, 
+                              unsigned char *d_colorContributionType, uint index, uint x, uint y, int resX, int resY) {
+
+    uint hsIndex = x / (y + 1);
+
+    float3 direction, color = make_float3(0.0f), yeFactor, xeFactor;
+    for(int i = 0; i < SUPER_SAMPLING_2; i++) {
+        yeFactor = ye * ((y + haltonSequance(hsIndex + i, 3)) / (float)resY - 0.5f);
+        xeFactor = xe * ((x + haltonSequance(hsIndex + i, 2)) / (float)resX - 0.5f);
+
+        direction = normalize(zeFactor + yeFactor + xeFactor);
+
+        color += SUPER_SAMPLING_2_F * rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
+                                                 rayInfo, d_colors, d_colorContributionType, index);
+    }
+
+    return color;
+}
+
 __global__
 void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, int resX,
-               int resY, int res_xy, float width, float height, float atDistance, float3 xe, float3 ye, 
-               float3 ze, float3 from, float3 *d_output, RayInfo* rayInfo, float3* d_colors, 
-               unsigned char *d_colorContributionType) {
+               int resY, int res_xy, float atDistance, float3 xe, float3 ye, float3 ze, float3 from, 
+               float3 *d_output, RayInfo* rayInfo, float3* d_colors, unsigned char *d_colorContributionType) {
 
     uint x = blockIdx.x * blockDim.x + threadIdx.x;
     uint y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -400,21 +513,9 @@ void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize
         return;
     }
 
-    float3 zeFactor = -ze * atDistance; 
-    float3 yeFactor, xeFactor, direction, color = make_float3(0.0f);
-    for(int sx = 0; sx < SUPER_SAMPLING; sx++) {
-        for(int sy = 0; sy < SUPER_SAMPLING; sy++) {
-            yeFactor = ye * height * ((y + (sy + 0.5f) * SUPER_SAMPLING_F) / (float)resY - 0.5f);
-            xeFactor = xe * width * ((x + (sx + 0.5f) * SUPER_SAMPLING_F) / (float)resX - 0.5f);
+    d_output[index] = naiveRdmSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
+                                         from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, resY);
 
-            direction = normalize(zeFactor + yeFactor + xeFactor);
-
-            color += SUPER_SAMPLING_2_F * rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
-                                                     rayInfo, d_colors, d_colorContributionType, index);
-        }
-    }
-    
-    d_output[index] = color;
     
 }
 
@@ -442,8 +543,11 @@ void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lig
                      float3* d_colors, unsigned char *d_colorContributionType) {
     
     int res_xy = resX * resY;
+    ye *= height;
+    xe *= width;
+    ze = -ze * atDistance;
     drawScene<<<gridSize, blockSize>>>(d_shapes, d_shapeSizes, lights, lightSize, backcolor, resX, resY,
-                                       res_xy, width, height, atDistance, xe, ye, ze, from, d_output, rayInfo,
+                                       res_xy, atDistance, xe, ye, ze, from, d_output, rayInfo,
                                        d_colors, d_colorContributionType);
 
 }
