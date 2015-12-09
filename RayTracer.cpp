@@ -27,7 +27,7 @@ dim3 blockSize(8, 8);
 dim3 gridSize;
 
 float horizontalAngle, verticalAngle, radius;
-float initHorizontalAngle = 180.0f, initVerticalAngle = 90.0f, initRadius = 20.0f, initFov = 52.0f;//initRadius = 60.0f, initFov = 90.0f;
+float initHorizontalAngle = 180.0f, initVerticalAngle = 90.0f, initRadius = 20.0f, initFov = 40.0f;//initRadius = 60.0f, initFov = 90.0f;
 
 int xDragStart, yDragStart, dragging, zooming;
 float fov;
@@ -130,9 +130,11 @@ void computeFPS() {
 void cudaInit() {
     uint size, totalSize = 0;
     clock_t start = clock();
-   /* if(d_raysInfo) {
+
+   /*if(d_raysInfo) {
         checkCudaErrors(cudaFree(d_raysInfo));
         checkCudaErrors(cudaFree(d_colors));
+        checkCudaErrors(cudaFree(d_colorContributionType));
     }*/
 
     //stack size 
@@ -233,16 +235,6 @@ void render() {
 }
 
 void reshape(int w, int h) {
-    //RES_X = w;
-    //RES_Y = h;
-    
-    // calculate new grid size
-    //gridSize = dim3(iceil(RES_X, blockSize.x), iceil(RES_Y, blockSize.y));
-    //camera->update(RES_X / (float)RES_Y);
-
-    
-
-
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
 	
@@ -250,7 +242,6 @@ void reshape(int w, int h) {
     
 	glMatrixMode(GL_MODELVIEW);
 	glViewport(0, 0, RES_X, RES_Y);
-
 }
 
 // Draw function by primary ray casting from the eye towards the scene's objects 

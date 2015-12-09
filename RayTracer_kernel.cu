@@ -502,33 +502,33 @@ float3 stocasticHSSupersampling(int **d_shapes, uint *d_shapeSizes, Light *light
 
 __global__
 void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, int resX,
-               int resY, int res_xy, float atDistance, float3 xe, float3 ye, float3 ze, float3 from, float3 *d_output,
+               int resY, float atDistance, float3 xe, float3 ye, float3 ze, float3 from, float3 *d_output,
                RayInfo* rayInfo, float3* d_colors, unsigned char *d_colorContributionType, long seed) {
 
     uint x = blockIdx.x * blockDim.x + threadIdx.x;
     uint y = blockIdx.y * blockDim.y + threadIdx.y;
 
-    uint index = y * resX + x;
-
-    if(index >= res_xy) {
+    if(x >= resX || y >= resY) {
         return;
     }
 
+    uint index = y * resX + x;
+
     /*d_output[index] = naiveSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
-                                           from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
-                                           resY);*/
+                                         from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
+                                         resY);*/
+    /*
+    d_output[index] = naiveRdmSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
+                                            from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
+                                            resY, seed);*/
 
-    /*d_output[index] = naiveRdmSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
-                                              from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
-                                              resY, seed);*/
+    d_output[index] = stocasticSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
+                                             from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
+                                             resY, seed);
 
-    /*d_output[index] = stocasticSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
+    /*d_output[index] = stocasticHSSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                                from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
                                                resY, seed);*/
-
-    d_output[index] = stocasticHSSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
-                                               from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
-                                               resY, seed);
 
     
 }
@@ -539,13 +539,13 @@ void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lig
                      float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize, RayInfo* rayInfo,
                      float3* d_colors, unsigned char *d_colorContributionType, long seed) {
     
-    int res_xy = resX * resY;
+    
     ye *= height;
     xe *= width;
     ze = -ze * atDistance;
     drawScene<<<gridSize, blockSize>>>(d_shapes, d_shapeSizes, lights, lightSize, backcolor, resX, resY,
-                                       res_xy, atDistance, xe, ye, ze, from, d_output, rayInfo,
-                                       d_colors, d_colorContributionType, seed);
+                                       atDistance, xe, ye, ze, from, d_output, rayInfo, d_colors, 
+                                       d_colorContributionType, seed);
 
 }
 
