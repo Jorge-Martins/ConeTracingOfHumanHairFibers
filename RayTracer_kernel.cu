@@ -14,8 +14,8 @@
 
 __device__
 float2 cudaRandom(thrust::default_random_engine &rng) {
-    return make_float2((float)rng() / thrust::default_random_engine::max,
-                       (float)rng() / thrust::default_random_engine::max);
+    return make_float2((float)rng() ,
+                       (float)rng());
 }
 
 __device__
@@ -431,18 +431,18 @@ float3 naiveSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, uin
 __device__
 float3 naiveRdmSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
                              float3 xe, float3 ye, float3 zeFactor, float3 from, RayInfo* rayInfo, float3* d_colors, 
-                             unsigned char *d_colorContributionType, uint index, uint x, uint y, int resX, int resY) {
+                             unsigned char *d_colorContributionType, uint index, uint x, uint y, int resX, int resY,
+                             long seed) {
 
-    thrust::default_random_engine rng;
+    thrust::default_random_engine rng(seed + index);
+    thrust::uniform_real_distribution<float> uniDist;
     rng.discard(2 * index);
 
-    float2 rdmEpsilon;
     float3 direction, color = make_float3(0.0f), yeFactor, xeFactor;
     for(int sx = 0; sx < SUPER_SAMPLING; sx++) {
         for(int sy = 0; sy < SUPER_SAMPLING; sy++) {
-            rdmEpsilon = cudaRandom(rng);
-            yeFactor = ye * ((y + (sy + rdmEpsilon.y) * SUPER_SAMPLING_F) / (float)resY - 0.5f);
-            xeFactor = xe * ((x + (sx + rdmEpsilon.x) * SUPER_SAMPLING_F) / (float)resX - 0.5f);
+            yeFactor = ye * ((y + (sy + uniDist(rng)) * SUPER_SAMPLING_F) / (float)resY - 0.5f);
+            xeFactor = xe * ((x + (sx + uniDist(rng)) * SUPER_SAMPLING_F) / (float)resX - 0.5f);
 
             direction = normalize(zeFactor + yeFactor + xeFactor);
 
@@ -457,20 +457,20 @@ float3 naiveRdmSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, 
 __device__
 float3 stocasticSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
                               float3 xe, float3 ye, float3 zeFactor, float3 from, RayInfo* rayInfo, float3* d_colors, 
-                              unsigned char *d_colorContributionType, uint index, uint x, uint y, int resX, int resY) {
+                              unsigned char *d_colorContributionType, uint index, uint x, uint y, int resX, int resY,
+                              long seed) {
 
-    thrust::default_random_engine rng;
+    thrust::default_random_engine rng(seed + index);
+    thrust::uniform_real_distribution<float> uniDist;
+
     rng.discard(2 * index);
 
-    float2 rdmEpsilon;
     float3 direction, color = make_float3(0.0f), yeFactor, xeFactor;
     for(int i = 0; i < SUPER_SAMPLING_2; i++) {
-        rdmEpsilon = cudaRandom(rng);
-        yeFactor = ye * ((y + rdmEpsilon.y) / (float)resY - 0.5f);
-        xeFactor = xe * ((x + rdmEpsilon.x) / (float)resX - 0.5f);
+        yeFactor = ye * ((y + uniDist(rng)) / (float)resY - 0.5f);
+        xeFactor = xe * ((x + uniDist(rng)) / (float)resX - 0.5f);
 
         direction = normalize(zeFactor + yeFactor + xeFactor);
-
         color += SUPER_SAMPLING_2_F * rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
                                                  rayInfo, d_colors, d_colorContributionType, index);
     }
@@ -480,10 +480,11 @@ float3 stocasticSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights,
 
 __device__
 float3 stocasticHSSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
-                              float3 xe, float3 ye, float3 zeFactor, float3 from, RayInfo* rayInfo, float3* d_colors, 
-                              unsigned char *d_colorContributionType, uint index, uint x, uint y, int resX, int resY) {
+                                float3 xe, float3 ye, float3 zeFactor, float3 from, RayInfo* rayInfo, float3* d_colors, 
+                                unsigned char *d_colorContributionType, uint index, uint x, uint y, int resX, int resY,
+                                long seed) {
 
-    uint hsIndex = x / (y + 1);
+    uint hsIndex = index + seed;
 
     float3 direction, color = make_float3(0.0f), yeFactor, xeFactor;
     for(int i = 0; i < SUPER_SAMPLING_2; i++) {
@@ -501,8 +502,8 @@ float3 stocasticHSSupersampling(int **d_shapes, uint *d_shapeSizes, Light *light
 
 __global__
 void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, int resX,
-               int resY, int res_xy, float atDistance, float3 xe, float3 ye, float3 ze, float3 from, 
-               float3 *d_output, RayInfo* rayInfo, float3* d_colors, unsigned char *d_colorContributionType) {
+               int resY, int res_xy, float atDistance, float3 xe, float3 ye, float3 ze, float3 from, float3 *d_output,
+               RayInfo* rayInfo, float3* d_colors, unsigned char *d_colorContributionType, long seed) {
 
     uint x = blockIdx.x * blockDim.x + threadIdx.x;
     uint y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -513,34 +514,30 @@ void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize
         return;
     }
 
-    d_output[index] = naiveRdmSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
-                                         from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, resY);
+    /*d_output[index] = naiveSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
+                                           from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
+                                           resY);*/
+
+    /*d_output[index] = naiveRdmSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
+                                              from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
+                                              resY, seed);*/
+
+    /*d_output[index] = stocasticSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
+                                               from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
+                                               resY, seed);*/
+
+    d_output[index] = stocasticHSSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
+                                               from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
+                                               resY, seed);
 
     
 }
 
-__global__
-void clearImage(float3 *d_output, float3 value, int resX, int res) {
-    uint x = blockIdx.x * blockDim.x + threadIdx.x;
-    uint y = blockIdx.y * blockDim.y + threadIdx.y;
-
-    uint index = y * resX + x;
-
-    if(index >= res) {
-        return;
-    }
-    d_output[index] = value;
-
-}
-
-void deviceClearImage(float3 *d_output, float3 value, int resX, int resY, dim3 gridSize, dim3 blockSize) {
-    clearImage<<<gridSize, blockSize>>>(d_output, make_float3(0.0f), resX, resX * resY);
-}
 
 void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightSize, float3 backcolor, 
                      int resX, int resY, float width, float height, float atDistance, float3 xe, float3 ye, 
                      float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize, RayInfo* rayInfo,
-                     float3* d_colors, unsigned char *d_colorContributionType) {
+                     float3* d_colors, unsigned char *d_colorContributionType, long seed) {
     
     int res_xy = resX * resY;
     ye *= height;
@@ -548,7 +545,7 @@ void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lig
     ze = -ze * atDistance;
     drawScene<<<gridSize, blockSize>>>(d_shapes, d_shapeSizes, lights, lightSize, backcolor, resX, resY,
                                        res_xy, atDistance, xe, ye, ze, from, d_output, rayInfo,
-                                       d_colors, d_colorContributionType);
+                                       d_colors, d_colorContributionType, seed);
 
 }
 
