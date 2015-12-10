@@ -187,8 +187,9 @@ public:
 		Initialize();
 
 		FILE *fp;
-		fp = fopen( filename, "rb" );
-		if ( fp == NULL ) return CY_HAIR_FILE_ERROR_CANT_OPEN_FILE;
+        errno_t err;
+		err = fopen_s(&fp, filename, "rb" );
+		if (err != 0 || fp == NULL ) return CY_HAIR_FILE_ERROR_CANT_OPEN_FILE;
 
 		// read the header
 		size_t headread = fread( &header, sizeof(cyHairFileHeader), 1, fp );
@@ -246,8 +247,9 @@ public:
 	int SaveToFile( const char *filename ) const
 	{
 		FILE *fp;
-		fp = fopen( filename, "wb" );
-		if ( fp == NULL ) return -1;
+		errno_t err;
+		err = fopen_s(&fp, filename, "rb" );
+		if ( err != 0 || fp == NULL ) return -1;
 
 		// Write header
 		fwrite( &header, sizeof(cyHairFileHeader), 1, fp );

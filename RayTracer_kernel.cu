@@ -514,17 +514,17 @@ void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize
 
     uint index = y * resX + x;
 
-    /*d_output[index] = naiveSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
+    d_output[index] = naiveSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                          from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
-                                         resY);*/
-    /*
-    d_output[index] = naiveRdmSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
+                                         resY);
+    
+    /*d_output[index] = naiveRdmSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                             from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
                                             resY, seed);*/
 
-    d_output[index] = stocasticSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
+    /*d_output[index] = stocasticSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                              from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
-                                             resY, seed);
+                                             resY, seed);*/
 
     /*d_output[index] = stocasticHSSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                                from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 

@@ -4,12 +4,11 @@
 #include <GL/freeglut.h> 
 
 #include "SceneLoader.h"
-#include <string>
+#include "ImageComparator.h"
 
 #include <cuda_gl_interop.h>
 #include <helper_functions.h>
 
-#include <FreeImage.h>
 
 
 Scene *scene = 0;
@@ -366,7 +365,7 @@ void keyboardKey(unsigned char key, int x, int y) {
 	if (key == 'p'){
         int size = RES_X * RES_Y * 3;
 		
-        std::string file = "../../resources/" + sceneName + ".png";
+        std::string file = resourceDirPath + sceneName + ".png";
         BYTE* imageData = new BYTE[size];
 
         glBindTexture(GL_TEXTURE_2D, tex);
@@ -379,11 +378,10 @@ void keyboardKey(unsigned char key, int x, int y) {
 		FreeImage_Unload(image);
 		delete[] imageData;
 
-		std::cout << "Snapshot saved" << std::endl;
+		std::cout << "Snapshot saved" << std::endl << std::endl;
 	}
 
     if(key == 'f') {
-        std::cout << "rendering new frame" << std::endl << std::endl;
         stopRender = false;
     }
 
@@ -396,10 +394,53 @@ void keyboardKey(unsigned char key, int x, int y) {
 
         videoMode = !videoMode;
     }
+
+    if(key == 'i') {
+        std::cout << std::endl;
+        std::cout << "-----------------------------------------------------------" << std::endl;
+        std::cout << "Image comparator Menu" << std::endl;
+        std::cout << "Enter: " << std::endl;
+        std::cout << "dif - To compute and save the difference between two images" << std::endl;
+        std::cout << "rms - To compute the RMS error between two images" << std::endl;
+        std::cout << "q - To quit menu" << std::endl << std::endl;
+
+        std::string command;
+        while(1) {
+            std::cin >> command;
+
+            if(command == "q") {
+                break;
+
+            } else if(command == "dif") {
+                saveDiff();
+
+            } else if(command == "rms") { 
+                std::cout << "RMS Error: " << computeRMSError() * 100 << "%" << std::endl << std::endl;
+
+            } else {
+                std::cout << "Command not supported" << std::endl;
+            }
+        }
+
+        std::cout << "-----------------------------------------------------------" << std::endl << std::endl;
+    }
 }
 
 void idle() {
     glutPostRedisplay();
+}
+
+void showMainMenu() {
+    std::cout << std::endl;
+    std::cout << "-----------------------------------------------------------" << std::endl;
+    std::cout << "Ray Tracer Menu" << std::endl;
+    std::cout << "Press on the display window: " << std::endl;
+    std::cout << "c - To reset camera position" << std::endl;
+    std::cout << "f - To render new frame when in frame mode" << std::endl;
+    std::cout << "i - To enter the Image comparator Menu" << std::endl;
+    std::cout << "m - To alternate between frame and video mode" << std::endl;
+    std::cout << "p - To save frame as an image" << std::endl;
+    std::cout << "-----------------------------------------------------------" << std::endl << std::endl;
 }
 
 void buildBVH() {
@@ -428,7 +469,7 @@ int main(int argc, char *argv[]) {
     float3 up = make_float3(0.0f , 0.0f, 1.0f);
 
     if(nff) {
-        path = "../../resources/nffFiles/";
+        path = resourceDirPath + "nffFiles/";
         sceneName = "balls_low";
 
 	    if (!load_nff(path + sceneName, scene, &initRadius, &initVerticalAngle, &initHorizontalAngle, &initFov, &up)) {
@@ -438,7 +479,7 @@ int main(int argc, char *argv[]) {
 		    return -1;
 	    }
     } else {
-        path = "../../resources/HairModels/";
+        path = resourceDirPath + "HairModels/";
         sceneName = "straight"; //initHorizontalAngle = 180.0f  -20z
         //sceneName = "wCurly"; //initHorizontalAngle = 100.0f
         
@@ -480,6 +521,8 @@ int main(int argc, char *argv[]) {
 
     cudaInit();
     initPixelBuffer();
+
+    showMainMenu();
 
     glDisable(GL_DEPTH_TEST);
 	glutReshapeFunc(reshape);

@@ -121,6 +121,7 @@
     <ClCompile Include="RayTracer.cpp" />
     <ClInclude Include="AOIT.cuh" />
     <ClInclude Include="BVH.cuh" />
+    <ClInclude Include="ImageComparator.h" />
     <ClInclude Include="Intersection.cuh" />
     <ClInclude Include="MathUtil.h" />
     <ClInclude Include="parsing\cyHairFile.h" />

@@ -28,6 +28,9 @@
     <ClInclude Include="AOIT.cuh">
       <Filter>cuda</Filter>
     </ClInclude>
+    <ClInclude Include="ImageComparator.h">
+      <Filter>headers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="headers">

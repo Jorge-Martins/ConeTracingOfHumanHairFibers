@@ -6,7 +6,7 @@
 #include <helper_math.h>
 #include <helper_cuda.h>
 
-#define SUPER_SAMPLING 3
+#define SUPER_SAMPLING 1
 #define SUPER_SAMPLING_F (1.0f / SUPER_SAMPLING)
 #define SUPER_SAMPLING_2 (SUPER_SAMPLING * SUPER_SAMPLING)
 #define SUPER_SAMPLING_2_F (1.0f / SUPER_SAMPLING_2)
@@ -152,6 +152,14 @@ inline __device__ int imin(int a, int b)
 
 inline __host__ __device__ int iceil(int a, int b) {
     return (a + b - 1) / b;
+}
+
+inline __host__ __device__ float3 fabsf(float3 a) {
+    a.x = fabsf(a.x);
+    a.y = fabsf(a.y);
+    a.z = fabsf(a.z);
+
+    return a;
 }
 
 inline __host__ __device__
