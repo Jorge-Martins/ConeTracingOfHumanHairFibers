@@ -94,16 +94,19 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
     float hairIor = 1.55f; //paper Light Scattering from Human Hair Fibers
 
     float Kd, Ks, shininess;
+    float3 color, base, top, translation = make_float3(0.0f);
     //https://support.solidangle.com/display/NodeRef/hair
     if(sceneName == "wCurly") {
         Kd = 0.6f; 
         Ks = 0.5f;  
         shininess = 50.0f;
-
+        translation = make_float3(0.0f, 0.0f, -2.0f);
+        
     } else if(sceneName == "straight") {
         Kd = 0.4f; 
         Ks = 0.3f;  
         shininess = 50.0f;
+        translation = make_float3(0.0f, 0.0f, -18.0f);
 
     } else {
         Kd = 0.5f; 
@@ -118,7 +121,7 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
 
     float scale = 0.1f;
 
-    float3 color, base, top, translation = make_float3(0.0f, 0.0f, 0.0f);
+   
     color = make_float3(hairfile.GetHeader().d_color[0], hairfile.GetHeader().d_color[1], hairfile.GetHeader().d_color[2]);
     
     float3 hairRoot = make_float3(pointsArray[0], pointsArray[1], pointsArray[2]);
@@ -136,7 +139,7 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
     if (segments) {
         // If segments array exists
         
-        for (int segment = 0; segment < 10000; segment++ ) {
+        for (int segment = 0; segment < nSegments; segment++ ) {
             segmentSize = segments[segment];
 
             for(int point = pointIndex; point < pointIndex + segmentSize; point++) {
@@ -166,7 +169,7 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
     } else {
         // If segments array does not exist, use default segment count      
         
-        for (int segment = 0; segment < 10000; segment++ ) {
+        for (int segment = 0; segment < nSegments; segment++ ) {
             for(int point = pointIndex; point < pointIndex + segmentSize; point++) {
                 int cpIndex = point * 3;
 

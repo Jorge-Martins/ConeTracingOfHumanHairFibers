@@ -13,7 +13,7 @@
 
 #define MAX_DEPTH 2
 #define EPSILON 1E-4f
-#define OBB_AABB_EPSILON 1.5f
+#define OBB_AABB_EPSILON 10.0f
 
 #define LIGHT_SAMPLE_RADIUS 2
 #define LIGHT_SAMPLE_RADIUS_F (1.0f / LIGHT_SAMPLE_RADIUS)
@@ -30,12 +30,12 @@
 struct Matrix {
     float3 M[3];
 
-    __host__ __device__
+    __host__
     Matrix() {
         M[0] = M[1] = M[2] = make_float3(0.0f);
     }
 
-    __host__ __device__
+    __host__
     Matrix(float3 *m) {
         M[0] = m[0];
         M[1] = m[1];
@@ -63,19 +63,19 @@ struct Matrix {
                       M[0].z, M[1].z, M[2].z);
     }
 
-    __host__ __device__
+   /* __host__ __device__
     float det(float a, float b, float c, float d) {
         return a * d - c * b;
-    }
+    }*/
 
-    __host__ __device__
+    /*__host__ __device__
     float determinant() {
         return M[0].x * det(M[1].y, M[1].z, M[2].y, M[2].z) -
                M[0].y * det(M[1].x, M[1].z, M[2].x, M[2].z) +
                M[0].z * det(M[1].x, M[1].y, M[2].x, M[2].y);
-    }
+    }*/
 
-    __host__ __device__
+    /*__host__ __device__
     Matrix inverse() {
         float d = abs(determinant());
         d = 1.0f / d;
@@ -90,7 +90,7 @@ struct Matrix {
 
         return inv * d;
 
-    }
+    }*/
 
     __host__ __device__
     Matrix operator*(const float v) {
@@ -108,7 +108,7 @@ struct Matrix {
         return make_float3(res[0], res[1], res[2]);
     }
 
-    __host__ __device__
+    /*__host__ __device__
     Matrix operator*(Matrix m) {
         float temp[9];
         Matrix mt = m.transpose();
@@ -122,7 +122,7 @@ struct Matrix {
         return Matrix(temp[0], temp[1], temp[2],
                       temp[3], temp[4], temp[5],
                       temp[6], temp[7], temp[8]);
-    }
+    }*/
 };
 
 inline __host__ __device__ float3 operator*(float3 v, Matrix m) {
@@ -130,7 +130,7 @@ inline __host__ __device__ float3 operator*(float3 v, Matrix m) {
     float res[3];
 
     for (int i = 0; i < 3; i++) {
-        res[i] = dot(v, mt.M[i]);
+        res[i] = dot(v, m.M[i]);
     }
 
     return make_float3(res[0], res[1], res[2]);

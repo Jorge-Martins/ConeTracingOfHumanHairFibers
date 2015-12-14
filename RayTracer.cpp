@@ -26,7 +26,7 @@ dim3 blockSize(8, 8);
 dim3 gridSize;
 
 float horizontalAngle, verticalAngle, radius;
-float initHorizontalAngle = 180.0f, initVerticalAngle = 90.0f, initRadius = 20.0f, initFov = 40.0f;//initRadius = 60.0f, initFov = 90.0f;
+float initHorizontalAngle = 180.0f, initVerticalAngle = 90.0f, initRadius = 20.0f, initFov = 40.0f;
 
 int xDragStart, yDragStart, dragging, zooming;
 float fov;
@@ -363,16 +363,34 @@ void keyboardKey(unsigned char key, int x, int y) {
 	}
 
 	if (key == 'p'){
+        int counter = 1;
+        std::stringstream ss;
+        FIBITMAP *image = 0;
+        std::string file;
         int size = RES_X * RES_Y * 3;
+
+        ss << resourceDirPath << sceneName << "d" << MAX_DEPTH << "ss" << SUPER_SAMPLING << "_";
 		
-        std::string file = resourceDirPath + sceneName + ".png";
+        file = ss.str() + std::to_string(static_cast<long long>(counter++)) + ".png";
+        image = FreeImage_Load(FIF_PNG, file.c_str(), PNG_DEFAULT);
+
+        while(image) {
+            FreeImage_Unload(image);
+            file = ss.str() + std::to_string(static_cast<long long>(counter++)) + ".png";
+            image = FreeImage_Load(FIF_PNG, file.c_str(), PNG_DEFAULT);
+        } 
+
+        if(image) { 
+            FreeImage_Unload(image);
+        }
+
         BYTE* imageData = new BYTE[size];
 
         glBindTexture(GL_TEXTURE_2D, tex);
         glGetTexImage(GL_TEXTURE_2D, 0, GL_BGR, GL_UNSIGNED_BYTE, imageData);
         glBindTexture(GL_TEXTURE_2D, 0);
 
-		FIBITMAP* image = FreeImage_ConvertFromRawBits(imageData, RES_X, RES_Y, RES_X * 3, 24, 0xFF0000, 0x00FF00, 0x0000FF, false);
+		image = FreeImage_ConvertFromRawBits(imageData, RES_X, RES_Y, RES_X * 3, 24, 0xFF0000, 0x00FF00, 0x0000FF, false);
         FreeImage_Save(FIF_PNG, image, file.c_str(), 0);
 
 		FreeImage_Unload(image);
@@ -480,8 +498,14 @@ int main(int argc, char *argv[]) {
 	    }
     } else {
         path = resourceDirPath + "HairModels/";
-        sceneName = "straight"; //initHorizontalAngle = 180.0f  -20z
-        //sceneName = "wCurly"; //initHorizontalAngle = 100.0f
+
+        /*sceneName = "straight"; 
+        initHorizontalAngle = 180.0f;
+        initFov = 28.0f;*/
+
+        sceneName = "wCurly"; 
+        //initHorizontalAngle = 100.0f;
+        initFov = 44.0f;
         
         if (!load_hair(path + sceneName, scene, sceneName)) {
             cleanup();
