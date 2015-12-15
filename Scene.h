@@ -29,7 +29,6 @@ private:
     uint d_lightsSize;
 
     uint cylinderTransfer(uint size) {
-        CylinderNode **cylVector = new CylinderNode*[size];
         uint *codes = new uint[size];
         uint *values = new uint[size];
 
@@ -67,56 +66,70 @@ private:
         checkCudaErrors(cudaMemcpyAsync(d_cylMortonCodes, codes, size * sizeof(uint), cudaMemcpyHostToDevice));
 
         mortonCodes[cylinderIndex] = (int*)d_cylMortonCodes;
+        delete[] codes;
 
-        CylinderNode emptyNode = CylinderNode(); 
-        Cylinder *h_cylinder;
-        float3 *h_translation;
-        Matrix *h_m;
+        Cylinder *h_cylinder, *d_cylinder;
+        float3 *h_translation, *d_translation;
+        Matrix *h_matrix, *d_matrix;
         CylinderNode *node;
-           
+        
         for(uint i = 0; i < size; i++) {
             node = &h_cylinders[values[i]];
-            cylVector[i] = node;
+            
+            d_matrix = nullptr;
+            d_cylinder = nullptr;
+            d_translation = nullptr;
 
             h_cylinder = node->shape;
             if(h_cylinder != nullptr) {
                 //copy shape
                 sceneSize += cylinderSize;
-                checkCudaErrors(cudaMalloc((void**) &cylVector[i]->shape, cylinderSize));
-                checkCudaErrors(cudaMemcpyAsync(cylVector[i]->shape, h_cylinder, cylinderSize, cudaMemcpyHostToDevice));
+                checkCudaErrors(cudaMalloc((void**) &d_cylinder, cylinderSize));
+                checkCudaErrors(cudaMemcpyAsync(d_cylinder, h_cylinder, cylinderSize, cudaMemcpyHostToDevice));
 
                 delete h_cylinder;
             }
 
             if(node->type == OBB) {
                 //copy matrix
-                h_m = node->matrix;
+                h_matrix = node->matrix;
                 sceneSize += sizeof(Matrix);
-                checkCudaErrors(cudaMalloc((void**) &cylVector[i]->matrix, sizeof(Matrix)));
-                checkCudaErrors(cudaMemcpyAsync(cylVector[i]->matrix, h_m, sizeof(Matrix), cudaMemcpyHostToDevice));
+                checkCudaErrors(cudaMalloc((void**) &d_matrix, sizeof(Matrix)));
+                checkCudaErrors(cudaMemcpyAsync(d_matrix, h_matrix, sizeof(Matrix), cudaMemcpyHostToDevice));
+                delete h_matrix;
 
                 //copy translation
                 h_translation = node->translation;
                 sceneSize += sizeof(float3);
-                checkCudaErrors(cudaMalloc((void**) &cylVector[i]->translation, sizeof(float3)));
-                checkCudaErrors(cudaMemcpyAsync(cylVector[i]->translation, h_translation, sizeof(float3), cudaMemcpyHostToDevice));
-
+                checkCudaErrors(cudaMalloc((void**) &d_translation, sizeof(float3)));
+                checkCudaErrors(cudaMemcpyAsync(d_translation, h_translation, sizeof(float3), cudaMemcpyHostToDevice));
                 delete h_translation;
-                delete h_m;
+                
             }
 
-            if(i < size - 1) {
-                checkCudaErrors(cudaMemcpyAsync(&d_cylinders[i], &emptyNode, sizeof(CylinderNode), cudaMemcpyHostToDevice));
+            checkCudaErrors(cudaMemcpyAsync(&d_cylinders[leafOffset + i], node, sizeof(CylinderNode), cudaMemcpyHostToDevice));
+
+            if(d_cylinder) {
+                checkCudaErrors(cudaMemcpyAsync(&(d_cylinders[leafOffset + i].shape), &d_cylinder, sizeof(Cylinder*), cudaMemcpyHostToDevice));
             }
-            checkCudaErrors(cudaMemcpyAsync(&d_cylinders[leafOffset + i], cylVector[i], sizeof(CylinderNode), cudaMemcpyHostToDevice));
+            if(d_matrix) {
+                checkCudaErrors(cudaMemcpyAsync(&(d_cylinders[leafOffset + i].matrix), &d_matrix, sizeof(Matrix*), cudaMemcpyHostToDevice));
+            }
+            if(d_translation) {
+                checkCudaErrors(cudaMemcpyAsync(&(d_cylinders[leafOffset + i].translation), &d_translation, sizeof(float3*), cudaMemcpyHostToDevice));
+            }
+        }
+
+        if(leafOffset > 0) {
+            cudaMemset(d_cylinders, 0, leafOffset * sizeof(CylinderNode));
         }
 
         end = clock();
         std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
 
-        delete[] cylVector;
-        delete[] codes;
         delete[] values;
+        
+        h_cylinders.erase(h_cylinders.begin(), h_cylinders.end());
         h_cylinders.clear();
 
         return sceneSize;
