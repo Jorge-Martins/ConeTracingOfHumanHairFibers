@@ -126,7 +126,6 @@ void saveDiff() {
     }
 }
 
-
 float computeRMSError() {
     float3 *image1 = 0, *image2 = 0;
     int res1, res2;
@@ -169,6 +168,43 @@ float computeRMSError() {
     }
 
     return rmsr;
+}
+
+void saveFrame(GLuint tex, std::string sceneName, int resX, int resY) {
+    int counter = 1;
+    std::stringstream ss;
+    FIBITMAP *image = 0;
+    std::string file;
+    int size = resX * resY * 3;
+
+    ss << resourceDirPath << sceneName << "d" << MAX_DEPTH << "ss" << SUPER_SAMPLING << "_";
+		
+    file = ss.str() + std::to_string(static_cast<long long>(counter++)) + ".png";
+    image = FreeImage_Load(FIF_PNG, file.c_str(), PNG_DEFAULT);
+
+    while(image) {
+        FreeImage_Unload(image);
+        file = ss.str() + std::to_string(static_cast<long long>(counter++)) + ".png";
+        image = FreeImage_Load(FIF_PNG, file.c_str(), PNG_DEFAULT);
+    } 
+
+    if(image) { 
+        FreeImage_Unload(image);
+    }
+
+    BYTE* imageData = new BYTE[size];
+
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_BGR, GL_UNSIGNED_BYTE, imageData);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+	image = FreeImage_ConvertFromRawBits(imageData, resX, resY, resX * 3, 24, 0xFF0000, 0x00FF00, 0x0000FF, false);
+    FreeImage_Save(FIF_PNG, image, file.c_str(), 0);
+
+	FreeImage_Unload(image);
+	delete[] imageData;
+
+	std::cout << "Snapshot saved" << std::endl << std::endl;
 }
 
 #endif;
