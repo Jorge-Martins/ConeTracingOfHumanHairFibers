@@ -563,65 +563,6 @@ float3 adaptiveStocasticSupersampling(int **d_shapes, uint *d_shapeSizes, Light 
     return color;
 }
 
-__device__
-float3 adaptiveStocasticHSSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
-                                      float3 xe, float3 ye, float3 zeFactor, float3 from, RayInfo* rayInfo, float3* d_colors, 
-                                      unsigned char *d_colorContributionType, uint index, uint x, uint y, int resX, int resY,
-                                      long seed, int initNSamples) {
-
-    uint hsIndex = index + seed;
-
-    float3 direction, color = make_float3(0.0f), yeFactor, xeFactor, tmp, ref;
-    
-    int samplingLimit = initNSamples;
-    int step = 2;
-    float factor = fmaxf(1.0f / samplingLimit, SUPER_SAMPLING_2_F);
-    float difValue = 0.0f, threashold = initNSamples * 0.001f;
-
-    ref = backcolor;
-
-    for(int i = 0; i < SUPER_SAMPLING_2 && i < samplingLimit; i++) {
-        yeFactor = ye * ((y + haltonSequance(hsIndex + i, 3)) / (float)resY - 0.5f);
-        xeFactor = xe * ((x + haltonSequance(hsIndex + i, 2)) / (float)resX - 0.5f);
-
-        direction = normalize(zeFactor + yeFactor + xeFactor);
-
-        tmp = rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
-                         rayInfo, d_colors, d_colorContributionType, index);
-
-        color += factor * tmp;
-
-        difValue += length(ref - tmp);
-
-        if(i == samplingLimit - 1 && samplingLimit * step <= SUPER_SAMPLING_2 && difValue >= threashold) {
-            samplingLimit *= step;
-            ref = color;
-            color /= step;
-
-            factor = 1.0f / samplingLimit;
-            threashold *= step;
-        }
-    }
-
-    //color debug output
-    /*if(samplingLimit <= initNSamples) {
-        return make_float3(0.76, 1, 0.96);
-    } else if (samplingLimit <= 2 * initNSamples) {
-        return make_float3(0, 0, 1);
-    } else if(samplingLimit <= 4 * initNSamples) {
-        return make_float3(0.6, 1, 0.6);
-    } else if(samplingLimit <= 8 * initNSamples) {
-        return make_float3(0, 1, 0);
-    } else if(samplingLimit <= 16 * initNSamples) {
-        return make_float3(1, 1, 0);
-    } else if(samplingLimit <= 32 * initNSamples) {
-        return make_float3(10, 0, 0);
-    } else {
-        return make_float3(0.5, 0, 0);
-    }*/
-
-    return color;
-}
 
 __global__
 void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, int resX,
@@ -649,18 +590,14 @@ void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize
                                              from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
                                              resY, seed);*/
 
-    /*d_output[index] = adaptiveStocasticHSSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
+    /*d_output[index] = adaptiveStocasticSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                                      from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
                                                      resY, seed, 16);*/
 
-    /*d_output[index] = stocasticHSSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
+    d_output[index] = stocasticHSSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                                from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
-                                               resY, seed);*/
+                                               resY, seed);
 
-    d_output[index] = adaptiveStocasticHSSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
-                                                     from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
-                                                     resY, seed, 8);
-    
 }
 
 

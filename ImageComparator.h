@@ -204,7 +204,8 @@ void saveFrame(GLuint tex, std::string sceneName, int resX, int resY) {
 	FreeImage_Unload(image);
 	delete[] imageData;
 
-	std::cout << "Snapshot saved" << std::endl << std::endl;
+	std::cout << "Snapshot saved as " << sceneName << "d" << MAX_DEPTH << "ss" << SUPER_SAMPLING << "_" <<
+                  std::to_string(static_cast<long long>(counter - 1)) << ".png"<< std::endl << std::endl;
 }
 
 #endif;
