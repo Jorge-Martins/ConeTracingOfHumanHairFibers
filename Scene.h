@@ -28,6 +28,8 @@ private:
     uint *d_shapeSizes;
     uint d_lightsSize;
 
+    Cylinder *d_cylShapes;
+
     uint cylinderTransfer(uint size) {
         uint *codes = new uint[size];
         uint *values = new uint[size];
@@ -70,6 +72,8 @@ private:
         mortonCodes[cylinderIndex] = (int*)d_cylMortonCodes;
         delete[] codes;
 
+        //checkCudaErrors(cudaMalloc((void**) &d_cylShapes, size * sizeof(Cylinder)));
+
         Cylinder *h_cylinder, *d_cylinder;
         float3 *h_translation, *d_translation;
         Matrix *h_matrix, *d_matrix;
@@ -83,14 +87,15 @@ private:
             d_translation = nullptr;
 
             h_cylinder = node->shape;
-            if(h_cylinder != nullptr) {
-                //copy shape
-                sceneSize += cylinderSize;
-                checkCudaErrors(cudaMalloc((void**) &d_cylinder, cylinderSize));
-                checkCudaErrors(cudaMemcpyAsync(d_cylinder, h_cylinder, cylinderSize, cudaMemcpyHostToDevice));
-
-                delete h_cylinder;
-            }
+            
+            //copy shape
+            sceneSize += cylinderSize;
+            checkCudaErrors(cudaMalloc((void**) &d_cylinder, cylinderSize));
+			checkCudaErrors(cudaMemcpyAsync(d_cylinder, h_cylinder, cylinderSize, cudaMemcpyHostToDevice));
+            //checkCudaErrors(cudaMemcpyAsync(&d_cylShapes[i], h_cylinder, cylinderSize, cudaMemcpyHostToDevice));
+                
+            delete h_cylinder;
+            
 
             if(node->type == OBB) {
                 //copy matrix
@@ -111,9 +116,9 @@ private:
 
             checkCudaErrors(cudaMemcpyAsync(&d_cylinders[leafOffset + i], node, sizeof(CylinderNode), cudaMemcpyHostToDevice));
 
-            if(d_cylinder) {
-                checkCudaErrors(cudaMemcpyAsync(&(d_cylinders[leafOffset + i].shape), &d_cylinder, sizeof(Cylinder*), cudaMemcpyHostToDevice));
-            }
+            checkCudaErrors(cudaMemcpyAsync(&(d_cylinders[leafOffset + i].shape), &d_cylinder, sizeof(Cylinder*), cudaMemcpyHostToDevice));
+            //checkCudaErrors(cudaMemcpyAsync(&(d_cylinders[leafOffset + i].shape), &(d_cylShapes[i]), sizeof(Cylinder*), cudaMemcpyDeviceToDevice));
+            
             if(d_matrix) {
                 checkCudaErrors(cudaMemcpyAsync(&(d_cylinders[leafOffset + i].matrix), &d_matrix, sizeof(Matrix*), cudaMemcpyHostToDevice));
             }
@@ -178,6 +183,7 @@ public:
         }
         if(d_cylinders != nullptr) {
             checkCudaErrors(cudaFree(d_cylinders));
+            //checkCudaErrors(cudaFree(d_cylShapes));
         }
         if(d_triangles != nullptr) {
             checkCudaErrors(cudaFree(d_triangles));
