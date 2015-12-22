@@ -57,7 +57,8 @@ extern void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, u
                             RayInfo *d_raysInfo, float3 *d_colors, unsigned char * d_colorContributionType, long seed);
 
 extern void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes, 
-                           cudaEvent_t &c_start, cudaEvent_t &c_end);
+                           cudaEvent_t &c_start, cudaEvent_t &c_end, Cylinder *d_shapes, Matrix *d_matrixes, 
+                           float3 *d_translations, uint *d_OBBIndexes, uint nOBBs);
 
 float3 computeFromCoordinates(float3 up){
     float ha, va;
@@ -437,7 +438,9 @@ void buildBVH() {
         dim3 grid = dim3(iceil(size, warpSize));
         dim3 vectorBlock = dim3(warpSize);
 
-        deviceBuildBVH(scene->d_cylinders, size, grid, vectorBlock, (uint*)scene->mortonCodes[cylinderIndex], c_start, c_end);
+        deviceBuildBVH(scene->d_cylinders, size, grid, vectorBlock, (uint*)scene->mortonCodes[cylinderIndex], 
+                       c_start, c_end, scene->d_cylShapes, scene->d_matrixes, scene->d_translations, 
+                       scene->d_OBBIndexes, scene->nCylOBBs);
     }
 }
 
@@ -466,13 +469,13 @@ int main(int argc, char *argv[]) {
     } else {
         path = resourceDirPath + "HairModels/";
 
-        sceneName = "straight"; 
+        /*sceneName = "straight"; 
         initHorizontalAngle = 180.0f;
-        initFov = 28.0f;
+        initFov = 28.0f;*/
 
-        //sceneName = "wCurly"; 
-        ////initHorizontalAngle = 100.0f;
-        //initFov = 44.0f;
+        sceneName = "wCurly"; 
+        //initHorizontalAngle = 100.0f;
+        initFov = 44.0f;
         
         if (!load_hair(path + sceneName, scene, sceneName)) {
             cleanup();

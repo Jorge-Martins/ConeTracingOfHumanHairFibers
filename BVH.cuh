@@ -322,7 +322,8 @@ bool traverseShadow(CylinderNode *bvh, uint bvhSize, Ray ray) {
     return false;
 }
 
-__device__ int longestCommonPrefix(int i, int j, uint nObjects, uint *mortonCodes) {
+__device__ 
+int longestCommonPrefix(int i, int j, uint nObjects, uint *mortonCodes) {
     if (j >= 0 && j < nObjects) {
         size_t mci = mortonCodes[i];
         size_t mcj = mortonCodes[j];
@@ -390,7 +391,8 @@ __device__ int longestCommonPrefix(int i, int j, uint nObjects, uint *mortonCode
     }
 }
 
-__device__ void restructTree(CylinderNode *parent, CylinderNode **leaves, CylinderNode **nodes, 
+__device__
+void restructTree(CylinderNode *parent, CylinderNode **leaves, CylinderNode **nodes, 
                              unsigned char partition, unsigned char *optimal, int &index, bool left, int numLeaves,
                              CylinderNode *bvh, float *areaVector, float *costVector) {
 
@@ -464,7 +466,8 @@ __device__ void restructTree(CylinderNode *parent, CylinderNode **leaves, Cylind
     propagateAreaCost(parent, leaves, numLeaves, bvh, areaVector, costVector);
 }
 
-__device__ void calculateOptimalTreelet(CylinderNode **leaves, int nLeaves, unsigned char *p_opt,
+__device__
+void calculateOptimalTreelet(CylinderNode **leaves, int nLeaves, unsigned char *p_opt,
                                         CylinderNode *bvh, float *areaVector, float *costVector) {
     int const numSubsets = (1 << nLeaves) - 1;
 
@@ -513,7 +516,8 @@ __device__ void calculateOptimalTreelet(CylinderNode **leaves, int nLeaves, unsi
     }
 }
 
-__device__ void optimizeTreelet(CylinderNode *treeletRoot, CylinderNode *bvh, float *areaVector, float *costVector) {
+__device__ 
+void optimizeTreelet(CylinderNode *treeletRoot, CylinderNode *bvh, float *areaVector, float *costVector) {
     if (treeletRoot == nullptr || treeletRoot->shape != nullptr) {
         return;
     }
@@ -584,7 +588,8 @@ __device__ void optimizeTreelet(CylinderNode *treeletRoot, CylinderNode *bvh, fl
     costVector[nodeIndex] = Ci * rArea + costL + costR;
 }
 
-__global__ void buildBVH(CylinderNode *bvh, uint nObjects, uint *mortonCodes) {
+__global__ 
+void buildBVH(CylinderNode *bvh, uint nObjects, uint *mortonCodes) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (i >= nObjects - 1) {
@@ -651,14 +656,29 @@ __global__ void buildBVH(CylinderNode *bvh, uint nObjects, uint *mortonCodes) {
     current->rchild->parent = current;
 }
 
-__global__ void computeBVHBB(CylinderNode *bvh, uint nObjects, int *lock) {
+__global__ 
+void computeBVHBB(CylinderNode *bvh, uint nObjects, int *lock, Cylinder *d_shapes,
+                  Matrix *d_matrixes, float3 *d_translations, uint *d_OBBIndexes, uint nOBBs) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    CylinderNode *bvhLeaves = &bvh[nObjects - 1];
+
+    if(i < nObjects) {
+        uint auxIndex;
+        bvhLeaves[i].shape = &d_shapes[i];
+
+        if(i < nOBBs && d_OBBIndexes != nullptr) {
+            auxIndex = d_OBBIndexes[i];
+            bvhLeaves[auxIndex].matrix = &d_matrixes[i];
+            bvhLeaves[auxIndex].translation = &d_translations[i];
+        }
+    }
 
     if (i > nObjects - 1) {
         return;
     }
 
-    CylinderNode *bvhLeaves = &bvh[nObjects - 1];
+    
     CylinderNode *node = &bvhLeaves[i];
     node = node->parent;
     int index = node - bvh;
@@ -681,7 +701,8 @@ __global__ void computeBVHBB(CylinderNode *bvh, uint nObjects, int *lock) {
     }
 }
 
-__global__ void computeLeavesOBBs(CylinderNode *bvh, uint nObjects) {    
+__global__ 
+void computeLeavesOBBs(CylinderNode *bvh, uint nObjects) {    
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (i > nObjects - 1) {
@@ -698,7 +719,8 @@ __global__ void computeLeavesOBBs(CylinderNode *bvh, uint nObjects) {
     }
 }
 
-__global__ void optimizeBVH(CylinderNode *bvh, uint nObjects, int *nodeCounter, float *areaVector, float *costVector) {
+__global__ 
+void optimizeBVH(CylinderNode *bvh, uint nObjects, int *nodeCounter, float *areaVector, float *costVector) {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     
     if (index >= nObjects) {

@@ -578,9 +578,9 @@ void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize
 
     uint index = y * resX + x;
 
-    /*d_output[index] = naiveSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
+    d_output[index] = naiveSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                          from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
-                                         resY);*/
+                                         resY);
     
     /*d_output[index] = naiveRdmSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                             from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
@@ -594,9 +594,9 @@ void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize
                                                      from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
                                                      resY, seed, 16);*/
 
-    d_output[index] = stocasticHSSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
+    /*d_output[index] = stocasticHSSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                                from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
-                                               resY, seed);
+                                               resY, seed);*/
 
 }
 
@@ -618,7 +618,8 @@ void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lig
 
 
 void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes, 
-                    cudaEvent_t &c_start, cudaEvent_t &c_end) {
+                    cudaEvent_t &c_start, cudaEvent_t &c_end, Cylinder *d_shapes, Matrix *d_matrixes, 
+                    float3 *d_translations, uint *d_OBBIndexes, uint nOBBs) {
     float *areaVector, *costVector;
     int *lock, *nodeCounter;
 
@@ -636,7 +637,8 @@ void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockS
     cudaEventRecord(c_start);
     buildBVH<<<gridSize, blockSize>>>(bvh, nObjects, mortonCodes);
 
-    computeBVHBB<<<gridSize, blockSize>>>(bvh, nObjects, lock);
+    computeBVHBB<<<gridSize, blockSize>>>(bvh, nObjects, lock, d_shapes, d_matrixes, 
+                                          d_translations, d_OBBIndexes, nOBBs);
 
     nodeCounter = lock;
     size = nObjects * sizeof(int);
@@ -658,6 +660,9 @@ void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockS
     checkCudaErrors(cudaFree(areaVector));
     checkCudaErrors(cudaFree(costVector));
     checkCudaErrors(cudaFree(mortonCodes));
+    if(d_OBBIndexes != nullptr) {
+        checkCudaErrors(cudaFree(d_OBBIndexes));
+    }
 }
 
 #endif

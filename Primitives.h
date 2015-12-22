@@ -437,7 +437,7 @@ struct CylinderNode {
     }
 
     __host__
-    CylinderNode(unsigned char type, Cylinder *shape) {
+    CylinderNode(unsigned char type, Cylinder *shape, uint &nOBBs) {
         lchild = nullptr;
         rchild = nullptr;
         parent = nullptr;
@@ -452,12 +452,13 @@ struct CylinderNode {
             translation = nullptr;
 
         } else {
+            nOBBs++;
             computeOBB();
         }
     }
 
     __host__
-    CylinderNode(Cylinder *shape) {
+    CylinderNode(Cylinder *shape, uint &nOBBs) {
         type = AABB;
         this->shape = shape;
         matrix = nullptr;
@@ -474,6 +475,7 @@ struct CylinderNode {
 
         if(vOBB * OBB_AABB_EPSILON < vAABB) {
             type = OBB;
+            nOBBs++;
             computeOBB();
         }
     }
