@@ -56,9 +56,16 @@ extern void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, u
                             float3 ye, float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize,
                             RayInfo *d_raysInfo, float3 *d_colors, unsigned char * d_colorContributionType, long seed);
 
-extern void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes, 
-                           cudaEvent_t &c_start, cudaEvent_t &c_end, Cylinder *d_shapes, Matrix *d_matrixes, 
-                           float3 *d_translations, uint *d_OBBIndexes, uint nOBBs);
+extern float deviceBuildCylinderBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes, 
+                                   cudaEvent_t &c_start, cudaEvent_t &c_end, Cylinder *d_shapes, Matrix *d_matrixes, 
+                                   float3 *d_translations, uint *d_OBBIndexes, uint nOBBs);
+
+
+extern float deviceBuildSphereBVH(SphereNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes, 
+                                  cudaEvent_t &c_start, cudaEvent_t &c_end, Sphere *d_shapes);
+
+extern float deviceBuildTriangleBVH(TriangleNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes, 
+                                    cudaEvent_t &c_start, cudaEvent_t &c_end, Triangle *d_shapes);
 
 float3 computeFromCoordinates(float3 up){
     float ha, va;
@@ -324,7 +331,7 @@ void mouseMove(int x, int y) {
 
         //std::cout<< "fov: " << fov << std::endl;
         camera->update(computeFromCoordinates(camera->up), fov);
-        //std::cout<< "From: " << camera->from().x << " " << camera->from().y << " " << camera->from().z << std::endl;
+        std::cout<< "From: " << camera->from.x << " " << camera->from.y << " " << camera->from.z << std::endl;
         //std::cout<< "radius: " << radius << std::endl;
     } 
 }
@@ -430,17 +437,52 @@ void showMainMenu() {
 }
 
 void buildBVH() {
-    uint size = scene->h_shapeSizes[cylinderIndex];
+    uint size;
+    float totalTime = 0.0f;
+    float time = 0.0f;
 
+    int warpSize = 32;
+    dim3 vectorBlock = dim3(warpSize);
+
+    //Cylinders
+    size = scene->h_shapeSizes[cylinderIndex];
     if(size > 1) {
-        int warpSize = 32;
-
         dim3 grid = dim3(iceil(size, warpSize));
-        dim3 vectorBlock = dim3(warpSize);
 
-        deviceBuildBVH(scene->d_cylinders, size, grid, vectorBlock, (uint*)scene->mortonCodes[cylinderIndex], 
-                       c_start, c_end, scene->d_cylShapes, scene->d_matrixes, scene->d_translations, 
-                       scene->d_OBBIndexes, scene->nCylOBBs);
+        time = deviceBuildCylinderBVH(scene->d_cylinderBVH, size, grid, vectorBlock, (uint*)scene->mortonCodes[cylinderIndex], 
+                                      c_start, c_end, scene->d_cylinderShapes, scene->d_matrixes, scene->d_translations, 
+                                      scene->d_OBBIndexes, scene->nCylOBBs);
+
+        std::cout << "Cylinder BVH building time: " << time << "s" << std::endl;
+        totalTime += time;
+    }
+
+    //Spheres
+    size = scene->h_shapeSizes[sphereIndex];
+    if(size > 1) {
+        dim3 grid = dim3(iceil(size, warpSize));
+
+        time = deviceBuildSphereBVH(scene->d_sphereBVH, size, grid, vectorBlock, (uint*)scene->mortonCodes[sphereIndex], 
+                                    c_start, c_end, scene->d_sphereShapes);
+
+        std::cout << "Sphere BVH building time: " << time << "s" << std::endl;
+        totalTime += time;
+    }
+
+    //Triangles
+    size = scene->h_shapeSizes[triangleIndex];
+    if(size > 1) {
+        dim3 grid = dim3(iceil(size, warpSize));
+
+        time = deviceBuildTriangleBVH(scene->d_triangleBVH, size, grid, vectorBlock, (uint*)scene->mortonCodes[triangleIndex], 
+                                      c_start, c_end, scene->d_triangleShapes);
+
+        std::cout << "Triangle BVH building time: " << time << "s" << std::endl;
+        totalTime += time;
+    }
+
+    if(totalTime > 0) {
+        std::cout << "BVH building time: " << totalTime << "s" << std::endl << std::endl;
     }
 }
 
@@ -458,7 +500,13 @@ int main(int argc, char *argv[]) {
 
     if(nff) {
         path = resourceDirPath + "nffFiles/";
-        sceneName = "balls_low";
+        //sceneName = "balls_low";
+        //sceneName = "balls_medium";
+        //sceneName = "balls_high";
+        //sceneName = "mount_low";
+        //sceneName = "mount_very_high";
+        //sceneName = "rings_low";
+        sceneName = "rings";
 
 	    if (!load_nff(path + sceneName, scene, &initRadius, &initVerticalAngle, &initHorizontalAngle, &initFov, &up)) {
             cleanup();
@@ -469,13 +517,13 @@ int main(int argc, char *argv[]) {
     } else {
         path = resourceDirPath + "HairModels/";
 
-        /*sceneName = "straight"; 
+        sceneName = "straight"; 
         initHorizontalAngle = 180.0f;
-        initFov = 28.0f;*/
+        initFov = 28.0f;
 
-        sceneName = "wCurly"; 
-        //initHorizontalAngle = 100.0f;
-        initFov = 44.0f;
+        //sceneName = "wCurly"; 
+        ////initHorizontalAngle = 100.0f;
+        //initFov = 44.0f;
         
         if (!load_hair(path + sceneName, scene, sceneName)) {
             cleanup();

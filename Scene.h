@@ -14,9 +14,9 @@ struct Scene {
 private:
     float3 backcolor;
     Material material;
-    std::vector<SphereNode> h_spheres;
-    std::vector<CylinderNode*> h_cylinders;
-    std::vector<TriangleNode> h_triangles;
+    std::vector<SphereNode*> h_sphereBVH;
+    std::vector<CylinderNode*> h_cylinderBVH;
+    std::vector<TriangleNode*> h_triangleBVH;
     std::vector<Plane> h_planes;
 	std::vector<Light> h_lights;
     
@@ -39,7 +39,7 @@ private:
 
         uint code;
         for(uint i = 0; i < size; i++) {
-            code = morton3D(computeCenter(cmin[cylinderIndex], cmax[cylinderIndex], h_cylinders[i]->min, h_cylinders[i]->max));
+            code = morton3D(computeCenter(cmin[cylinderIndex], cmax[cylinderIndex], h_cylinderBVH[i]->min, h_cylinderBVH[i]->max));
             codes[i] = code;
             values[i] = i;
         }
@@ -62,7 +62,7 @@ private:
         uint sizebvh = (2 * size - 1) * sizeof(CylinderNode);
         uint sceneSize = sizebvh;
 
-        checkCudaErrors(cudaMalloc((void**) &d_cylinders, sizebvh));
+        checkCudaErrors(cudaMalloc((void**) &d_cylinderBVH, sizebvh));
         
         uint *d_cylMortonCodes;
         checkCudaErrors(cudaMalloc((void**) &d_cylMortonCodes, size * sizeof(uint)));
@@ -71,7 +71,7 @@ private:
         mortonCodes[cylinderIndex] = (int*)d_cylMortonCodes;
         delete[] codes;
 
-        checkCudaErrors(cudaMalloc((void**) &d_cylShapes, size * cylinderSize));
+        checkCudaErrors(cudaMalloc((void**) &d_cylinderShapes, size * cylinderSize));
         sceneSize += size * cylinderSize;
 
         uint *h_OBBIndexes = nullptr;
@@ -93,11 +93,11 @@ private:
 
         
         for(uint i = 0; i < size; i++) {
-            node = h_cylinders[values[i]];
+            node = h_cylinderBVH[values[i]];
             
             //copy shape
             h_cylinder = node->shape;
-            checkCudaErrors(cudaMemcpyAsync(&d_cylShapes[i], h_cylinder, cylinderSize, cudaMemcpyHostToDevice));
+            checkCudaErrors(cudaMemcpyAsync(&d_cylinderShapes[i], h_cylinder, cylinderSize, cudaMemcpyHostToDevice));
             delete h_cylinder;
             
 
@@ -116,7 +116,7 @@ private:
                 
             }
 
-            checkCudaErrors(cudaMemcpyAsync(&d_cylinders[leafOffset + i], node, sizeof(CylinderNode), cudaMemcpyHostToDevice));
+            checkCudaErrors(cudaMemcpyAsync(&d_cylinderBVH[leafOffset + i], node, sizeof(CylinderNode), cudaMemcpyHostToDevice));
             delete node;
         }
 
@@ -126,31 +126,119 @@ private:
         }
 
         if(leafOffset > 0) {
-            cudaMemset(d_cylinders, 0, leafOffset * sizeof(CylinderNode));
+            cudaMemset(d_cylinderBVH, 0, leafOffset * sizeof(CylinderNode));
         }
 
         end = clock();
         std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
 
         delete[] values;
-        h_cylinders.clear();
+        h_cylinderBVH.clear();
+
+        return sceneSize;
+    }
+
+    template <typename BVHNodeType, typename ShapeType>
+    uint shapeTransfer(uint size, int shapeIndex, std::string shapeType, BVHNodeType *d_bvhNodes, 
+                       ShapeType *d_shapes, std::vector<BVHNodeType*> h_bvhNodes) {
+        uint *codes = new uint[size];
+        uint *values = new uint[size];
+
+        h_shapeSizes[shapeIndex] = size;
+
+        uint shapeSize = sizeof(ShapeType);
+        uint bvhNodeSize = sizeof(BVHNodeType);
+
+        uint code;
+        for(uint i = 0; i < size; i++) {
+            code = morton3D(computeCenter(cmin[shapeIndex], cmax[shapeIndex], h_bvhNodes[i]->min, h_bvhNodes[i]->max));
+            codes[i] = code;
+            values[i] = i;
+        }
+            
+        std::cout << shapeType << " morton codes sort: " << std::endl;
+            
+        //sort morton codes
+        clock_t start = clock();
+        thrust::sort_by_key(codes, codes + size, values);
+        clock_t end = clock();
+
+        std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
+
+        std::cout << shapeType << " data transfer: " << std::endl;
+        std::cout << "Number of " << shapeType << "s = " << size << std::endl;
+        std::cout << "Total " << shapeType << "s Size: " << printSize(size * (bvhNodeSize + shapeSize)) << std::endl;
+        start = clock();
+        uint leafOffset = size - 1;
+
+        uint sizebvh = (2 * size - 1) * bvhNodeSize;
+        uint sceneSize = sizebvh;
+
+        checkCudaErrors(cudaMalloc((void**) &d_bvhNodes, sizebvh));
+        checkCudaErrors(cudaMalloc((void**) &d_shapes, size * shapeSize));
+
+        if(shapeType == "Sphere") {
+            d_sphereBVH = (SphereNode*)d_bvhNodes;
+            d_sphereShapes = (Sphere*)d_shapes;
+        } else if(shapeType == "Triangle") {
+            d_triangleBVH = (TriangleNode*)d_bvhNodes;
+            d_triangleShapes = (Triangle*)d_shapes;
+        }
+        
+        uint *d_mortonCodes;
+        checkCudaErrors(cudaMalloc((void**) &d_mortonCodes, size * sizeof(uint)));
+        checkCudaErrors(cudaMemcpyAsync(d_mortonCodes, codes, size * sizeof(uint), cudaMemcpyHostToDevice));
+
+        mortonCodes[shapeIndex] = (int*)d_mortonCodes;
+        delete[] codes;
+
+        
+        sceneSize += size * shapeSize;
+        
+        ShapeType *h_shape;
+        BVHNodeType *node;
+
+        
+        for(uint i = 0; i < size; i++) {
+            node = h_bvhNodes[values[i]];
+            
+            //copy shape
+            h_shape = node->shape;
+            checkCudaErrors(cudaMemcpyAsync(&d_shapes[i], h_shape, shapeSize, cudaMemcpyHostToDevice));
+            delete h_shape;
+            
+            checkCudaErrors(cudaMemcpyAsync(&d_bvhNodes[leafOffset + i], node, bvhNodeSize, cudaMemcpyHostToDevice));
+            delete node;
+        }
+
+        if(leafOffset > 0) {
+            cudaMemset(d_bvhNodes, 0, leafOffset * bvhNodeSize);
+        }
+
+        end = clock();
+        std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
+
+        delete[] values;
+        h_bvhNodes.clear();
 
         return sceneSize;
     }
 
 public:
-    SphereNode *d_spheres;
-    CylinderNode *d_cylinders;
-    TriangleNode *d_triangles;
+    SphereNode *d_sphereBVH;
+    CylinderNode *d_cylinderBVH;
+    TriangleNode *d_triangleBVH;
     Plane *d_planes;
 
     uint *h_shapeSizes;
 
     int **mortonCodes;
 
-    uint nCylOBBs;
+    Cylinder *d_cylinderShapes;
+    Sphere *d_sphereShapes;
+    Triangle *d_triangleShapes;
 
-    Cylinder *d_cylShapes;
+    uint nCylOBBs;
     Matrix *d_matrixes;
     float3 *d_translations;
     uint *d_OBBIndexes;
@@ -159,12 +247,15 @@ public:
         d_shapeSizes = nullptr;
         d_shapes = nullptr;
 
-        d_spheres = nullptr;
-        d_cylinders = nullptr;
-        d_triangles = nullptr;
+        d_sphereBVH = nullptr;
+        d_cylinderBVH = nullptr;
+        d_triangleBVH = nullptr;
         d_planes = nullptr; 
 
-        d_cylShapes = nullptr;
+        d_cylinderShapes = nullptr;
+        d_sphereShapes = nullptr;
+        d_triangleShapes = nullptr;
+
         d_matrixes = nullptr;
         d_translations = nullptr;
         d_OBBIndexes = nullptr;
@@ -186,19 +277,21 @@ public:
 	~Scene() {
         delete[] h_shapeSizes;
 
-        if(d_spheres != nullptr) {
-            checkCudaErrors(cudaFree(d_spheres));
+        if(d_sphereBVH != nullptr) {
+            checkCudaErrors(cudaFree(d_sphereBVH));
+            checkCudaErrors(cudaFree(d_sphereShapes));
         }
-        if(d_cylinders != nullptr) {
-            checkCudaErrors(cudaFree(d_cylinders));
-            checkCudaErrors(cudaFree(d_cylShapes));
+        if(d_cylinderBVH != nullptr) {
+            checkCudaErrors(cudaFree(d_cylinderBVH));
+            checkCudaErrors(cudaFree(d_cylinderShapes));
         }
         if(d_matrixes != nullptr)  {
             checkCudaErrors(cudaFree(d_matrixes));
             checkCudaErrors(cudaFree(d_translations));
         }
-        if(d_triangles != nullptr) {
-            checkCudaErrors(cudaFree(d_triangles));
+        if(d_triangleBVH != nullptr) {
+            checkCudaErrors(cudaFree(d_triangleBVH));
+            checkCudaErrors(cudaFree(d_triangleShapes));
         }
         if(d_planes != nullptr) {
             checkCudaErrors(cudaFree(d_planes));
@@ -270,89 +363,21 @@ public:
         h_lights.clear();
 
         //Spheres
-        size = (uint)h_spheres.size();
+        size = (uint)h_sphereBVH.size();
         if(size > 0) {
-            SphereNode *sphVector = new SphereNode[size];
-            h_shapeSizes[sphereIndex] = size;
-
-            Sphere *h_sphere;
-            uint sizeSphere = sizeof(Sphere);
-
-            SphereNode *node;
-            for(uint i = 0; i < size; i++) {
-                node = &h_spheres[i];
-                sphVector[i] = *node;
-
-                h_sphere = node->shape;
-                if(h_sphere != nullptr) {
-                    sceneSize += sizeSphere;
-                    checkCudaErrors(cudaMalloc((void**) &sphVector[i].shape, sizeSphere));
-                    checkCudaErrors(cudaMemcpy(sphVector[i].shape, h_sphere, sizeSphere, cudaMemcpyHostToDevice));
-                }
-            }
-
-            size *= sizeof(SphereNode);
-            sceneSize += size;
-
-            checkCudaErrors(cudaMalloc((void**) &d_spheres, size));
-            checkCudaErrors(cudaMemcpy(d_spheres, sphVector, size, cudaMemcpyHostToDevice));
-
-            delete[] sphVector;
-            Sphere *s;
-            for(uint i = 0; i < h_spheres.size(); i++) {
-                s = h_spheres[i].shape;
-
-                if(s != nullptr) {
-                    delete s;
-                }
-            }
-            h_spheres.clear();
+            sceneSize += shapeTransfer(size, sphereIndex, "Sphere", d_sphereBVH, d_sphereShapes, h_sphereBVH);
         }
 
         //cylinders
-        size = (uint)h_cylinders.size();
+        size = (uint)h_cylinderBVH.size();
         if(size > 0) {
             sceneSize += cylinderTransfer(size);
         }
 
         //triangles
-        size = (uint)h_triangles.size();
+        size = (uint)h_triangleBVH.size();
         if(size > 0) {
-            TriangleNode *triVector = new TriangleNode[size];
-            h_shapeSizes[triangleIndex] = size;
-
-            Triangle *h_triangle;
-            uint triangleSize = sizeof(Triangle);
-
-            TriangleNode *node;
-            for(uint i = 0; i < size; i++) {
-                node = &h_triangles[i];
-                triVector[i] = *node;
-
-                h_triangle = node->shape;
-                if(h_triangle != nullptr) {
-                    sceneSize += triangleSize;
-                    checkCudaErrors(cudaMalloc((void**) &triVector[i].shape, triangleSize));
-                    checkCudaErrors(cudaMemcpy(triVector[i].shape, h_triangle, triangleSize, cudaMemcpyHostToDevice));
-                }
-            }
-
-            size *= sizeof(TriangleNode);
-            sceneSize += size;
-
-            checkCudaErrors(cudaMalloc((void**) &d_triangles, size));
-            checkCudaErrors(cudaMemcpy(d_triangles, triVector, size, cudaMemcpyHostToDevice));
-
-            delete[] triVector;
-            Triangle *t;
-            for(uint i = 0; i < h_triangles.size(); i++) {
-                t = h_triangles[i].shape;
-
-                if(t != nullptr) {
-                    delete t;
-                }
-            }
-            h_triangles.clear();
+            sceneSize += shapeTransfer(size, triangleIndex, "Triangle", d_triangleBVH, d_triangleShapes, h_triangleBVH);
         }
 
         //planes
@@ -377,9 +402,9 @@ public:
 
         int **shapes = new int*[nShapes];
 
-        shapes[sphereIndex] = (int*)d_spheres;
-        shapes[cylinderIndex] = (int*)d_cylinders;
-        shapes[triangleIndex] = (int*)d_triangles;
+        shapes[sphereIndex] = (int*)d_sphereBVH;
+        shapes[cylinderIndex] = (int*)d_cylinderBVH;
+        shapes[triangleIndex] = (int*)d_triangleBVH;
         shapes[planeIndex] = (int*)d_planes;
         
         size = nShapes * sizeof(int*); 
@@ -421,27 +446,33 @@ public:
     void addCylinder(float3 base, float3 top, float radius) {
 	    Cylinder *c = new Cylinder(base, top, radius);
 	    c->material = material;
-        CylinderNode *cn = new CylinderNode(c, nCylOBBs);
+        CylinderNode *cn = new CylinderNode(AABB, c, nCylOBBs);
 
         cmin[cylinderIndex] = fminf(cmin[cylinderIndex], cn->min);
         cmax[cylinderIndex] = fmaxf(cmax[cylinderIndex], cn->max);
-	    h_cylinders.push_back(cn);
+	    h_cylinderBVH.push_back(cn);
     }
 
     __host__
     void addSphere(float3 center, float radius) {
 	    Sphere *sp = new Sphere(center.x, center.y, center.z, radius);
 	    sp->material = material;
-        SphereNode spn = SphereNode(sp);
-	    h_spheres.push_back(spn);
+        SphereNode *spn = new SphereNode(sp);
+
+        cmin[sphereIndex] = fminf(cmin[sphereIndex], spn->min);
+        cmax[sphereIndex] = fmaxf(cmax[sphereIndex], spn->max);
+	    h_sphereBVH.push_back(spn);
     }
 
     __host__
     void addTriangle(std::vector<float3> verts) {
 	    Triangle *t = new Triangle(verts);
 	    t->material = material;
-        TriangleNode tn = TriangleNode(t);
-	    h_triangles.push_back(tn);
+        TriangleNode *tn = new TriangleNode(t);
+
+        cmin[triangleIndex] = fminf(cmin[triangleIndex], tn->min);
+        cmax[triangleIndex] = fmaxf(cmax[triangleIndex], tn->max);
+	    h_triangleBVH.push_back(tn);
     }
 
     __host__

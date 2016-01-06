@@ -505,14 +505,26 @@ struct SphereNode{
     float3 min;
     Sphere *shape;
 
-    __host__
+    SphereNode *lchild, *rchild, *parent;
+
+    __host__ __device__
     SphereNode() {
         shape = nullptr;
+        lchild = nullptr;
+        rchild = nullptr;
+        parent = nullptr;
+
+        min = make_float3(FLT_MAX);
+        max = make_float3(-FLT_MAX);
     }
 
     __host__
     SphereNode(Sphere *shape) {
         this->shape = shape;
+        lchild = nullptr;
+        rchild = nullptr;
+        parent = nullptr;
+
         max = shape->center + shape->radius;
         min = shape->center - shape->radius;
     }
@@ -523,29 +535,42 @@ struct TriangleNode {
     float3 min;
     Triangle *shape;
 
-    __host__
+    TriangleNode *lchild, *rchild, *parent;
+
+    __host__ __device__
     TriangleNode() {
         shape = nullptr;
+        lchild = nullptr;
+        rchild = nullptr;
+        parent = nullptr;
+
+        min = make_float3(FLT_MAX);
+        max = make_float3(-FLT_MAX);
     }
 
     __host__
     TriangleNode(Triangle *shape) {
         this->shape = shape;
+        lchild = nullptr;
+        rchild = nullptr;
+        parent = nullptr;
+
         max = fmaxf(fmaxf(shape->vertices[0], shape->vertices[1]), shape->vertices[2]);
         min = fminf(fminf(shape->vertices[0], shape->vertices[1]), shape->vertices[2]);
     }
 };
 
+template <typename ShapeNodeType>
 struct PartitionEntry {
     unsigned char partition;
     bool left;
-    CylinderNode *parent;
+    ShapeNodeType *parent;
 
     __device__
     PartitionEntry() {}
 
     __device__
-    PartitionEntry(unsigned char partition, bool left, CylinderNode *parent) {
+    PartitionEntry(unsigned char partition, bool left, ShapeNodeType *parent) {
         this->partition = partition;
         this->left = left;
         this->parent = parent;

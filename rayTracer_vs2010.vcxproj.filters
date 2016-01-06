@@ -96,5 +96,11 @@
     <None Include="..\..\resources\nffFiles\test_shadow.nff">
       <Filter>resource files</Filter>
     </None>
+    <None Include="..\..\resources\nffFiles\rings.nff">
+      <Filter>resource files</Filter>
+    </None>
+    <None Include="..\..\resources\nffFiles\rings_low.nff">
+      <Filter>resource files</Filter>
+    </None>
   </ItemGroup>
 </Project>

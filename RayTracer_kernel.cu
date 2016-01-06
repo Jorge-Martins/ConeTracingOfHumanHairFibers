@@ -3,6 +3,8 @@
 #ifndef _RAYTRACER_KERNEL_CU_
 #define _RAYTRACER_KERNEL_CU_
 
+//#define GENERAL_INTERSECTION
+//#define SOFT_SHADOWS
 
 #include <cfloat>
 
@@ -58,57 +60,32 @@ float3 printRayHairIntersections(int rayHairIntersections, float3 finalColor, in
 __device__
 bool findShadow(int **d_shapes, uint *d_shapeSizes, Ray feeler) {
     bool intersectionFound = false;
-    
+
     for(uint shapeType = 0; shapeType < nShapes; shapeType++) {
-        for (uint i = 0; i < d_shapeSizes[shapeType]; i++) {
-            if(shapeType == sphereIndex) {
-                SphereNode *sphereNode = (SphereNode*) d_shapes[shapeType];
+        if(d_shapeSizes[shapeType] == 0) {
+            continue;
+        }
 
-                SphereNode *node = &sphereNode[i];
-                intersectionFound = AABBIntersection(feeler, node->min, node->max);
+        if(shapeType == sphereIndex) {
+            SphereNode *bvh = (SphereNode*) d_shapes[shapeType];
 
-                if(intersectionFound) {
-                    intersectionFound = intersection(feeler, nullptr, node->shape);
-                }
+            intersectionFound |= traverseShadow(bvh, d_shapeSizes[shapeType], feeler);
                
-            } else if(shapeType == cylinderIndex) {
-                CylinderNode *cylinderNode = (CylinderNode*) d_shapes[shapeType];
-                uint leafOffset = d_shapeSizes[shapeType] - 1;
+        } else if(shapeType == cylinderIndex) {
+            CylinderNode *bvh = (CylinderNode*) d_shapes[shapeType];
 
-                CylinderNode *node = &cylinderNode[leafOffset + i];
-                if(node->type == AABB) {
-                    intersectionFound = AABBIntersection(feeler, node->min, node->max);
-                } else {
-                    intersectionFound = OBBIntersection(feeler, node->min, node->max, 
-                                                        node->matrix, node->translation);
-                }
+            intersectionFound |= traverseShadowHybridBVH(bvh, d_shapeSizes[shapeType], feeler);
 
-                if(intersectionFound) {
-                    intersectionFound = intersection(feeler, nullptr, node->shape);
-                }
+        } else if(shapeType == triangleIndex) {
+            TriangleNode *bvh = (TriangleNode*) d_shapes[shapeType];
 
-            } else if(shapeType == triangleIndex) {
-                TriangleNode *triangleNode = (TriangleNode*) d_shapes[shapeType];
+            intersectionFound |= traverseShadow(bvh, d_shapeSizes[shapeType], feeler);
 
-                TriangleNode *node = &triangleNode[i];
-                intersectionFound = AABBIntersection(feeler, node->min, node->max);
+        } else if(shapeType == planeIndex) {
+            Plane *plane = (Plane*) d_shapes[shapeType];
 
-                if(intersectionFound) {
-                    intersectionFound = intersection(feeler, nullptr, node->shape);
-                }
-
-            } else if(shapeType == planeIndex) {
-                Plane *plane = (Plane*) d_shapes[shapeType];
-                intersectionFound = intersection(feeler, nullptr, plane[i]);
-
-            } else {
-                return false;
-            }
-
-            if(intersectionFound) {
-                return true;
-            } 
-	    }
+            intersectionFound |= intersection(feeler, nullptr, plane[0]);
+        }
     }
 
     return intersectionFound;
@@ -118,7 +95,7 @@ __device__
 bool cylFindShadow(int **d_shapes, uint *d_shapeSizes, Ray feeler) {
     CylinderNode *bvh = (CylinderNode*) d_shapes[cylinderIndex];
 
-    return traverseShadow(bvh, d_shapeSizes[cylinderIndex], feeler);
+    return traverseShadowHybridBVH(bvh, d_shapeSizes[cylinderIndex], feeler);
 }
 
 __device__
@@ -128,7 +105,7 @@ bool cylNearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayInterse
     
     CylinderNode *bvh = (CylinderNode*) d_shapes[cylinderIndex];
 
-    intersectionFound = traverse(bvh, d_shapeSizes[cylinderIndex], ray, &minIntersect, rayHairIntersections);
+    intersectionFound = traverseHybridBVH(bvh, d_shapeSizes[cylinderIndex], ray, &minIntersect, rayHairIntersections);
 
     if(intersectionFound) {      
         *out = minIntersect;
@@ -145,58 +122,56 @@ bool nearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersecti
 	RayIntersection curr = minIntersect;
     
     for(uint shapeType = 0; shapeType < nShapes; shapeType++) {
-        for (uint i = 0; i < d_shapeSizes[shapeType]; i++) {
-            if(shapeType == sphereIndex) {
-                SphereNode *sphereNode = (SphereNode*) d_shapes[shapeType];
+        if(d_shapeSizes[shapeType] == 0) {
+            continue;
+        }
 
-                SphereNode *node = &sphereNode[i];
-                intersectionFound = AABBIntersection(ray, node->min, node->max);
+        if(shapeType == sphereIndex) {
+            SphereNode *bvh = (SphereNode*) d_shapes[shapeType];
 
-                if(intersectionFound) {
-                    intersectionFound = intersection(ray, &curr, node->shape);
-                }
-               
-            } else if(shapeType == cylinderIndex) {
-                CylinderNode *bvh = (CylinderNode*) d_shapes[shapeType];
+            intersectionFound = traverse(bvh, d_shapeSizes[shapeType], ray, &minIntersect, rayHairIntersections);
 
-                intersectionFound = traverse(bvh, d_shapeSizes[shapeType], ray, &minIntersect, rayHairIntersections);
-
-                if(intersectionFound) {
-                    minIntersectionFound = true;
-		        }
-
-                break;
-                
-            } else if(shapeType == triangleIndex) {
-                TriangleNode *triangleNode = (TriangleNode*) d_shapes[shapeType];
-
-                TriangleNode *node = &triangleNode[i];
-                intersectionFound = AABBIntersection(ray, node->min, node->max);
-
-                if(intersectionFound) {
-                    intersectionFound = intersection(ray, &curr, node->shape);
-                }
-
-            } else if(shapeType == planeIndex) {
-                Plane *plane = (Plane*) d_shapes[shapeType];
-                intersectionFound = intersection(ray, &curr, plane[i]);
-
-            } else {
-                return false;
-            }
-
-		    if (intersectionFound) {
-                if (curr.distance < minIntersect.distance) {
-                    minIntersectionFound = true;
-				    minIntersect = curr;
-			    }
+            if(intersectionFound) {
+                minIntersectionFound = true;
 		    }
-	    }
+               
+        } else if(shapeType == cylinderIndex) {
+            CylinderNode *bvh = (CylinderNode*) d_shapes[shapeType];
+
+            intersectionFound = traverseHybridBVH(bvh, d_shapeSizes[shapeType], ray, &minIntersect, rayHairIntersections);
+
+            if(intersectionFound) {
+                minIntersectionFound = true;
+		    }
+
+        } else if(shapeType == triangleIndex) {
+            TriangleNode *bvh = (TriangleNode*) d_shapes[shapeType];
+
+            intersectionFound = traverse(bvh, d_shapeSizes[shapeType], ray, &minIntersect, rayHairIntersections);
+
+            if(intersectionFound) {
+                minIntersectionFound = true;
+		    }
+
+        } else if(shapeType == planeIndex) {
+            Plane *plane = (Plane*) d_shapes[shapeType];
+            intersectionFound = intersection(ray, &curr, plane[0]);
+
+            if (intersectionFound && curr.distance < minIntersect.distance) {
+                minIntersectionFound = true;
+				minIntersect = curr;
+			}
+		    
+
+        } else {
+            return false;
+        }
     }
     
 	if (minIntersectionFound) {
 		*out = minIntersect;
 	}
+
 	return minIntersectionFound;
 }
 
@@ -223,8 +198,11 @@ float3 computeShadows(int **d_shapes, uint *d_shapeSizes, Light* lights, Ray ray
                       RayIntersection intersect, uint li, float3 feelerDir) {
     feeler.update(intersect.point, feelerDir);
             
-    //bool inShadow = findShadow(d_shapes, d_shapeSizes, feeler);
+    #ifdef GENERAL_INTERSECTION
+    bool inShadow = findShadow(d_shapes, d_shapeSizes, feeler);
+    #else
     bool inShadow = cylFindShadow(d_shapes, d_shapeSizes, feeler);
+    #endif
             
 	if(!inShadow) {
         float3 reflectDir = reflect(-feelerDir, intersect.normal);
@@ -305,9 +283,12 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
         colorContributionType[contributionIndex++] = info.type;
         ray.update(info.origin, info.direction);
 
-        //bool foundIntersect = nearestIntersect(d_shapes, d_shapeSizes, ray, &intersect, &rayHairIntersections);
+        #ifdef GENERAL_INTERSECTION 
+        bool foundIntersect = nearestIntersect(d_shapes, d_shapeSizes, ray, &intersect, &rayHairIntersections);
+        #else
 	    bool foundIntersect = cylNearestIntersect(d_shapes, d_shapeSizes, ray, &intersect, &rayHairIntersections);
-        
+        #endif
+
 	    if (!foundIntersect) {     
             localsStack[colorsIndex] = backcolor;
             computeColor = true;
@@ -318,10 +299,13 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
             // local illumination
             colorAux = blackColor;
 	        for(uint li = 0; li < lightSize; li++) {
+                #ifndef SOFT_SHADOWS
                 colorAux += computeShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
                                            li, normalize(lights[li].position - intersect.point));
+                #else
                 colorAux += computeSoftShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
                                                  li, normalize(lights[li].position - intersect.point));
+                #endif
 	        }
             localsStack[colorsIndex] = colorAux;
      
@@ -617,9 +601,9 @@ void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lig
 }
 
 
-void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes, 
-                    cudaEvent_t &c_start, cudaEvent_t &c_end, Cylinder *d_shapes, Matrix *d_matrixes, 
-                    float3 *d_translations, uint *d_OBBIndexes, uint nOBBs) {
+float deviceBuildCylinderBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes, 
+                             cudaEvent_t &c_start, cudaEvent_t &c_end, Cylinder *d_shapes, Matrix *d_matrixes, 
+                             float3 *d_translations, uint *d_OBBIndexes, uint nOBBs) {
     float *areaVector, *costVector;
     int *lock, *nodeCounter;
 
@@ -653,9 +637,6 @@ void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockS
     float milliseconds = 0;
     cudaEventElapsedTime(&milliseconds, c_start, c_end);
 
-    //debug info
-    printf("BVH building time: %fs \n\n", milliseconds / 1000.0f);
-
     checkCudaErrors(cudaFree(lock));
     checkCudaErrors(cudaFree(areaVector));
     checkCudaErrors(cudaFree(costVector));
@@ -663,6 +644,62 @@ void deviceBuildBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockS
     if(d_OBBIndexes != nullptr) {
         checkCudaErrors(cudaFree(d_OBBIndexes));
     }
+
+    return milliseconds / 1000.0f;
+}
+
+template <typename BVHNodeType, typename ShapeType>
+float deviceBuildBVH(BVHNodeType *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes, 
+                     cudaEvent_t &c_start, cudaEvent_t &c_end, ShapeType *d_shapes) {
+    float *areaVector, *costVector;
+    int *lock, *nodeCounter;
+
+    uint size = (2 * nObjects - 1) * sizeof(float); 
+    checkCudaErrors(cudaMalloc((void**) &areaVector, size));
+    checkCudaErrors(cudaMemset(areaVector, INT_MAX, size));
+
+    checkCudaErrors(cudaMalloc((void**) &costVector, size));
+    checkCudaErrors(cudaMemset(costVector, INT_MAX, size));
+
+    size = (2 * nObjects - 1) * sizeof(int); 
+    checkCudaErrors(cudaMalloc((void**) &lock, size));
+    checkCudaErrors(cudaMemset(lock, 0, size));
+
+    cudaEventRecord(c_start);
+    buildBVH<<<gridSize, blockSize>>>(bvh, nObjects, mortonCodes);
+
+    computeBVHBB<<<gridSize, blockSize>>>(bvh, nObjects, lock, d_shapes);
+
+    nodeCounter = lock;
+    size = nObjects * sizeof(int);
+    checkCudaErrors(cudaMemset(nodeCounter, 0, size));
+    optimizeBVH<<<gridSize, blockSize>>>(bvh, nObjects, nodeCounter, areaVector, costVector);
+
+    cudaEventRecord(c_end);
+
+    cudaEventSynchronize(c_end);
+
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, c_start, c_end);
+
+    checkCudaErrors(cudaFree(lock));
+    checkCudaErrors(cudaFree(areaVector));
+    checkCudaErrors(cudaFree(costVector));
+    checkCudaErrors(cudaFree(mortonCodes));
+
+    return milliseconds / 1000.0f;
+}
+
+float deviceBuildSphereBVH(SphereNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes, 
+                           cudaEvent_t &c_start, cudaEvent_t &c_end, Sphere *d_shapes) {
+
+    return  deviceBuildBVH(bvh, nObjects, gridSize, blockSize, mortonCodes, c_start, c_end, d_shapes);
+}
+
+float deviceBuildTriangleBVH(TriangleNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes, 
+                            cudaEvent_t &c_start, cudaEvent_t &c_end, Triangle *d_shapes) {
+
+    return  deviceBuildBVH(bvh, nObjects, gridSize, blockSize, mortonCodes, c_start, c_end, d_shapes);
 }
 
 #endif

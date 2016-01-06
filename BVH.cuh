@@ -14,7 +14,8 @@
 //mul array
 __device__ int const mul[] = {10, 100, 1000, 10000, 100000, 1000000};
 
-__device__ void computeNodeBB(CylinderNode *node) {
+template <typename BVHNodeType>
+__device__ void computeNodeBB(BVHNodeType *node) {
     float3 lmin, lmax, rmin, rmax;
     lmin = node->lchild->min;
     lmax = node->lchild->max;
@@ -26,7 +27,8 @@ __device__ void computeNodeBB(CylinderNode *node) {
     node->max = fmaxf(lmax, rmax);
 }
 
-__device__ void computeNodeBB(CylinderNode *node, float3 *rMin, float3 *rMax) {
+template <typename BVHNodeType>
+__device__ void computeNodeBB(BVHNodeType *node, float3 *rMin, float3 *rMax) {
     float3 lmin, lmax, rmin, rmax;
     lmin = node->lchild->min;
     lmax = node->lchild->max;
@@ -53,7 +55,8 @@ __device__ float getArea(float3 min, float3 max) {
     return 2 * (dx * dy + dx * dz + dy * dz);
 }
 
-__device__ float getTotalArea(CylinderNode **leaves, int nLeaves, unsigned char s) {
+template <typename BVHNodeType>
+__device__ float getTotalArea(BVHNodeType **leaves, int nLeaves, unsigned char s) {
     float3 lmin, lmax, min = make_float3(FLT_MAX), max = make_float3(-FLT_MAX);
     
     for(int i = 0; i < nLeaves; i++) {
@@ -69,9 +72,10 @@ __device__ float getTotalArea(CylinderNode **leaves, int nLeaves, unsigned char 
     return getArea(min, max);
 }
 
-__device__ void propagateAreaCost(CylinderNode *root, CylinderNode **leaves, int numLeaves, 
-                                  CylinderNode *bvh, float *areaVector, float *costVector) {
-    CylinderNode *cur;
+template <typename BVHNodeType>
+__device__ void propagateAreaCost(BVHNodeType *root, BVHNodeType **leaves, int numLeaves, 
+                                  BVHNodeType *bvh, float *areaVector, float *costVector) {
+    BVHNodeType *cur;
     float3 min, max;
     float area, costL, costR;
     int currIndex, lChildIndex, rChildIndex;
@@ -118,20 +122,21 @@ __device__ void propagateAreaCost(CylinderNode *root, CylinderNode **leaves, int
     costVector[currIndex] = Ci * area + costL + costR;
 }
 
-__device__
-bool traverse(CylinderNode *bvh, uint bvhSize, Ray ray, RayIntersection *minIntersect, int *rayHairIntersections) {
+template <typename BVHNodeType>
+__device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIntersection *minIntersect, 
+                                  int *rayHairIntersections) {
     float distance;
     bool intersectionFound = false;
    
     RayIntersection curr = *minIntersect;
 
-    CylinderNode *stackNodes[StackSize];
+    BVHNodeType *stackNodes[StackSize];
     
     uint stackIndex = 0;
 
     stackNodes[stackIndex++] = nullptr;
     
-    CylinderNode *childL, *childR, *node = &bvh[0], tmp;
+    BVHNodeType *childL, *childR, *node = &bvh[0], tmp;
 
     tmp = *node;
     if(tmp.type == AABB) {
@@ -228,17 +233,119 @@ bool traverse(CylinderNode *bvh, uint bvhSize, Ray ray, RayIntersection *minInte
     return result;
 }
 
-__device__
-bool traverseShadow(CylinderNode *bvh, uint bvhSize, Ray ray) {
+template <typename BVHNodeType>
+__device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIntersection *minIntersect, 
+                         int *rayHairIntersections) {
+    float distance;
     bool intersectionFound = false;
+   
+    RayIntersection curr = *minIntersect;
 
-    CylinderNode *stackNodes[StackSize];
+    BVHNodeType *stackNodes[StackSize];
     
     uint stackIndex = 0;
 
     stackNodes[stackIndex++] = nullptr;
     
-    CylinderNode *childL, *childR, *node = &bvh[0], tmp;
+    BVHNodeType *childL, *childR, *node = &bvh[0], tmp;
+
+    tmp = *node;
+    
+    intersectionFound = AABBIntersection(ray, tmp.min, tmp.max);
+    
+    if(!intersectionFound) {
+        return false;
+    }
+
+    // Leaf node (if no bvh)
+    /*if (node->shape != nullptr) {
+        (*rayHairIntersections)++;
+        intersectionFound = intersection(ray, &curr, node->shape);
+
+        if(intersectionFound && (curr.distance < minIntersect->distance)) {
+            *minIntersect = curr;
+            return true;
+        }
+        return false;
+    }*/
+
+    bool result = false;
+    bool lIntersection, rIntersection, traverseL, traverseR; 
+    while(node != nullptr) {
+        lIntersection = rIntersection = traverseL = traverseR = false;
+
+        childL = node->lchild;
+        if(childL != nullptr) {
+            tmp = *childL;
+            
+            lIntersection = AABBIntersection(ray, tmp.min, tmp.max, &distance);
+            
+            if (lIntersection && distance < minIntersect->distance) {
+                // Leaf node
+                if (childL->shape != nullptr) {
+                    (*rayHairIntersections)++;
+                    intersectionFound = intersection(ray, &curr, childL->shape);
+
+                    if(intersectionFound && (curr.distance < minIntersect->distance)) {
+                        result = true;
+                        *minIntersect = curr;
+                    }
+
+                } else {
+                    traverseL = true;
+                }
+            }
+        }
+
+        childR = node->rchild;
+        if(childR != nullptr) {
+            tmp = *childR;
+            
+            rIntersection = AABBIntersection(ray, tmp.min, tmp.max, &distance);
+            
+            if (rIntersection && distance < minIntersect->distance) {
+                // Leaf node
+                if (childR->shape != nullptr) {
+                    (*rayHairIntersections)++;
+                    intersectionFound = intersection(ray, &curr, childR->shape);
+
+                    if(intersectionFound && (curr.distance < minIntersect->distance)) {
+                        result = true;
+                        *minIntersect = curr;
+                    }
+
+                } else {
+                    traverseR = true;
+                }
+            }
+        }
+
+        
+        if (!traverseL && !traverseR) {
+            node = stackNodes[--stackIndex]; // pop
+
+        } else {
+            node = (traverseL) ? childL : childR;
+            if (traverseL && traverseR) {             
+                stackNodes[stackIndex++] = childR; // push
+            }
+        }
+    }
+
+    return result;
+}
+
+template <typename BVHNodeType>
+__device__ bool traverseShadowHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray) {
+    bool intersectionFound = false;
+
+    BVHNodeType *stackNodes[StackSize];
+    
+    uint stackIndex = 0;
+
+    stackNodes[stackIndex++] = nullptr;
+    
+    BVHNodeType *childL, *childR, *node = &bvh[0], tmp;
 
     tmp = *node;
     if(tmp.type == AABB) {
@@ -292,6 +399,91 @@ bool traverseShadow(CylinderNode *bvh, uint bvhSize, Ray ray) {
                 rIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
             }
 
+            if (rIntersection) {
+                // Leaf node
+                if (childR->shape != nullptr) {
+                    intersectionFound = intersection(ray, nullptr, childR->shape);
+
+                    if(intersectionFound) {
+                        return true;
+                    }
+
+                } else {
+                    traverseR = true;
+                }
+            }
+        }
+
+        
+        if (!traverseL && !traverseR) {
+            node = stackNodes[--stackIndex]; // pop
+
+        } else {
+            node = (traverseL) ? childL : childR;
+            if (traverseL && traverseR) {
+                stackNodes[stackIndex++] = childR; // push
+            }
+        }
+    }
+
+    return false;
+}
+
+template <typename BVHNodeType>
+__device__ bool traverseShadow(BVHNodeType *bvh, uint bvhSize, Ray ray) {
+    bool intersectionFound = false;
+
+    BVHNodeType *stackNodes[StackSize];
+    
+    uint stackIndex = 0;
+
+    stackNodes[stackIndex++] = nullptr;
+    
+    BVHNodeType *childL, *childR, *node = &bvh[0], tmp;
+
+    tmp = *node;
+    
+    intersectionFound = AABBIntersection(ray, tmp.min, tmp.max);
+    
+    if(!intersectionFound) {
+        return false;
+    }
+
+    /*if (node->shape != nullptr) {
+        return intersection(ray, nullptr, node->shape);
+    }*/
+
+    bool lIntersection, rIntersection, traverseL, traverseR; 
+    while(node != nullptr) {
+        lIntersection = rIntersection = traverseL = traverseR = false;
+
+        childL = node->lchild;
+        if(childL != nullptr) {
+            tmp = *childL;
+                
+            lIntersection = AABBIntersection(ray, tmp.min, tmp.max);
+            
+            if (lIntersection) {
+                // Leaf node
+                if (childL->shape != nullptr) {
+                    intersectionFound = intersection(ray, nullptr, childL->shape);
+
+                    if(intersectionFound) {
+                        return true;
+                    }
+
+                } else {
+                    traverseL = true;
+                }
+            }
+        }
+
+        childR = node->rchild;
+        if(childR != nullptr) {
+            tmp = *childR;
+            
+            rIntersection = AABBIntersection(ray, tmp.min, tmp.max);
+            
             if (rIntersection) {
                 // Leaf node
                 if (childR->shape != nullptr) {
@@ -391,20 +583,20 @@ int longestCommonPrefix(int i, int j, uint nObjects, uint *mortonCodes) {
     }
 }
 
-__device__
-void restructTree(CylinderNode *parent, CylinderNode **leaves, CylinderNode **nodes, 
+template <typename BVHNodeType>
+__device__ void restructTree(BVHNodeType *parent, BVHNodeType **leaves, BVHNodeType **nodes, 
                              unsigned char partition, unsigned char *optimal, int &index, bool left, int numLeaves,
-                             CylinderNode *bvh, float *areaVector, float *costVector) {
+                             BVHNodeType *bvh, float *areaVector, float *costVector) {
 
-    PartitionEntry stack[RestructStackSize];
+    PartitionEntry<BVHNodeType> stack[RestructStackSize];
     int topIndex = RestructStackSize, tmpNodeIndex;
-    stack[--topIndex] = PartitionEntry(partition, left, parent);
-    CylinderNode *tmpNode;
+    stack[--topIndex] = PartitionEntry<BVHNodeType>(partition, left, parent);
+    BVHNodeType *tmpNode;
     unsigned char leftPartition, rightPartition;
 
     // Do while stack is not empty
     while(topIndex != RestructStackSize) {
-        PartitionEntry *pe = &stack[topIndex++];
+        PartitionEntry<BVHNodeType> *pe = &stack[topIndex++];
         partition = pe->partition;
         left = pe->left;
         parent = pe->parent;
@@ -458,17 +650,17 @@ void restructTree(CylinderNode *parent, CylinderNode **leaves, CylinderNode **no
                 printf("restructTree stack not big enough. Increase RestructStackSize!\n");
             }*/
 
-            stack[--topIndex] = PartitionEntry(leftPartition, true, tmpNode);
-            stack[--topIndex] = PartitionEntry(rightPartition, false, tmpNode);
+            stack[--topIndex] = PartitionEntry<BVHNodeType>(leftPartition, true, tmpNode);
+            stack[--topIndex] = PartitionEntry<BVHNodeType>(rightPartition, false, tmpNode);
         }
     }
 
     propagateAreaCost(parent, leaves, numLeaves, bvh, areaVector, costVector);
 }
 
-__device__
-void calculateOptimalTreelet(CylinderNode **leaves, int nLeaves, unsigned char *p_opt,
-                                        CylinderNode *bvh, float *areaVector, float *costVector) {
+template <typename BVHNodeType>
+__device__ void calculateOptimalTreelet(BVHNodeType **leaves, int nLeaves, unsigned char *p_opt,
+                                        BVHNodeType *bvh, float *areaVector, float *costVector) {
     int const numSubsets = (1 << nLeaves) - 1;
 
     float a[128];
@@ -516,14 +708,14 @@ void calculateOptimalTreelet(CylinderNode **leaves, int nLeaves, unsigned char *
     }
 }
 
-__device__ 
-void optimizeTreelet(CylinderNode *treeletRoot, CylinderNode *bvh, float *areaVector, float *costVector) {
+template <typename BVHNodeType>
+__device__ void optimizeTreelet(BVHNodeType *treeletRoot, BVHNodeType *bvh, float *areaVector, float *costVector) {
     if (treeletRoot == nullptr || treeletRoot->shape != nullptr) {
         return;
     }
 
-    CylinderNode *leaves[TRBVHIterations];
-    CylinderNode *nodes[TRBVHIterations - 2];
+    BVHNodeType *leaves[TRBVHIterations];
+    BVHNodeType *nodes[TRBVHIterations - 2];
     unsigned char optimal[128];
 
     int nodeIndex;
@@ -534,7 +726,7 @@ void optimizeTreelet(CylinderNode *treeletRoot, CylinderNode *bvh, float *areaVe
     leaves[counter++] = treeletRoot->lchild;
     leaves[counter++] = treeletRoot->rchild;
 
-    CylinderNode *tmp;
+    BVHNodeType *tmp;
     while (counter < TRBVHIterations && maxIndex != -1) {
         maxIndex = -1;
         maxArea = -1.0f;
@@ -588,15 +780,15 @@ void optimizeTreelet(CylinderNode *treeletRoot, CylinderNode *bvh, float *areaVe
     costVector[nodeIndex] = Ci * rArea + costL + costR;
 }
 
-__global__ 
-void buildBVH(CylinderNode *bvh, uint nObjects, uint *mortonCodes) {
+template <typename BVHNodeType>
+__global__ void buildBVH(BVHNodeType *bvh, uint nObjects, uint *mortonCodes) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (i >= nObjects - 1) {
         return;
     }
     
-    CylinderNode *bvhLeaves = &bvh[nObjects - 1];
+    BVHNodeType *bvhLeaves = &bvh[nObjects - 1];
 
     // Determine direction of the range (+1 or -1)
     int sign = longestCommonPrefix(i, i + 1, nObjects, mortonCodes) - longestCommonPrefix(i, i - 1, nObjects, mortonCodes); 
@@ -638,7 +830,7 @@ void buildBVH(CylinderNode *bvh, uint nObjects, uint *mortonCodes) {
     int gamma = i + s * d + imin(d, 0);
 
     // Output child pointers
-    CylinderNode *current = &bvh[i];
+    BVHNodeType *current = &bvh[i];
 
     if (imin(i, j) == gamma) {
         current->lchild = &bvhLeaves[gamma];
@@ -656,9 +848,9 @@ void buildBVH(CylinderNode *bvh, uint nObjects, uint *mortonCodes) {
     current->rchild->parent = current;
 }
 
-__global__ 
-void computeBVHBB(CylinderNode *bvh, uint nObjects, int *lock, Cylinder *d_shapes,
-                  Matrix *d_matrixes, float3 *d_translations, uint *d_OBBIndexes, uint nOBBs) {
+
+__global__ void computeBVHBB(CylinderNode *bvh, uint nObjects, int *lock, Cylinder *d_shapes,
+                             Matrix *d_matrixes, float3 *d_translations, uint *d_OBBIndexes, uint nOBBs) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     CylinderNode *bvhLeaves = &bvh[nObjects - 1];
@@ -701,8 +893,44 @@ void computeBVHBB(CylinderNode *bvh, uint nObjects, int *lock, Cylinder *d_shape
     }
 }
 
-__global__ 
-void computeLeavesOBBs(CylinderNode *bvh, uint nObjects) {    
+template <typename BVHNodeType, typename ShapeType>
+__global__ void computeBVHBB(BVHNodeType *bvh, uint nObjects, int *lock, ShapeType *d_shapes) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    BVHNodeType *bvhLeaves = &bvh[nObjects - 1];
+
+    if(i < nObjects) {
+        bvhLeaves[i].shape = &d_shapes[i];
+    }
+
+    if (i > nObjects - 1) {
+        return;
+    }
+
+    
+    BVHNodeType *node = &bvhLeaves[i];
+    node = node->parent;
+    int index = node - bvh;
+    int oldLock = atomicAdd(&lock[index], 1);
+    while(1) {
+        if(oldLock == 0) {
+            return;
+        }
+
+        computeNodeBB(node);
+
+        //if root
+        if(node->parent == nullptr) {
+            return;
+        }
+
+        node = node->parent;
+        index = node - bvh;
+        oldLock = atomicAdd(&lock[index], 1);
+    }
+}
+
+__global__ void computeLeavesOBBs(CylinderNode *bvh, uint nObjects) {    
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (i > nObjects - 1) {
@@ -719,16 +947,16 @@ void computeLeavesOBBs(CylinderNode *bvh, uint nObjects) {
     }
 }
 
-__global__ 
-void optimizeBVH(CylinderNode *bvh, uint nObjects, int *nodeCounter, float *areaVector, float *costVector) {
+template <typename BVHNodeType>
+__global__ void optimizeBVH(BVHNodeType *bvh, uint nObjects, int *nodeCounter, float *areaVector, float *costVector) {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     
     if (index >= nObjects) {
         return;
     }
 
-    CylinderNode *bvhLeaves = &bvh[nObjects - 1];
-    CylinderNode *leaf = &bvhLeaves[index];
+    BVHNodeType *bvhLeaves = &bvh[nObjects - 1];
+    BVHNodeType *leaf = &bvhLeaves[index];
     int currentIndex;
 
     float area = getArea(leaf->min, leaf->max);
@@ -737,7 +965,7 @@ void optimizeBVH(CylinderNode *bvh, uint nObjects, int *nodeCounter, float *area
     areaVector[currentIndex] = area;
     costVector[currentIndex] = area;
 
-    CylinderNode *current = leaf->parent;
+    BVHNodeType *current = leaf->parent;
     currentIndex = current - bvh;
 
     int res = atomicAdd(&nodeCounter[currentIndex], 1);
