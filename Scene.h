@@ -9,6 +9,8 @@
 
 std::string const sSize[] = {"B", "KB", "MB", "GB"};
 int const bSize[] = {1, 1000, 1000000, 1000000000};
+std::string const sphereString = "Sphere";
+std::string const triangleString = "Triangle";
 
 struct Scene {
 private:
@@ -177,10 +179,10 @@ private:
         checkCudaErrors(cudaMalloc((void**) &d_bvhNodes, sizebvh));
         checkCudaErrors(cudaMalloc((void**) &d_shapes, size * shapeSize));
 
-        if(shapeType == "Sphere") {
+        if(shapeType == sphereString) {
             d_sphereBVH = (SphereNode*)d_bvhNodes;
             d_sphereShapes = (Sphere*)d_shapes;
-        } else if(shapeType == "Triangle") {
+        } else if(shapeType == triangleString) {
             d_triangleBVH = (TriangleNode*)d_bvhNodes;
             d_triangleShapes = (Triangle*)d_shapes;
         }
@@ -344,28 +346,25 @@ public:
     bool copyToDevice() {
         uint size, sceneSize = 0;
 
-        Light *ltVector = new Light[h_lights.size()];
+        //Lights
+        size = (uint)h_lights.size();
+        if(size > 0) {
+            checkCudaErrors(cudaMalloc((void**) &d_lights, size * sizeof(Light)));
 
-        for(uint i = 0; i < h_lights.size(); i++) {
-            ltVector[i] = h_lights[i];
+            for(uint i = 0; i < size; i++) {
+                checkCudaErrors(cudaMemcpyAsync(&d_lights[i], &h_lights[i], sizeof(Light), cudaMemcpyHostToDevice));
+            }
+
+            d_lightsSize = size;
+     
+            sceneSize += size * sizeof(Light);
+            h_lights.clear();
         }
-
-        d_lightsSize = (uint)h_lights.size();
-        
-
-        size = (uint)h_lights.size() * sizeof(Light);
-        sceneSize += size;
-
-        checkCudaErrors(cudaMalloc((void**) &d_lights, size));
-        checkCudaErrors(cudaMemcpy(d_lights, ltVector, size, cudaMemcpyHostToDevice));
-
-        delete[] ltVector;
-        h_lights.clear();
 
         //Spheres
         size = (uint)h_sphereBVH.size();
         if(size > 0) {
-            sceneSize += shapeTransfer(size, sphereIndex, "Sphere", d_sphereBVH, d_sphereShapes, h_sphereBVH);
+            sceneSize += shapeTransfer(size, sphereIndex, sphereString, d_sphereBVH, d_sphereShapes, h_sphereBVH);
         }
 
         //cylinders
@@ -377,26 +376,22 @@ public:
         //triangles
         size = (uint)h_triangleBVH.size();
         if(size > 0) {
-            sceneSize += shapeTransfer(size, triangleIndex, "Triangle", d_triangleBVH, d_triangleShapes, h_triangleBVH);
+            sceneSize += shapeTransfer(size, triangleIndex, triangleString, d_triangleBVH, d_triangleShapes, h_triangleBVH);
         }
 
         //planes
         size = (uint)h_planes.size();
         if(size > 0) {
-            Plane *plaVector = new Plane[size];
             h_shapeSizes[planeIndex] = size;
 
+            checkCudaErrors(cudaMalloc((void**) &d_planes, size * sizeof(Plane)));
+
             for(uint i = 0; i < size; i++) {
-                plaVector[i] = h_planes[i];
+                checkCudaErrors(cudaMemcpyAsync(&d_planes[i], &h_planes[i], sizeof(Plane), cudaMemcpyHostToDevice));
             }
+        
+            sceneSize += size * sizeof(Plane);
 
-            size *= sizeof(Plane);
-            sceneSize += size;
-
-            checkCudaErrors(cudaMalloc((void**) &d_planes, size));
-            checkCudaErrors(cudaMemcpy(d_planes, plaVector, size, cudaMemcpyHostToDevice));
-
-            delete[] plaVector;
             h_planes.clear();
         }
 
@@ -482,6 +477,11 @@ public:
 
     __host__
     void addPlane(float3 p1, float3 p2, float3 p3) {
+        //Intentional support for only one plane (ground plane)
+        if(h_planes.size() > 0) {
+            h_planes.pop_back();
+        }
+
 	    Plane p = Plane(p1, p2, p3);
 	    p.material = material;
 	    h_planes.push_back(p);

@@ -3,12 +3,12 @@
 #ifndef _RAYTRACER_KERNEL_CU_
 #define _RAYTRACER_KERNEL_CU_
 
-//#define GENERAL_INTERSECTION
+#define GENERAL_INTERSECTION
 //#define SOFT_SHADOWS
 
 #include <cfloat>
 
-#include "BVH.cuh"
+#include "AOIT.cuh"
 #include <thrust/random.h>
 
 #define rtStackSize (2 * MAX_DEPTH)

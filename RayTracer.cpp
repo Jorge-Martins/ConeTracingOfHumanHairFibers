@@ -31,7 +31,7 @@ float initHorizontalAngle = 180.0f, initVerticalAngle = 90.0f, initRadius = 20.0
 int xDragStart, yDragStart, dragging, zooming;
 float fov;
 
-bool stopRender = false, videoMode = false, nff = false;
+bool stopRender = false, videoMode = false, nff = true;
 
 cudaEvent_t c_start, c_end;
 
@@ -331,7 +331,7 @@ void mouseMove(int x, int y) {
 
         //std::cout<< "fov: " << fov << std::endl;
         camera->update(computeFromCoordinates(camera->up), fov);
-        std::cout<< "From: " << camera->from.x << " " << camera->from.y << " " << camera->from.z << std::endl;
+        //std::cout<< "From: " << camera->from.x << " " << camera->from.y << " " << camera->from.z << std::endl;
         //std::cout<< "radius: " << radius << std::endl;
     } 
 }
@@ -500,13 +500,13 @@ int main(int argc, char *argv[]) {
 
     if(nff) {
         path = resourceDirPath + "nffFiles/";
-        //sceneName = "balls_low";
+        sceneName = "balls_low";
         //sceneName = "balls_medium";
         //sceneName = "balls_high";
         //sceneName = "mount_low";
         //sceneName = "mount_very_high";
         //sceneName = "rings_low";
-        sceneName = "rings";
+        //sceneName = "rings";
 
 	    if (!load_nff(path + sceneName, scene, &initRadius, &initVerticalAngle, &initHorizontalAngle, &initFov, &up)) {
             cleanup();
