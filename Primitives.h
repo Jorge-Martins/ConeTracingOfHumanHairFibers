@@ -560,20 +560,32 @@ struct TriangleNode {
     }
 };
 
-template <typename ShapeNodeType>
+template <typename BVHNodeType>
 struct PartitionEntry {
     unsigned char partition;
     bool left;
-    ShapeNodeType *parent;
+    BVHNodeType *parent;
 
     __device__
     PartitionEntry() {}
 
     __device__
-    PartitionEntry(unsigned char partition, bool left, ShapeNodeType *parent) {
+    PartitionEntry(unsigned char partition, bool left, BVHNodeType *parent) {
         this->partition = partition;
         this->left = left;
         this->parent = parent;
+    }
+};
+
+template <typename ShapeType>
+struct IntersectionLstItem {
+    ShapeType *shape;
+    float distance;
+
+    __device__
+    IntersectionLstItem() {
+        shape = nullptr;
+        distance = FLT_MAX;
     }
 };
 

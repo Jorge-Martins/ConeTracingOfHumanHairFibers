@@ -93,7 +93,7 @@ __device__ AOITFragment AOITFindFragment(AOITData data, float fragmentDepth) {
     AOITFragment Output;      
 
     #if AOIT_RT_COUNT > 7    
-    if (fragmentDepth > data.depth[6].w) {
+    if(fragmentDepth > data.depth[6].w) {
         depth        = data.depth[7];
         trans        = data.trans[7];
         leftDepth    = data.depth[6].w;
@@ -104,7 +104,7 @@ __device__ AOITFragment AOITFindFragment(AOITData data, float fragmentDepth) {
         #endif
 
     #if AOIT_RT_COUNT > 6    
-    if (fragmentDepth > data.depth[5].w) {
+    if(fragmentDepth > data.depth[5].w) {
         depth        = data.depth[6];
         trans        = data.trans[6];
         leftDepth    = data.depth[5].w;
@@ -115,7 +115,7 @@ __device__ AOITFragment AOITFindFragment(AOITData data, float fragmentDepth) {
         #endif
 
     #if AOIT_RT_COUNT > 5    
-    if (fragmentDepth > data.depth[4].w) {
+    if(fragmentDepth > data.depth[4].w) {
         depth        = data.depth[5];
         trans        = data.trans[5];
         leftDepth    = data.depth[4].w;
@@ -126,7 +126,7 @@ __device__ AOITFragment AOITFindFragment(AOITData data, float fragmentDepth) {
         #endif
 
     #if AOIT_RT_COUNT > 4    
-    if (fragmentDepth > data.depth[3].w) {
+    if(fragmentDepth > data.depth[3].w) {
         depth        = data.depth[4];
         trans        = data.trans[4];
         leftDepth    = data.depth[3].w;
@@ -137,7 +137,7 @@ __device__ AOITFragment AOITFindFragment(AOITData data, float fragmentDepth) {
         #endif
 
     #if AOIT_RT_COUNT > 3    
-    if (fragmentDepth > data.depth[2].w) {
+    if(fragmentDepth > data.depth[2].w) {
         depth        = data.depth[3];
         trans        = data.trans[3];
         leftDepth    = data.depth[2].w;
@@ -148,7 +148,7 @@ __device__ AOITFragment AOITFindFragment(AOITData data, float fragmentDepth) {
         #endif
 
     #if AOIT_RT_COUNT > 2    
-    if (fragmentDepth > data.depth[1].w) {
+    if(fragmentDepth > data.depth[1].w) {
         depth        = data.depth[2];
         trans        = data.trans[2];
         leftDepth    = data.depth[1].w;
@@ -159,7 +159,7 @@ __device__ AOITFragment AOITFindFragment(AOITData data, float fragmentDepth) {
         #endif
 
     #if AOIT_RT_COUNT > 1    
-    if (fragmentDepth > data.depth[0].w) {
+    if(fragmentDepth > data.depth[0].w) {
         depth        = data.depth[1];
         trans        = data.trans[1];
         leftDepth    = data.depth[0].w;
@@ -177,21 +177,21 @@ __device__ AOITFragment AOITFindFragment(AOITData data, float fragmentDepth) {
         Output.index = 0;        
     } 
       
-    if (fragmentDepth <= depth.x) {
+    if(fragmentDepth <= depth.x) {
         Output.depthA = leftDepth;
         Output.transA = leftTrans;
 
-    } else if (fragmentDepth <= depth.y) {
+    } else if(fragmentDepth <= depth.y) {
         Output.index += 1;
         Output.depthA = depth.x; 
         Output.transA = trans.x;
 
-    } else if (fragmentDepth <= depth.z) {
+    } else if(fragmentDepth <= depth.z) {
         Output.index += 2;
         Output.depthA = depth.y;
         Output.transA = trans.y;
 
-    } else if (fragmentDepth <= depth.w) {
+    } else if(fragmentDepth <= depth.w) {
         Output.index += 3;    
         Output.depthA = depth.z;
         Output.transA = trans.z;
@@ -209,15 +209,15 @@ __device__ AOITFragment AOITFindFragment(AOITData data, float fragmentDepth) {
 // Insert a new fragment in the visibility function
 ////////////////////////////////////////////////////
 
-__device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOITData data) {	
+__device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOITData &data) {	
     int i, j;
   
     // Unpack AOIT data    
     float depth[AOIT_NODE_COUNT + 1];	
     float trans[AOIT_NODE_COUNT + 1];
 
-    for (i = 0; i < AOIT_RT_COUNT; ++i) {
-	    for (j = 0; j < 4; ++j) {
+    for(i = 0; i < AOIT_RT_COUNT; ++i) {
+	    for(j = 0; j < 4; ++j) {
 		    depth[4 * i + j] = getVectorValue(data.depth[i], j);
 		    trans[4 * i + j] = getVectorValue(data.trans[i], j);			        
 	    }
@@ -225,7 +225,7 @@ __device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOI
 
     // Find insertion index 
     AOITFragment tempFragment = AOITFindFragment(data, fragmentDepth);
-    const int   index = tempFragment.index;
+    const int index = tempFragment.index;
 
     // If we are inserting in the first node then use 1.0 as previous transmittance value
     // (we don't store it, but it's implicitly set to 1. This allows us to store one more node)
@@ -233,23 +233,23 @@ __device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOI
 
     // Make space for the new fragment. Also composite new fragment with the current curve 
     // (except for the node that represents the new fragment)
-    for (i = AOIT_NODE_COUNT - 1; i >= 0; --i) {
-        if (index <= i) {
+    for(i = AOIT_NODE_COUNT - 1; i >= 0; --i) {
+        if(index <= i) {
             depth[i + 1] = depth[i];
             trans[i + 1] = trans[i] * fragmentTrans;
         }
     }
     
     // Insert new fragment
-    for (i = 0; i <= AOIT_NODE_COUNT; ++i) {
-        if (index == i) {
+    for(i = 0; i <= AOIT_NODE_COUNT; ++i) {
+        if(index == i) {
             depth[i] = fragmentDepth;
             trans[i] = fragmentTrans * prevTrans;
         }
     } 
     
     // pack representation if we have too many nodes
-    if (depth[AOIT_NODE_COUNT] != AIOT_EMPTY_NODE_DEPTH) {	                
+    if(depth[AOIT_NODE_COUNT] != AIOT_EMPTY_NODE_DEPTH) {	                
         
         // That's total number of nodes that can be possibly removed
         const int removalCandidateCount = (AOIT_NODE_COUNT + 1) - 1;
@@ -268,7 +268,7 @@ __device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOI
 
         float nodeUnderError[removalCandidateCount];
 
-        for (i = startRemovalIdx; i < removalCandidateCount; ++i) {
+        for(i = startRemovalIdx; i < removalCandidateCount; ++i) {
             nodeUnderError[i] = (depth[i] - depth[i - 1]) * (trans[i - 1] - trans[i]);
         }
 
@@ -280,36 +280,71 @@ __device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOI
         smallestError    = nodeUnderError[smallestErrorIdx];
         i = startRemovalIdx + 1;
 
-        for ( ; i < removalCandidateCount; ++i) {
-            if (nodeUnderError[i] < smallestError) {
+        for( ; i < removalCandidateCount; i++) {
+            if(nodeUnderError[i] < smallestError) {
                 smallestError = nodeUnderError[i];
                 smallestErrorIdx = i;
             } 
         }
 
         // Remove that node..
-        for (i = startRemovalIdx; i < AOIT_NODE_COUNT; ++i) {
-            if (smallestErrorIdx <= i) {
+        for(i = startRemovalIdx; i < AOIT_NODE_COUNT; i++) {
+            if(smallestErrorIdx <= i) {
                 depth[i] = depth[i + 1];
             }
         }
 
-        for (i = startRemovalIdx - 1; i < AOIT_NODE_COUNT; ++i) {
-            if (smallestErrorIdx - 1 <= i) {
+        for(i = startRemovalIdx - 1; i < AOIT_NODE_COUNT; i++) {
+            if(smallestErrorIdx - 1 <= i) {
                 trans[i] = trans[i + 1];
             }
         }
     }
     
     // Pack AOIT data
-    for (i = 0; i < AOIT_RT_COUNT; ++i) {
-	    for (j = 0; j < 4; ++j) {
+    for(i = 0; i < AOIT_RT_COUNT; i++) {
+	    for(j = 0; j < 4; ++j) {
 		    setVectorValue(data.depth[i], j, depth[4 * i + j]);
 		    setVectorValue(data.trans[i], j, trans[4 * i + j]);			        
 	    }
     }	
 }
 
+template <typename ShapeType>
+float3 computeAOITColor(IntersectionLstItem<ShapeType> *shapeIntersectionLst, int lstsize) {
+    AOITData data;
+    IntersectionLstItem<ShapeType> *node;
+    Material nodeMaterial;
 
+    // Initialize AVSM data    
+    for(int i = 0; i < AOIT_RT_COUNT; i++) {
+        data.depth[i] = make_float4(AIOT_EMPTY_NODE_DEPTH);
+        data.trans[i] = make_float4(AOIT_FIRT_NODE_TRANS);
+    }
+    
+    // Fetch all nodes and add them to our visibiity function
+    for(int i = 0; i < lstSize; i++) {
+        node = &shapeIntersectionLst[i];
+        
+        nodeMaterial = node->shape.material;
+        AOITInsertFragment(node->distance, nodeMaterial.transparency, data);           
+    }
+
+    float3 color = make_float3(0.0f);
+
+    // Fetch all nodes again and composite them
+    for(int i = 0; i < lstSize; i++) {
+        node = &shapeIntersectionLst[i];
+        nodeMaterial = node->shape.material;
+
+        AOITFragment frag = AOITFindFragment(data, node->distance);
+
+        float vis = frag.index == 0 ? 1.0f : frag.transA;
+        color += nodeMaterial.color * nodeMaterial.transparency * vis;
+                  
+    }
+
+    return color;
+}
 
 #endif;

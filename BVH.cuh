@@ -122,6 +122,9 @@ __device__ void propagateAreaCost(BVHNodeType *root, BVHNodeType **leaves, int n
     costVector[currIndex] = Ci * area + costL + costR;
 }
 
+/*
+ * Traverse BVH and find nearest intersection
+ */
 template <typename BVHNodeType>
 __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIntersection *minIntersect, 
                                   int *rayHairIntersections) {
@@ -513,6 +516,203 @@ __device__ bool traverseShadow(BVHNodeType *bvh, uint bvhSize, Ray ray) {
 
     return false;
 }
+
+/*
+ * Traverse BVH and return list of intersected shapes
+ */
+template <typename BVHNodeType, typename ShapeType>
+__device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, 
+                                  IntersectionLstItem<ShapeType> *shapeIntersectionLst, int *lstIndex) {
+    
+    bool intersectionFound = false;
+    RayIntersection curr = RayIntersection();
+
+    BVHNodeType *stackNodes[StackSize];
+    
+    uint stackIndex = 0;
+
+    stackNodes[stackIndex++] = nullptr;
+    
+    BVHNodeType *childL, *childR, *node = &bvh[0], tmp;
+
+    tmp = *node;
+    if(tmp.type == AABB) {
+        intersectionFound = AABBIntersection(ray, tmp.min, tmp.max);
+    } else {
+        intersectionFound = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
+    }
+    
+    if(!intersectionFound) {
+        return false;
+    }
+
+    bool result = false;
+    bool lIntersection, rIntersection, traverseL, traverseR; 
+    while(node != nullptr) {
+        lIntersection = rIntersection = traverseL = traverseR = false;
+
+        childL = node->lchild;
+        if(childL != nullptr) {
+            tmp = *childL;
+            if(tmp.type == AABB) {
+                lIntersection = AABBIntersection(ray, tmp.min, tmp.max, &distance);
+            } else {
+                lIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation, &distance);
+            }
+
+            if (lIntersection) {
+                // Leaf node
+                if (childL->shape != nullptr) {
+                     intersectionFound = intersection(ray, &curr, childL->shape);
+
+                    if(intersectionFound) {
+                        shapeIntersectionLst[*lstIndex].shape = childL->shape;
+                        shapeIntersectionLst[*lstIndex].distance = curr.distance;
+                        (*lstIndex)++;
+                        result = true;
+                    }
+
+                } else {
+                    traverseL = true;
+                }
+            }
+        }
+
+        childR = node->rchild;
+        if(childR != nullptr) {
+            tmp = *childR;
+            if(tmp.type == AABB) {
+                rIntersection = AABBIntersection(ray, tmp.min, tmp.max, &distance);
+            } else {
+                rIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation, &distance);
+            }
+
+            if (rIntersection) {
+                // Leaf node
+                if (childR->shape != nullptr) {
+                   intersectionFound = intersection(ray, &curr, childR->shape);
+
+                    if(intersectionFound) {
+                        shapeIntersectionLst[*lstIndex].shape = childR->shape;
+                        shapeIntersectionLst[*lstIndex].distance = curr.distance;
+                        (*lstIndex)++;
+                        result = true;
+                    }
+
+                } else {
+                    traverseR = true;
+                }
+            }
+        }
+
+        
+        if (!traverseL && !traverseR) {
+            node = stackNodes[--stackIndex]; // pop
+
+        } else {
+            node = (traverseL) ? childL : childR;
+            if (traverseL && traverseR) {             
+                stackNodes[stackIndex++] = childR; // push
+            }
+        }
+    }
+
+    return result;
+}
+
+template <typename BVHNodeType, typename ShapeType>
+__device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray, 
+                         IntersectionLstItem<ShapeType> *shapeIntersectionLst, int *lstIndex) {
+
+    bool intersectionFound = false;
+    RayIntersection curr = RayIntersection();
+
+    BVHNodeType *stackNodes[StackSize];
+    
+    uint stackIndex = 0;
+
+    stackNodes[stackIndex++] = nullptr;
+    
+    BVHNodeType *childL, *childR, *node = &bvh[0], tmp;
+
+    tmp = *node;
+    
+    intersectionFound = AABBIntersection(ray, tmp.min, tmp.max);
+    
+    if(!intersectionFound) {
+        return false;
+    }
+
+    
+    bool result = false;
+    bool lIntersection, rIntersection, traverseL, traverseR; 
+    while(node != nullptr) {
+        lIntersection = rIntersection = traverseL = traverseR = false;
+
+        childL = node->lchild;
+        if(childL != nullptr) {
+            tmp = *childL;
+            
+            lIntersection = AABBIntersection(ray, tmp.min, tmp.max, &distance);
+            
+            if (lIntersection) {
+                // Leaf node
+                if (childL->shape != nullptr) {
+                    intersectionFound = intersection(ray, &curr, childL->shape);
+
+                    if(intersectionFound) {
+                        shapeIntersectionLst[*lstIndex].shape = childL->shape;
+                        shapeIntersectionLst[*lstIndex].distance = curr.distance;
+                        (*lstIndex)++;
+                        result = true;
+                    }
+
+                } else {
+                    traverseL = true;
+                }
+            }
+        }
+
+        childR = node->rchild;
+        if(childR != nullptr) {
+            tmp = *childR;
+            
+            rIntersection = AABBIntersection(ray, tmp.min, tmp.max, &distance);
+            
+            if (rIntersection) {
+                // Leaf node
+                if (childR->shape != nullptr) {
+                    intersectionFound = intersection(ray, &curr, childR->shape);
+
+                    if(intersectionFound) {
+                        shapeIntersectionLst[*lstIndex].shape = childR->shape;
+                        shapeIntersectionLst[*lstIndex].distance = curr.distance;
+                        (*lstIndex)++;
+                        result = true;
+                    }
+
+                } else {
+                    traverseR = true;
+                }
+            }
+        }
+
+        
+        if (!traverseL && !traverseR) {
+            node = stackNodes[--stackIndex]; // pop
+
+        } else {
+            node = (traverseL) ? childL : childR;
+            if (traverseL && traverseR) {             
+                stackNodes[stackIndex++] = childR; // push
+            }
+        }
+    }
+
+    return result;
+}
+
+
 
 __device__ 
 int longestCommonPrefix(int i, int j, uint nObjects, uint *mortonCodes) {
