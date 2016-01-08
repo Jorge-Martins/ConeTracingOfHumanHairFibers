@@ -209,15 +209,13 @@ __device__ AOITFragment AOITFindFragment(AOITData data, float fragmentDepth) {
 // Insert a new fragment in the visibility function
 ////////////////////////////////////////////////////
 
-__device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOITData &data) {	
-    int i, j;
-  
+__device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOITData &data) {
     // Unpack AOIT data    
     float depth[AOIT_NODE_COUNT + 1];	
     float trans[AOIT_NODE_COUNT + 1];
 
-    for(i = 0; i < AOIT_RT_COUNT; ++i) {
-	    for(j = 0; j < 4; ++j) {
+    for(int i = 0; i < AOIT_RT_COUNT; i++) {
+	    for(int j = 0; j < 4; ++j) {
 		    depth[4 * i + j] = getVectorValue(data.depth[i], j);
 		    trans[4 * i + j] = getVectorValue(data.trans[i], j);			        
 	    }
@@ -233,7 +231,7 @@ __device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOI
 
     // Make space for the new fragment. Also composite new fragment with the current curve 
     // (except for the node that represents the new fragment)
-    for(i = AOIT_NODE_COUNT - 1; i >= 0; --i) {
+    for(int i = AOIT_NODE_COUNT - 1; i >= 0; i--) {
         if(index <= i) {
             depth[i + 1] = depth[i];
             trans[i + 1] = trans[i] * fragmentTrans;
@@ -241,7 +239,7 @@ __device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOI
     }
     
     // Insert new fragment
-    for(i = 0; i <= AOIT_NODE_COUNT; ++i) {
+    for(int i = 0; i <= AOIT_NODE_COUNT; i++) {
         if(index == i) {
             depth[i] = fragmentDepth;
             trans[i] = fragmentTrans * prevTrans;
@@ -268,7 +266,7 @@ __device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOI
 
         float nodeUnderError[removalCandidateCount];
 
-        for(i = startRemovalIdx; i < removalCandidateCount; ++i) {
+        for(int i = startRemovalIdx; i < removalCandidateCount; i++) {
             nodeUnderError[i] = (depth[i] - depth[i - 1]) * (trans[i - 1] - trans[i]);
         }
 
@@ -277,10 +275,10 @@ __device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOI
         float smallestError;
 
         smallestErrorIdx = startRemovalIdx;
-        smallestError    = nodeUnderError[smallestErrorIdx];
-        i = startRemovalIdx + 1;
+        smallestError = nodeUnderError[smallestErrorIdx];
+        
 
-        for( ; i < removalCandidateCount; i++) {
+        for(int i = startRemovalIdx + 1; i < removalCandidateCount; i++) {
             if(nodeUnderError[i] < smallestError) {
                 smallestError = nodeUnderError[i];
                 smallestErrorIdx = i;
@@ -288,13 +286,13 @@ __device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOI
         }
 
         // Remove that node..
-        for(i = startRemovalIdx; i < AOIT_NODE_COUNT; i++) {
+        for(int i = startRemovalIdx; i < AOIT_NODE_COUNT; i++) {
             if(smallestErrorIdx <= i) {
                 depth[i] = depth[i + 1];
             }
         }
 
-        for(i = startRemovalIdx - 1; i < AOIT_NODE_COUNT; i++) {
+        for(int i = startRemovalIdx - 1; i < AOIT_NODE_COUNT; i++) {
             if(smallestErrorIdx - 1 <= i) {
                 trans[i] = trans[i + 1];
             }
@@ -302,19 +300,18 @@ __device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOI
     }
     
     // Pack AOIT data
-    for(i = 0; i < AOIT_RT_COUNT; i++) {
-	    for(j = 0; j < 4; ++j) {
+    for(int i = 0; i < AOIT_RT_COUNT; i++) {
+	    for(int j = 0; j < 4; j++) {
 		    setVectorValue(data.depth[i], j, depth[4 * i + j]);
 		    setVectorValue(data.trans[i], j, trans[4 * i + j]);			        
 	    }
     }	
 }
 
-template <typename ShapeType>
-float3 computeAOITColor(IntersectionLstItem<ShapeType> *shapeIntersectionLst, int lstsize) {
+
+__device__ float3 computeAOITColor(IntersectionLstItem *shapeIntersectionLst, int lstSize) {
     AOITData data;
-    IntersectionLstItem<ShapeType> *node;
-    Material nodeMaterial;
+    IntersectionLstItem *node;
 
     // Initialize AVSM data    
     for(int i = 0; i < AOIT_RT_COUNT; i++) {
@@ -326,8 +323,7 @@ float3 computeAOITColor(IntersectionLstItem<ShapeType> *shapeIntersectionLst, in
     for(int i = 0; i < lstSize; i++) {
         node = &shapeIntersectionLst[i];
         
-        nodeMaterial = node->shape.material;
-        AOITInsertFragment(node->distance, nodeMaterial.transparency, data);           
+        AOITInsertFragment(node->distance, node->transparency, data);           
     }
 
     float3 color = make_float3(0.0f);
@@ -335,16 +331,84 @@ float3 computeAOITColor(IntersectionLstItem<ShapeType> *shapeIntersectionLst, in
     // Fetch all nodes again and composite them
     for(int i = 0; i < lstSize; i++) {
         node = &shapeIntersectionLst[i];
-        nodeMaterial = node->shape.material;
 
         AOITFragment frag = AOITFindFragment(data, node->distance);
 
         float vis = frag.index == 0 ? 1.0f : frag.transA;
-        color += nodeMaterial.color * nodeMaterial.transparency * vis;
+        color += node->color * node->transparency * vis;
                   
     }
 
     return color;
+}
+
+__device__ float3 computeTransparency(int **d_shapes, uint *d_shapeSizes, Ray feeler) {
+    bool intersectionFound = false;
+
+    IntersectionLstItem shapeIntersectionLst[INTERSECTION_LST_SIZE];
+    int lstSize = 0;
+
+    for(uint shapeType = 0; shapeType < nShapes; shapeType++) {
+        if(d_shapeSizes[shapeType] == 0) {
+            continue;
+        }
+
+        if(shapeType == sphereIndex) {
+            SphereNode *bvh = (SphereNode*) d_shapes[shapeType];
+
+            intersectionFound |= traverse(bvh, d_shapeSizes[cylinderIndex], feeler, shapeIntersectionLst, lstSize);
+               
+        } else if(shapeType == cylinderIndex) {
+            CylinderNode *bvh = (CylinderNode*) d_shapes[shapeType];
+
+            intersectionFound |= traverseHybridBVH(bvh, d_shapeSizes[cylinderIndex], feeler, shapeIntersectionLst, lstSize);
+
+        } else if(shapeType == triangleIndex) {
+            TriangleNode *bvh = (TriangleNode*) d_shapes[shapeType];
+
+            intersectionFound |= traverse(bvh, d_shapeSizes[cylinderIndex], feeler, shapeIntersectionLst, lstSize);
+
+        } else if(shapeType == planeIndex) {
+            Plane *plane = (Plane*) d_shapes[shapeType];
+            bool result;
+            RayIntersection curr = RayIntersection();
+
+            result = intersection(feeler, &curr, plane[0]);
+
+            if(result) {
+                shapeIntersectionLst[lstSize++].update(curr);
+            }
+
+            intersectionFound |= result;
+        }
+    }
+
+    float3 color = make_float3(1.0f);
+    if(intersectionFound) {
+        color = computeAOITColor(shapeIntersectionLst, lstSize);
+    }
+
+    return color;
+}
+
+__device__
+float3 computeATShadows(int **d_shapes, uint *d_shapeSizes, Light* lights, Ray ray, Ray feeler, float3 blackColor, Material mat, 
+                      RayIntersection intersect, uint li, float3 feelerDir) {
+    feeler.update(intersect.point, feelerDir);
+            
+   
+    float3 transmitance = computeTransparency(d_shapes, d_shapeSizes, feeler);
+    
+            
+	if(length(transmitance) > 0.01) {
+        float3 reflectDir = reflect(-feelerDir, intersect.normal);
+        float Lspec = powf(fmaxf(dot(reflectDir, -ray.direction), 0.0f), mat.shininess);
+        float Ldiff = fmaxf(dot(feelerDir, intersect.normal), 0.0f);
+
+        return (Ldiff * mat.color * mat.Kdiffuse + Lspec * mat.Kspecular) * transmitance * lights[li].color;
+	}
+
+    return blackColor;
 }
 
 #endif;

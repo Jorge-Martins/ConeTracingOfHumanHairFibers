@@ -5,6 +5,7 @@
 
 #define GENERAL_INTERSECTION
 //#define SOFT_SHADOWS
+//#define AT
 
 #include <cfloat>
 
@@ -300,8 +301,13 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
             colorAux = blackColor;
 	        for(uint li = 0; li < lightSize; li++) {
                 #ifndef SOFT_SHADOWS
-                colorAux += computeShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
-                                           li, normalize(lights[li].position - intersect.point));
+                    #ifndef AT 
+                    colorAux += computeShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
+                                               li, normalize(lights[li].position - intersect.point));
+                    #else
+                    colorAux += computeATShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
+                                               li, normalize(lights[li].position - intersect.point));
+                    #endif
                 #else
                 colorAux += computeSoftShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
                                                  li, normalize(lights[li].position - intersect.point));

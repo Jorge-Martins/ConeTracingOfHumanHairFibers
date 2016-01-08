@@ -577,15 +577,19 @@ struct PartitionEntry {
     }
 };
 
-template <typename ShapeType>
 struct IntersectionLstItem {
-    ShapeType *shape;
+    float3 color;
+    float transparency;
     float distance;
 
     __device__
-    IntersectionLstItem() {
-        shape = nullptr;
-        distance = FLT_MAX;
+    IntersectionLstItem() {}
+
+    __device__ 
+    void update(RayIntersection info) {
+        color = info.shapeMaterial.color;
+        transparency = info.shapeMaterial.transparency;
+        distance = info.distance;
     }
 };
 

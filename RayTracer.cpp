@@ -31,7 +31,7 @@ float initHorizontalAngle = 180.0f, initVerticalAngle = 90.0f, initRadius = 20.0
 int xDragStart, yDragStart, dragging, zooming;
 float fov;
 
-bool stopRender = false, videoMode = false, nff = true;
+bool stopRender = false, videoMode = false, nff = false;
 
 cudaEvent_t c_start, c_end;
 
@@ -500,7 +500,8 @@ int main(int argc, char *argv[]) {
 
     if(nff) {
         path = resourceDirPath + "nffFiles/";
-        sceneName = "balls_low";
+        //sceneName = "balls_low";
+        sceneName = "balls_low_t";
         //sceneName = "balls_medium";
         //sceneName = "balls_high";
         //sceneName = "mount_low";
@@ -517,13 +518,13 @@ int main(int argc, char *argv[]) {
     } else {
         path = resourceDirPath + "HairModels/";
 
-        sceneName = "straight"; 
+        /*sceneName = "straight"; 
         initHorizontalAngle = 180.0f;
-        initFov = 28.0f;
+        initFov = 28.0f;*/
 
-        //sceneName = "wCurly"; 
-        ////initHorizontalAngle = 100.0f;
-        //initFov = 44.0f;
+        sceneName = "wCurly"; 
+        //initHorizontalAngle = 100.0f;
+        initFov = 44.0f;
         
         if (!load_hair(path + sceneName, scene, sceneName)) {
             cleanup();

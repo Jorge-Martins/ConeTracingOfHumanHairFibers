@@ -11,6 +11,8 @@
 #define Ci 1.2
 #define TRBVHIterations 7
 
+#define INTERSECTION_LST_SIZE 1000
+
 //mul array
 __device__ int const mul[] = {10, 100, 1000, 10000, 100000, 1000000};
 
@@ -520,9 +522,9 @@ __device__ bool traverseShadow(BVHNodeType *bvh, uint bvhSize, Ray ray) {
 /*
  * Traverse BVH and return list of intersected shapes
  */
-template <typename BVHNodeType, typename ShapeType>
+template <typename BVHNodeType>
 __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, 
-                                  IntersectionLstItem<ShapeType> *shapeIntersectionLst, int *lstIndex) {
+                                  IntersectionLstItem *shapeIntersectionLst, int &lstIndex) {
     
     bool intersectionFound = false;
     RayIntersection curr = RayIntersection();
@@ -548,6 +550,7 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray,
 
     bool result = false;
     bool lIntersection, rIntersection, traverseL, traverseR; 
+    int aux = 0;
     while(node != nullptr) {
         lIntersection = rIntersection = traverseL = traverseR = false;
 
@@ -555,9 +558,9 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray,
         if(childL != nullptr) {
             tmp = *childL;
             if(tmp.type == AABB) {
-                lIntersection = AABBIntersection(ray, tmp.min, tmp.max, &distance);
+                lIntersection = AABBIntersection(ray, tmp.min, tmp.max);
             } else {
-                lIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation, &distance);
+                lIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
             }
 
             if (lIntersection) {
@@ -566,10 +569,14 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray,
                      intersectionFound = intersection(ray, &curr, childL->shape);
 
                     if(intersectionFound) {
-                        shapeIntersectionLst[*lstIndex].shape = childL->shape;
-                        shapeIntersectionLst[*lstIndex].distance = curr.distance;
-                        (*lstIndex)++;
-                        result = true;
+                        if(lstIndex >= INTERSECTION_LST_SIZE) {
+                            aux++;
+                            
+                        } else {
+
+                            shapeIntersectionLst[lstIndex++].update(curr);
+                            result = true;
+                        }
                     }
 
                 } else {
@@ -582,9 +589,9 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray,
         if(childR != nullptr) {
             tmp = *childR;
             if(tmp.type == AABB) {
-                rIntersection = AABBIntersection(ray, tmp.min, tmp.max, &distance);
+                rIntersection = AABBIntersection(ray, tmp.min, tmp.max);
             } else {
-                rIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation, &distance);
+                rIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
             }
 
             if (rIntersection) {
@@ -593,10 +600,13 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray,
                    intersectionFound = intersection(ray, &curr, childR->shape);
 
                     if(intersectionFound) {
-                        shapeIntersectionLst[*lstIndex].shape = childR->shape;
-                        shapeIntersectionLst[*lstIndex].distance = curr.distance;
-                        (*lstIndex)++;
-                        result = true;
+                        if(lstIndex >= INTERSECTION_LST_SIZE) {
+                            aux++;
+
+                        } else {
+                            shapeIntersectionLst[lstIndex++].update(curr);
+                            result = true;
+                        }
                     }
 
                 } else {
@@ -617,12 +627,16 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray,
         }
     }
 
+    if(aux > 0) {
+        printf("Increase INTERSECTION_LST_SIZE from %d to %d\n", INTERSECTION_LST_SIZE, lstIndex + aux);
+    }
+
     return result;
 }
 
-template <typename BVHNodeType, typename ShapeType>
+template <typename BVHNodeType>
 __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray, 
-                         IntersectionLstItem<ShapeType> *shapeIntersectionLst, int *lstIndex) {
+                         IntersectionLstItem *shapeIntersectionLst, int &lstIndex) {
 
     bool intersectionFound = false;
     RayIntersection curr = RayIntersection();
@@ -646,6 +660,7 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray,
     
     bool result = false;
     bool lIntersection, rIntersection, traverseL, traverseR; 
+    int aux = 0;
     while(node != nullptr) {
         lIntersection = rIntersection = traverseL = traverseR = false;
 
@@ -653,7 +668,7 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray,
         if(childL != nullptr) {
             tmp = *childL;
             
-            lIntersection = AABBIntersection(ray, tmp.min, tmp.max, &distance);
+            lIntersection = AABBIntersection(ray, tmp.min, tmp.max);
             
             if (lIntersection) {
                 // Leaf node
@@ -661,10 +676,14 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray,
                     intersectionFound = intersection(ray, &curr, childL->shape);
 
                     if(intersectionFound) {
-                        shapeIntersectionLst[*lstIndex].shape = childL->shape;
-                        shapeIntersectionLst[*lstIndex].distance = curr.distance;
-                        (*lstIndex)++;
-                        result = true;
+                        if(lstIndex >= INTERSECTION_LST_SIZE) {
+                            aux++;
+                            
+                        } else {
+
+                            shapeIntersectionLst[lstIndex++].update(curr);
+                            result = true;
+                        }
                     }
 
                 } else {
@@ -677,7 +696,7 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray,
         if(childR != nullptr) {
             tmp = *childR;
             
-            rIntersection = AABBIntersection(ray, tmp.min, tmp.max, &distance);
+            rIntersection = AABBIntersection(ray, tmp.min, tmp.max);
             
             if (rIntersection) {
                 // Leaf node
@@ -685,10 +704,14 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray,
                     intersectionFound = intersection(ray, &curr, childR->shape);
 
                     if(intersectionFound) {
-                        shapeIntersectionLst[*lstIndex].shape = childR->shape;
-                        shapeIntersectionLst[*lstIndex].distance = curr.distance;
-                        (*lstIndex)++;
-                        result = true;
+                        if(lstIndex >= INTERSECTION_LST_SIZE) {
+                            aux++;
+
+                        } else {
+
+                            shapeIntersectionLst[lstIndex++].update(curr);
+                            result = true;
+                        }
                     }
 
                 } else {
@@ -707,6 +730,10 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray,
                 stackNodes[stackIndex++] = childR; // push
             }
         }
+    }
+
+    if(aux > 0) {
+        printf("Increase INTERSECTION_LST_SIZE from %d to %d\n", INTERSECTION_LST_SIZE, lstIndex + aux);
     }
 
     return result;
