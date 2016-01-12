@@ -6,12 +6,12 @@
 #include <helper_math.h>
 #include <helper_cuda.h>
 
-#define SUPER_SAMPLING 1
+#define SUPER_SAMPLING 3
 #define SUPER_SAMPLING_F (1.0f / SUPER_SAMPLING)
 #define SUPER_SAMPLING_2 (SUPER_SAMPLING * SUPER_SAMPLING)
 #define SUPER_SAMPLING_2_F (1.0f / SUPER_SAMPLING_2)
 
-#define MAX_DEPTH 2
+#define MAX_DEPTH 3
 #define EPSILON 1E-4f
 #define OBB_AABB_EPSILON 15.0f
 
@@ -26,6 +26,13 @@
 #define triangleIndex 2
 #define planeIndex 3
 #define nShapes 4
+
+#define GENERAL_INTERSECTION
+//#define SOFT_SHADOWS
+#define AT
+
+#define AOIT_NODE_COUNT 4
+#define INTERSECTION_LST_SIZE (AOIT_NODE_COUNT * 2)
 
 struct Matrix {
     float3 M[3];

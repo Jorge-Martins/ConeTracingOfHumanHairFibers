@@ -3,9 +3,6 @@
 #ifndef _RAYTRACER_KERNEL_CU_
 #define _RAYTRACER_KERNEL_CU_
 
-#define GENERAL_INTERSECTION
-//#define SOFT_SHADOWS
-//#define AT
 
 #include <cfloat>
 
