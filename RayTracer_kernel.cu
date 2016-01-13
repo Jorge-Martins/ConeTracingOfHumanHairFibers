@@ -191,58 +191,7 @@ float3 computeTransmissionDir(float3 inDir, float3 normal, float beforeIOR, floa
 	return refract(inDir, normal, beforeIOR / afterIOR);
 }
 
-__device__
-float3 computeShadows(int **d_shapes, uint *d_shapeSizes, Light* lights, Ray ray, Ray feeler, float3 blackColor, Material mat, 
-                      RayIntersection intersect, uint li, float3 feelerDir) {
-    feeler.update(intersect.point, feelerDir);
-            
-    #ifdef GENERAL_INTERSECTION
-    bool inShadow = findShadow(d_shapes, d_shapeSizes, feeler);
-    #else
-    bool inShadow = cylFindShadow(d_shapes, d_shapeSizes, feeler);
-    #endif
-            
-	if(!inShadow) {
-        float3 reflectDir = reflect(-feelerDir, intersect.normal);
-        float Lspec = powf(fmaxf(dot(reflectDir, -ray.direction), 0.0f), mat.shininess);
-        float Ldiff = fmaxf(dot(feelerDir, intersect.normal), 0.0f);
 
-        return (Ldiff * mat.color * mat.Kdiffuse + Lspec * mat.Kspecular) * lights[li].color;
-	}
-
-    return blackColor;
-}
-
-__device__
-float3 computeSoftShadows(int **d_shapes, uint *d_shapeSizes, Light* lights, Ray ray, Ray feeler, float3 blackColor, 
-                          Material mat, RayIntersection intersect, uint li, float3 feelerDir) {
-    float3 u, v;
-    const float3 xAxis = make_float3(1, 0, 0);
-    const float3 yAxis = make_float3(0, 1, 0);
-
-    if (equal(dot(xAxis, feelerDir), 1.0f)) {
-		u = cross(feelerDir, yAxis);
-	}
-	else {
-		u = cross(feelerDir, xAxis);
-	}
-	v = cross(feelerDir, u);
-            
-    float3 localColor = blackColor;
-    for (int x = 0; x < LIGHT_SAMPLE_RADIUS; x++) {
-		for (int y = 0; y < LIGHT_SAMPLE_RADIUS; y++) {
-			float xCoord = LIGHT_SOURCE_SIZE * ((y + 0.5f) * LIGHT_SAMPLE_RADIUS_F - 0.5f);
-			float yCoord = LIGHT_SOURCE_SIZE * ((x + 0.5f) * LIGHT_SAMPLE_RADIUS_F - 0.5f);
-
-			feelerDir = normalize((lights[li].position + xCoord*u + yCoord*v) - intersect.point);
-                    
-            localColor += SUM_FACTOR * computeShadows(d_shapes, d_shapeSizes, lights, ray, feeler,
-                                                      blackColor, mat, intersect, li, feelerDir);
-		}
-	}
-
-    return localColor;
-}
 
 
 
@@ -259,7 +208,6 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
 
     unsigned char *colorContributionType = &globalColorContributionType[offset * rtStackSize];
 
-    Ray feeler = Ray();
     Ray ray = Ray();
 
     int rayIndex = 0, colorsIndex = 0, contributionIndex = 0;
@@ -298,16 +246,12 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
             colorAux = blackColor;
 	        for(uint li = 0; li < lightSize; li++) {
                 #ifndef SOFT_SHADOWS
-                    #ifndef AT 
-                    colorAux += computeShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
-                                               li, normalize(lights[li].position - intersect.point));
-                    #else
-                    colorAux += computeATShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
-                                               li, normalize(lights[li].position - intersect.point));
-                    #endif
+                colorAux += computeShadows(d_shapes, d_shapeSizes, lights, ray, intersect,
+                                           li, normalize(lights[li].position - intersect.point));
+                    
                 #else
-                colorAux += computeSoftShadows(d_shapes, d_shapeSizes, lights, ray, feeler, blackColor, mat, intersect,
-                                                 li, normalize(lights[li].position - intersect.point));
+                colorAux += computeSoftShadows(d_shapes, d_shapeSizes, lights, ray, intersect,
+                                               li, normalize(lights[li].position - intersect.point));
                 #endif
 	        }
             localsStack[colorsIndex] = colorAux;

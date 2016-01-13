@@ -29,7 +29,8 @@
 
 #define GENERAL_INTERSECTION
 //#define SOFT_SHADOWS
-#define AT
+#define AT_SHADOWS
+#define AT_FULL
 
 #define AOIT_NODE_COUNT 4
 #define INTERSECTION_LST_SIZE (AOIT_NODE_COUNT * 2)
