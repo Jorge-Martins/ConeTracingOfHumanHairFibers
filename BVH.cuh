@@ -174,9 +174,9 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIn
         if(childL != nullptr) {
             tmp = *childL;
             if(tmp.type == AABB) {
-                lIntersection = AABBIntersection(ray, tmp.min, tmp.max, &distance);
+                lIntersection = AABBIntersection(ray, tmp.min, tmp.max, distance);
             } else {
-                lIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation, &distance);
+                lIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation, distance);
             }
 
             if (lIntersection && distance < minIntersect->distance) {
@@ -200,9 +200,9 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIn
         if(childR != nullptr) {
             tmp = *childR;
             if(tmp.type == AABB) {
-                rIntersection = AABBIntersection(ray, tmp.min, tmp.max, &distance);
+                rIntersection = AABBIntersection(ray, tmp.min, tmp.max, distance);
             } else {
-                rIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation, &distance);
+                rIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation, distance);
             }
 
             if (rIntersection && distance < minIntersect->distance) {
@@ -282,7 +282,7 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIntersectio
         if(childL != nullptr) {
             tmp = *childL;
             
-            lIntersection = AABBIntersection(ray, tmp.min, tmp.max, &distance);
+            lIntersection = AABBIntersection(ray, tmp.min, tmp.max, distance);
             
             if (lIntersection && distance < minIntersect->distance) {
                 // Leaf node
@@ -305,7 +305,7 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIntersectio
         if(childR != nullptr) {
             tmp = *childR;
             
-            rIntersection = AABBIntersection(ray, tmp.min, tmp.max, &distance);
+            rIntersection = AABBIntersection(ray, tmp.min, tmp.max, distance);
             
             if (rIntersection && distance < minIntersect->distance) {
                 // Leaf node

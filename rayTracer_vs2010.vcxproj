@@ -115,6 +115,9 @@
       <OpenMPSupport Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
       </OpenMPSupport>
     </ClCompile>
+    <CudaCompile>
+      <Keep Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</Keep>
+    </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="parsing\mc_driver.cpp" />
@@ -129,6 +132,7 @@
     <ClInclude Include="Primitives.h" />
     <ClInclude Include="Scene.h" />
     <ClInclude Include="SceneLoader.h" />
+    <ClInclude Include="tracing.cuh" />
     <CudaCompile Include="rayTracer_kernel.cu" />
   </ItemGroup>
   <ItemGroup>

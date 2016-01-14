@@ -355,19 +355,19 @@ bool AABBIntersection(Ray ray, float3 min, float3 max) {
 }
 
 __device__
-bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
+bool AABBIntersection(Ray ray, float3 min, float3 max, float &distance) {
     float t1, t2;
     switch (ray.classification) {
 	    case NNN:	
             if(nnn(ray, min, max)) {
-                *distance = (max.x - ray.origin.x) * ray.invDirection.x;
+                distance = (max.x - ray.origin.x) * ray.invDirection.x;
 			    t1 = (max.y - ray.origin.y) * ray.invDirection.y;
-			    if(t1 > *distance) {
-				    *distance = t1;
+			    if(t1 > distance) {
+				    distance = t1;
                 }
 			    t2 = (max.z - ray.origin.z) * ray.invDirection.z;
-			    if(t2 > *distance) {
-				    *distance = t2;
+			    if(t2 > distance) {
+				    distance = t2;
                 }
 
 			    return true;
@@ -376,14 +376,14 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 
 	    case NNP:	
 		    if(nnp(ray, min, max)) {
-                *distance = (max.x - ray.origin.x) * ray.invDirection.x;
+                distance = (max.x - ray.origin.x) * ray.invDirection.x;
 			    t1 = (max.y - ray.origin.y) * ray.invDirection.y;
-			    if(t1 > *distance) {
-				    *distance = t1;
+			    if(t1 > distance) {
+				    distance = t1;
                 }
 			    t2 = (min.z - ray.origin.z) * ray.invDirection.z;
-			    if(t2 > *distance) {
-				    *distance = t2;
+			    if(t2 > distance) {
+				    distance = t2;
                 }
 
 			    return true;
@@ -392,14 +392,14 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 
 	    case NPN:	
 		    if(npn(ray, min, max)) {
-                *distance = (max.x - ray.origin.x) * ray.invDirection.x;
+                distance = (max.x - ray.origin.x) * ray.invDirection.x;
 		        t1 = (min.y - ray.origin.y) * ray.invDirection.y;
-		        if(t1 > *distance) {
-			        *distance = t1;
+		        if(t1 > distance) {
+			        distance = t1;
                 }
 		        t2 = (max.z - ray.origin.z) * ray.invDirection.z;
-		        if(t2 > *distance) {
-			        *distance = t2;
+		        if(t2 > distance) {
+			        distance = t2;
                 }
 
 		        return true;
@@ -408,14 +408,14 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 
 	    case NPP:
 		    if(npp(ray, min, max)) {
-                *distance = (max.x - ray.origin.x) * ray.invDirection.x;
+                distance = (max.x - ray.origin.x) * ray.invDirection.x;
                 t1 = (min.y - ray.origin.y) * ray.invDirection.y;
-                if(t1 > *distance) {
-                    *distance = t1;
+                if(t1 > distance) {
+                    distance = t1;
                 }
                 t2 = (min.z - ray.origin.z) * ray.invDirection.z;
-                if(t2 > *distance) {
-                    *distance = t2;
+                if(t2 > distance) {
+                    distance = t2;
                 }
 
                 return true;
@@ -424,14 +424,14 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 
 	    case PNN:
 		    if(pnn(ray, min, max)) {
-                *distance = (min.x - ray.origin.x) * ray.invDirection.x;
+                distance = (min.x - ray.origin.x) * ray.invDirection.x;
                 t1 = (max.y - ray.origin.y) * ray.invDirection.y;
-                if(t1 > *distance) {
-                    *distance = t1;
+                if(t1 > distance) {
+                    distance = t1;
                 }
                 t2 = (max.z - ray.origin.z) * ray.invDirection.z;
-                if(t2 > *distance) {
-                    *distance = t2;
+                if(t2 > distance) {
+                    distance = t2;
                 }
 
                 return true;
@@ -440,14 +440,14 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 
 	    case PNP:
 		    if(pnp(ray, min, max)) {
-                *distance = (min.x - ray.origin.x) * ray.invDirection.x;
+                distance = (min.x - ray.origin.x) * ray.invDirection.x;
                 t1 = (max.y - ray.origin.y) * ray.invDirection.y;
-                if(t1 > *distance) {
-                    *distance = t1;
+                if(t1 > distance) {
+                    distance = t1;
                 }
                 t2 = (min.z - ray.origin.z) * ray.invDirection.z;
-                if(t2 > *distance) {
-                    *distance = t2;
+                if(t2 > distance) {
+                    distance = t2;
                 }
 
                 return true;
@@ -456,14 +456,14 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 
 	    case PPN:
 		    if(ppn(ray, min, max)) {
-                *distance = (min.x - ray.origin.x) * ray.invDirection.x;
+                distance = (min.x - ray.origin.x) * ray.invDirection.x;
                 t1 = (min.y - ray.origin.y) * ray.invDirection.y;
-                if(t1 > *distance) {
-                    *distance = t1;
+                if(t1 > distance) {
+                    distance = t1;
                 }
                 t2 = (max.z - ray.origin.z) * ray.invDirection.z;
-                if(t2 > *distance) {
-                    *distance = t2;
+                if(t2 > distance) {
+                    distance = t2;
                 }
 
                 return true;
@@ -472,14 +472,14 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 
 	    case PPP:
 		    if(ppp(ray, min, max)) {
-                *distance = (min.x - ray.origin.x) * ray.invDirection.x;
+                distance = (min.x - ray.origin.x) * ray.invDirection.x;
                 t1 = (min.y - ray.origin.y) * ray.invDirection.y;
-                if(t1 > *distance) {
-                    *distance = t1;
+                if(t1 > distance) {
+                    distance = t1;
                 }
                 t2 = (min.z - ray.origin.z) * ray.invDirection.z;
-                if(t2 > *distance) {
-                    *distance = t2;
+                if(t2 > distance) {
+                    distance = t2;
                 }
 
                 return true;
@@ -488,10 +488,10 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 
 	    case ONN:
 		    if(onn(ray, min, max)) {
-                *distance = (max.y - ray.origin.y) * ray.invDirection.y;
+                distance = (max.y - ray.origin.y) * ray.invDirection.y;
                 t2 = (max.z - ray.origin.z) * ray.invDirection.z;
-                if(t2 > *distance) {
-                    *distance = t2;
+                if(t2 > distance) {
+                    distance = t2;
                 }
 
                 return true;
@@ -501,10 +501,10 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 
 	    case ONP:
 		    if(onp(ray, min, max)) {
-                *distance = (max.y - ray.origin.y) * ray.invDirection.y;
+                distance = (max.y - ray.origin.y) * ray.invDirection.y;
                 t2 = (min.z - ray.origin.z) * ray.invDirection.z;
-                if(t2 > *distance) {
-                    *distance = t2;
+                if(t2 > distance) {
+                    distance = t2;
                 }
 
                 return true;
@@ -514,10 +514,10 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 
 	    case OPN:
 		    if(opn(ray, min, max)) {
-                *distance = (min.y - ray.origin.y) * ray.invDirection.y;		
+                distance = (min.y - ray.origin.y) * ray.invDirection.y;		
                 t2 = (max.z - ray.origin.z) * ray.invDirection.z;
-                if(t2 > *distance) {
-                    *distance = t2;
+                if(t2 > distance) {
+                    distance = t2;
                 }
 
                 return true;
@@ -526,10 +526,10 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 
 	    case OPP:
 		    if(opp(ray, min, max)) {
-                *distance = (min.y - ray.origin.y) * ray.invDirection.y;		
+                distance = (min.y - ray.origin.y) * ray.invDirection.y;		
                 t2 = (min.z - ray.origin.z) * ray.invDirection.z;
-                if(t2 > *distance) {
-                    *distance = t2;
+                if(t2 > distance) {
+                    distance = t2;
                 }
 
                 return true;
@@ -538,10 +538,10 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 
 	    case NON:
 		    if(non(ray, min, max)) {
-                *distance = (max.x - ray.origin.x) * ray.invDirection.x;
+                distance = (max.x - ray.origin.x) * ray.invDirection.x;
                 t2 = (max.z - ray.origin.z) * ray.invDirection.z;
-                if(t2 > *distance) {
-                    *distance = t2;
+                if(t2 > distance) {
+                    distance = t2;
                 }
 
                 return true;
@@ -550,10 +550,10 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 
 	    case NOP:
 		    if(nop(ray, min, max)) {
-                *distance = (max.x - ray.origin.x) * ray.invDirection.x;
+                distance = (max.x - ray.origin.x) * ray.invDirection.x;
                 t2 = (min.z - ray.origin.z) * ray.invDirection.z;
-                if(t2 > *distance) {
-                    *distance = t2;
+                if(t2 > distance) {
+                    distance = t2;
                 }
 
                 return true;
@@ -562,10 +562,10 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 
 	    case PON:
 		    if(pon(ray, min, max)) {
-                *distance = (min.x - ray.origin.x) * ray.invDirection.x;
+                distance = (min.x - ray.origin.x) * ray.invDirection.x;
                 t2 = (max.z - ray.origin.z) * ray.invDirection.z;
-                if(t2 > *distance) {
-                    *distance = t2;
+                if(t2 > distance) {
+                    distance = t2;
                 }
 
                 return true;
@@ -574,10 +574,10 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 
 	    case POP:
 		    if(pop(ray, min, max)) {
-                *distance = (min.x - ray.origin.x) * ray.invDirection.x;
+                distance = (min.x - ray.origin.x) * ray.invDirection.x;
                 t2 = (min.z - ray.origin.z) * ray.invDirection.z;
-                if(t2 > *distance) {
-                    *distance = t2;
+                if(t2 > distance) {
+                    distance = t2;
                 }
 
                 return true;
@@ -586,10 +586,10 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 
 	    case NNO:
 		    if(nno(ray, min, max)) {
-                *distance = (max.x - ray.origin.x) * ray.invDirection.x;
+                distance = (max.x - ray.origin.x) * ray.invDirection.x;
                 t1 = (max.y - ray.origin.y) * ray.invDirection.y;
-                if(t1 > *distance) {
-                    *distance = t1;
+                if(t1 > distance) {
+                    distance = t1;
                 }
 
                 return true;
@@ -598,10 +598,10 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 
 	    case NPO:
 		    if(npo(ray, min, max)) {
-                *distance = (max.x - ray.origin.x) * ray.invDirection.x;
+                distance = (max.x - ray.origin.x) * ray.invDirection.x;
                 t1 = (min.y - ray.origin.y) * ray.invDirection.y;
-                if(t1 > *distance) {
-                    *distance = t1;
+                if(t1 > distance) {
+                    distance = t1;
                 }
 
                 return true;
@@ -610,10 +610,10 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 
 	    case PNO:
 		    if(pno(ray, min, max)) {
-                *distance = (min.x - ray.origin.x) * ray.invDirection.x;
+                distance = (min.x - ray.origin.x) * ray.invDirection.x;
                 t1 = (max.y - ray.origin.y) * ray.invDirection.y;
-                if(t1 > *distance) {
-                    *distance = t1;
+                if(t1 > distance) {
+                    distance = t1;
                 }
 
                 return true;
@@ -622,10 +622,10 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 
 	    case PPO:
 		    if(ppo(ray, min, max)) {
-                *distance = (min.x - ray.origin.x) * ray.invDirection.x;
+                distance = (min.x - ray.origin.x) * ray.invDirection.x;
                 t1 = (min.y - ray.origin.y) * ray.invDirection.y;
-                if(t1 > *distance) {
-                    *distance = t1;
+                if(t1 > distance) {
+                    distance = t1;
                 }
 
                 return true;
@@ -633,42 +633,42 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float *distance) {
 			
 	    case NOO:
 		    if(noo(ray, min, max)) {
-                *distance = (max.x - ray.origin.x) * ray.invDirection.x;
+                distance = (max.x - ray.origin.x) * ray.invDirection.x;
                 return true;
             }
 			break;
 
 	    case POO:
 		    if(poo(ray, min, max)) {
-                *distance = (min.x - ray.origin.x) * ray.invDirection.x;
+                distance = (min.x - ray.origin.x) * ray.invDirection.x;
                 return true;
             }
 			break;
 
 	    case ONO:
 		    if(ono(ray, min, max)) {
-                *distance = (max.y - ray.origin.y) * ray.invDirection.y;
+                distance = (max.y - ray.origin.y) * ray.invDirection.y;
                 return true;
             }
 			break;
 
 	    case OPO:
 		    if(opo(ray, min, max)) {
-                *distance = (min.y - ray.origin.y) * ray.invDirection.y;
+                distance = (min.y - ray.origin.y) * ray.invDirection.y;
                 return true;
             }
 			break;
 
 	    case OON:
 		    if(oon(ray, min, max)) {
-                *distance = (max.z - ray.origin.z) * ray.invDirection.z;
+                distance = (max.z - ray.origin.z) * ray.invDirection.z;
                 return true;
             }
 			break;
 
 	    case OOP:
 		    if(oop(ray, min, max)) {
-                *distance = (min.z - ray.origin.z) * ray.invDirection.z;
+                distance = (min.z - ray.origin.z) * ray.invDirection.z;
                 return true;
             }
 			break;
@@ -686,10 +686,10 @@ bool OBBIntersection(Ray ray, float3 min, float3 max, Matrix *m, float3 *transla
 }
 
 __device__
-bool OBBIntersection(Ray ray, float3 min, float3 max, Matrix *m, float3 *translation, float *distance) {
-    Ray temp = Ray(*m * (ray.origin + *translation), *m * ray.direction);
+bool OBBIntersection(Ray ray, float3 min, float3 max, Matrix *m, float3 *translation, float &distance) {
+    ray.update(*m * (ray.origin + *translation), *m * ray.direction);
     
-    return AABBIntersection(temp, min, max, distance);
+    return AABBIntersection(ray, min, max, distance);
 }
 
 __device__

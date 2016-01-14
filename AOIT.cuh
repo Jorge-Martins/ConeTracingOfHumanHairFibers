@@ -3,8 +3,14 @@
 #ifndef __AOIT__
 #define __AOIT__
 
-#include "BVH.cuh"
+#include "tracing.cuh"
 
+#define GENERAL_INTERSECTION
+//#define SOFT_SHADOWS
+#define AT_SHADOWS
+
+#define AOIT_NODE_COUNT 4
+#define INTERSECTION_LST_SIZE (2 * AOIT_NODE_COUNT)
 
 __device__ void setVectorValue(float4 &vec, int pos, float value) {
     if(pos == 0) {
@@ -343,7 +349,7 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray,
 
     bool result = false;
     bool lIntersection, rIntersection, traverseL, traverseR; 
-    //int aux = 0;
+    
     while(node != nullptr) {
         lIntersection = rIntersection = traverseL = traverseR = false;
 
@@ -359,17 +365,18 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray,
             if (lIntersection) {
                 // Leaf node
                 if (childL->shape != nullptr) {
-                     intersectionFound = intersection(ray, &curr, childL->shape);
+                    if(lstIndex < INTERSECTION_LST_SIZE) {
+                        intersectionFound = intersection(ray, &curr, childL->shape);
 
-                    if(intersectionFound) {
-                        if(lstIndex < INTERSECTION_LST_SIZE) {
+                        if(intersectionFound) {
                             AOITInsertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
                             shapeIntersectionLst[lstIndex++].update(curr);
                             result = true;
                             
-                        } else {
-                            return result;
-                        }
+                        } 
+
+                    } else {
+                        return result;
                     }
 
                 } else {
@@ -390,17 +397,18 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray,
             if (rIntersection) {
                 // Leaf node
                 if (childR->shape != nullptr) {
-                   intersectionFound = intersection(ray, &curr, childR->shape);
+                    if(lstIndex < INTERSECTION_LST_SIZE) {
+                        intersectionFound = intersection(ray, &curr, childR->shape);
 
-                    if(intersectionFound) {
-                        if(lstIndex < INTERSECTION_LST_SIZE) {
+                        if(intersectionFound) {
                             AOITInsertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
                             shapeIntersectionLst[lstIndex++].update(curr);
                             result = true;
                             
-                        } else {
-                            return result;
-                        }
+                        } 
+
+                    } else {
+                        return result;
                     }
 
                 } else {
@@ -420,10 +428,6 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray,
             }
         }
     }
-
-    /*if(aux > 0) {
-        printf("Increase INTERSECTION_LST_SIZE from %d to %d\n", INTERSECTION_LST_SIZE, lstIndex + aux);
-    }*/
 
     return result;
 }
@@ -454,7 +458,7 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray,
     
     bool result = false;
     bool lIntersection, rIntersection, traverseL, traverseR; 
-    //int aux = 0;
+    
     while(node != nullptr) {
         lIntersection = rIntersection = traverseL = traverseR = false;
 
@@ -495,230 +499,18 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray,
             if (rIntersection) {
                 // Leaf node
                 if (childR->shape != nullptr) {
-                    intersectionFound = intersection(ray, &curr, childR->shape);
+                    if(lstIndex < INTERSECTION_LST_SIZE) {
+                        intersectionFound = intersection(ray, &curr, childR->shape);
 
-                    if(intersectionFound) {
-                        if(lstIndex < INTERSECTION_LST_SIZE) {
+                        if(intersectionFound) {
                             AOITInsertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
                             shapeIntersectionLst[lstIndex++].update(curr);
                             result = true;
                             
-                        } else {
-                            return result;
                         }
-                    }
 
-                } else {
-                    traverseR = true;
-                }
-            }
-        }
-
-        
-        if (!traverseL && !traverseR) {
-            node = stackNodes[--stackIndex]; // pop
-
-        } else {
-            node = (traverseL) ? childL : childR;
-            if (traverseL && traverseR) {             
-                stackNodes[stackIndex++] = childR; // push
-            }
-        }
-    }
-
-   /* if(aux > 0) {
-        printf("Increase INTERSECTION_LST_SIZE from %d to %d\n", INTERSECTION_LST_SIZE, lstIndex + aux);
-    }*/
-
-    return result;
-}
-
-/*
- * Traverse BVH and save all intersections with shapes
- */
-template <typename BVHNodeType>
-__device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, 
-                                  RayIntersection *shapeIntersectionLst, int &lstIndex) {
-    
-    bool intersectionFound = false;
-    RayIntersection curr = RayIntersection();
-
-    BVHNodeType *stackNodes[StackSize];
-    
-    uint stackIndex = 0;
-
-    stackNodes[stackIndex++] = nullptr;
-    
-    BVHNodeType *childL, *childR, *node = &bvh[0], tmp;
-
-    tmp = *node;
-    if(tmp.type == AABB) {
-        intersectionFound = AABBIntersection(ray, tmp.min, tmp.max);
-    } else {
-        intersectionFound = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
-    }
-    
-    if(!intersectionFound) {
-        return false;
-    }
-
-    bool result = false;
-    bool lIntersection, rIntersection, traverseL, traverseR; 
-
-    while(node != nullptr) {
-        lIntersection = rIntersection = traverseL = traverseR = false;
-
-        childL = node->lchild;
-        if(childL != nullptr) {
-            tmp = *childL;
-            if(tmp.type == AABB) {
-                lIntersection = AABBIntersection(ray, tmp.min, tmp.max);
-            } else {
-                lIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
-            }
-
-            if (lIntersection) {
-                // Leaf node
-                if (childL->shape != nullptr) {
-                    intersectionFound = intersection(ray, &curr, childL->shape);
-
-                    if(intersectionFound) {
-                        if(lstIndex < INTERSECTION_LST_SIZE) {
-                            shapeIntersectionLst[lstIndex++] = curr;
-                            result = true;
-                            
-                        } else {
-                            return result;
-                        }
-                    }
-
-                } else {
-                    traverseL = true;
-                }
-            }
-        }
-
-        childR = node->rchild;
-        if(childR != nullptr) {
-            tmp = *childR;
-            if(tmp.type == AABB) {
-                rIntersection = AABBIntersection(ray, tmp.min, tmp.max);
-            } else {
-                rIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
-            }
-
-            if (rIntersection) {
-                // Leaf node
-                if (childR->shape != nullptr) {
-                   intersectionFound = intersection(ray, &curr, childR->shape);
-
-                    if(intersectionFound) {
-                        if(lstIndex < INTERSECTION_LST_SIZE) {
-                            shapeIntersectionLst[lstIndex++] = curr;
-                            result = true;
-                            
-                        } else {
-                            return result;
-                        }
-                    }
-
-                } else {
-                    traverseR = true;
-                }
-            }
-        }
-
-        
-        if (!traverseL && !traverseR) {
-            node = stackNodes[--stackIndex]; // pop
-
-        } else {
-            node = (traverseL) ? childL : childR;
-            if (traverseL && traverseR) {             
-                stackNodes[stackIndex++] = childR; // push
-            }
-        }
-    }
-
-    return result;
-}
-
-template <typename BVHNodeType>
-__device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray, 
-                         RayIntersection *shapeIntersectionLst, int &lstIndex) {
-
-    bool intersectionFound = false;
-    RayIntersection curr = RayIntersection();
-
-    BVHNodeType *stackNodes[StackSize];
-    
-    uint stackIndex = 0;
-
-    stackNodes[stackIndex++] = nullptr;
-    
-    BVHNodeType *childL, *childR, *node = &bvh[0], tmp;
-
-    tmp = *node;
-    
-    intersectionFound = AABBIntersection(ray, tmp.min, tmp.max);
-    
-    if(!intersectionFound) {
-        return false;
-    }
-
-    
-    bool result = false;
-    bool lIntersection, rIntersection, traverseL, traverseR; 
-    
-    while(node != nullptr) {
-        lIntersection = rIntersection = traverseL = traverseR = false;
-
-        childL = node->lchild;
-        if(childL != nullptr) {
-            tmp = *childL;
-            
-            lIntersection = AABBIntersection(ray, tmp.min, tmp.max);
-            
-            if (lIntersection) {
-                // Leaf node
-                if (childL->shape != nullptr) {
-                    intersectionFound = intersection(ray, &curr, childL->shape);
-
-                    if(intersectionFound) {
-                        if(lstIndex < INTERSECTION_LST_SIZE) {
-                            shapeIntersectionLst[lstIndex++] = curr;
-                            result = true;
-                            
-                        } else {
-                            return result;
-                        }
-                    }
-
-                } else {
-                    traverseL = true;
-                }
-            }
-        }
-
-        childR = node->rchild;
-        if(childR != nullptr) {
-            tmp = *childR;
-            
-            rIntersection = AABBIntersection(ray, tmp.min, tmp.max);
-            
-            if (rIntersection) {
-                // Leaf node
-                if (childR->shape != nullptr) {
-                    intersectionFound = intersection(ray, &curr, childR->shape);
-
-                    if(intersectionFound) {
-                        if(lstIndex < INTERSECTION_LST_SIZE) {
-                            shapeIntersectionLst[lstIndex++] = curr;
-                            result = true;
-                            
-                        } else {
-                            return result;
-                        }
+                    } else {
+                        return result;
                     }
 
                 } else {
@@ -747,15 +539,15 @@ __device__ float3 computeAOITColor(IntersectionLstItem *shapeIntersectionLst, in
 
     float3 color = make_float3(0.0f);
     // Fetch all nodes again and composite them
-    float factor = 1.0f / lstSize;
+
+    float vis, factor = 1.0f / lstSize;
     for(int i = 0; i < lstSize; i++) {
         node = &shapeIntersectionLst[i];
 
         AOITFragment frag = AOITFindFragment(dataAT, node->distance);
 
-        float vis = frag.index == 0 ? 1.0f : frag.transA;
-        color += factor * node->color * node->transparency * vis;
-                  
+        vis = frag.index == 0 ? 1.0f : frag.transA;
+        color += factor * node->color * node->transparency * vis;      
     }
 
     return color;
@@ -792,15 +584,16 @@ __device__ float3 computeTransparency(int **d_shapes, uint *d_shapeSizes, Ray fe
 
         } else if(shapeType == planeIndex) {
             Plane *plane = (Plane*) d_shapes[shapeType];
-            bool result;
+            bool result = false;
             RayIntersection curr = RayIntersection();
 
-            result = intersection(feeler, &curr, plane[0]);
+            if(lstSize < INTERSECTION_LST_SIZE) {
+                result = intersection(feeler, &curr, plane[0]);
+            }
 
             if(result) {
-                if(lstSize < INTERSECTION_LST_SIZE) {
-                    shapeIntersectionLst[lstSize++].update(curr);
-                }
+                shapeIntersectionLst[lstSize].update(curr);
+                lstSize++;
                 AOITInsertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
             }
 
@@ -835,61 +628,6 @@ __device__ float3 cylComputeTransparency(int **d_shapes, uint *d_shapeSizes, Ray
 
     return color;
 }
-
-__device__ bool findIntersections(int **d_shapes, uint *d_shapeSizes, Ray feeler, RayIntersection *shapeIntersectionLst,
-                                  int &lstSize) {
-    bool intersectionFound = false;
-
-    for(uint shapeType = 0; shapeType < nShapes; shapeType++) {
-        if(d_shapeSizes[shapeType] == 0) {
-            continue;
-        }
-
-        if(shapeType == sphereIndex) {
-            SphereNode *bvh = (SphereNode*) d_shapes[shapeType];
-
-            intersectionFound |= traverse(bvh, d_shapeSizes[cylinderIndex], feeler, shapeIntersectionLst, lstSize);
-               
-        } else if(shapeType == cylinderIndex) {
-            CylinderNode *bvh = (CylinderNode*) d_shapes[shapeType];
-
-            intersectionFound |= traverseHybridBVH(bvh, d_shapeSizes[cylinderIndex], feeler, shapeIntersectionLst, lstSize);
-
-        } else if(shapeType == triangleIndex) {
-            TriangleNode *bvh = (TriangleNode*) d_shapes[shapeType];
-
-            intersectionFound |= traverse(bvh, d_shapeSizes[cylinderIndex], feeler, shapeIntersectionLst, lstSize);
-
-        } else if(shapeType == planeIndex) {
-            Plane *plane = (Plane*) d_shapes[shapeType];
-            bool result;
-            RayIntersection curr = RayIntersection();
-
-            result = intersection(feeler, &curr, plane[0]);
-
-            if(result && lstSize < INTERSECTION_LST_SIZE) {
-                shapeIntersectionLst[lstSize++] = curr;
-                
-            }
-
-            intersectionFound |= result;
-        }
-    }
-
-    
-    return intersectionFound;
-}
-
-__device__ bool findCylIntersections(int **d_shapes, uint *d_shapeSizes, Ray feeler, RayIntersection *shapeIntersectionLst,
-                                     int &lstSize) {
-
-    CylinderNode *bvh = (CylinderNode*) d_shapes[cylinderIndex];
-    
-    bool intersectionFound = traverseHybridBVH(bvh, d_shapeSizes[cylinderIndex], feeler, shapeIntersectionLst, lstSize);
-
-    return intersectionFound;
-}
-
 
 __device__ float3 computeShadows(int **d_shapes, uint *d_shapeSizes, Light* lights, Ray ray, 
                                  RayIntersection intersect, uint li, float3 feelerDir) {
@@ -964,62 +702,5 @@ __device__ float3 computeSoftShadows(int **d_shapes, uint *d_shapeSizes, Light* 
     return localColor;
 }
 
-__device__ float3 computeAT(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightSize, Ray ray,
-                            float3 backColor) {
-
-    RayIntersection intersections[INTERSECTION_LST_SIZE];
-    AOITData dataAT;
-
-    int lstSize;
-    float3 colorAux;
-    float3 black = make_float3(0.0f);
-    RayIntersection *node;
-
-    initAT(dataAT);
-
-    #ifdef GENERAL_INTERSECTION 
-    bool foundIntersect = findIntersections(d_shapes, d_shapeSizes, ray, intersections, lstSize);
-    #else
-	bool foundIntersect = findCylIntersections(d_shapes, d_shapeSizes, ray, intersections, lstSize);
-    #endif
-
-    if(foundIntersect) {
-        for(int i = 0; i < lstSize; i++) {
-            // local illumination
-            colorAux = black;
-	        for(uint li = 0; li < lightSize; li++) {
-                #ifndef SOFT_SHADOWS
-                colorAux += computeShadows(d_shapes, d_shapeSizes, lights, ray, intersections[i],
-                                           li, normalize(lights[li].position - intersections[i].point));
-                    
-                #else
-                colorAux += computeSoftShadows(d_shapes, d_shapeSizes, lights, ray, intersections[i],
-                                               li, normalize(lights[li].position - intersections[i].point));
-                #endif
-	        }
-
-            intersections[i].shapeMaterial.color = colorAux;
-            AOITInsertFragment(intersections[i].distance, intersections[i].shapeMaterial.transparency, dataAT);
-        }
-
-        float3 color = black;
-        // Fetch all nodes again and composite them
-        float factor = 1.0f / lstSize;
-        for(int i = 0; i < lstSize; i++) {
-            node = &intersections[i];
-
-            AOITFragment frag = AOITFindFragment(dataAT, node->distance);
-
-            float vis = frag.index == 0 ? 1.0f : frag.transA;
-            color += factor * node->shapeMaterial.color * node->shapeMaterial.transparency * vis;
-                  
-        }
-
-        return color;
-
-    } else {
-        return backColor;
-    }
-}
 
 #endif;

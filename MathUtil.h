@@ -27,13 +27,6 @@
 #define planeIndex 3
 #define nShapes 4
 
-#define GENERAL_INTERSECTION
-//#define SOFT_SHADOWS
-#define AT_SHADOWS
-#define AT_FULL
-
-#define AOIT_NODE_COUNT 4
-#define INTERSECTION_LST_SIZE (AOIT_NODE_COUNT * 2)
 
 struct Matrix {
     float3 M[3];
