@@ -12,37 +12,6 @@
 #define AOIT_NODE_COUNT 4
 #define INTERSECTION_LST_SIZE (2 * AOIT_NODE_COUNT)
 
-__device__ void setVectorValue(float4 &vec, int pos, float value) {
-    if(pos == 0) {
-        vec.x = value;
-
-    } else if(pos == 1) {
-        vec.y = value;
-
-    } else if(pos == 2) {
-        vec.z = value;
-
-    } else {
-        vec.w = value;
-    }
-}
-
-__device__ float getVectorValue(float4 vec, int pos) {
-    if(pos == 0) {
-        return vec.x;
-
-    } else if(pos == 1) {
-        return vec.y;
-
-    } else if(pos == 2) {
-        return vec.z;
-
-    } else {
-        return vec.w;
-    }
-}
-
-
 // Copyright 2011 Intel Corporation
 // All Rights Reserved
 //
@@ -75,8 +44,8 @@ __device__ float getVectorValue(float4 vec, int pos) {
 //////////////////////////////////////////////
 
 struct AOITData {
-    float4 depth[AOIT_RT_COUNT];
-    float4 trans[AOIT_RT_COUNT];
+    float depth[AOIT_NODE_COUNT + 1];
+    float trans[AOIT_NODE_COUNT + 1];
 };
 
 struct AOITFragment {
@@ -87,9 +56,9 @@ struct AOITFragment {
 
 __device__ void initAT(AOITData &dataAT) {
     // Initialize AVSM data    
-    for(int i = 0; i < AOIT_RT_COUNT; i++) {
-        dataAT.depth[i] = make_float4(AIOT_EMPTY_NODE_DEPTH);
-        dataAT.trans[i] = make_float4(AOIT_FIRT_NODE_TRANS);
+    for(int i = 0; i < AOIT_NODE_COUNT; i++) {
+        dataAT.depth[i] = AIOT_EMPTY_NODE_DEPTH;
+        dataAT.trans[i] = AOIT_FIRT_NODE_TRANS;
     }
 }
 
@@ -98,120 +67,110 @@ __device__ void initAT(AOITData &dataAT) {
 //////////////////////////////////////////////////
  
 __device__ AOITFragment AOITFindFragment(AOITData data, float fragmentDepth) {
-    float4 depth, trans;
+    float depth[4];
+    float trans[4];
     float  leftDepth;
     float  leftTrans;
     
     AOITFragment Output;      
 
     #if AOIT_RT_COUNT > 7    
-    if(fragmentDepth > data.depth[6].w) {
-        depth        = data.depth[7];
-        trans        = data.trans[7];
-        leftDepth    = data.depth[6].w;
-        leftTrans    = data.trans[6].w;
+    if(fragmentDepth > data.depth[27]) {
+        leftDepth    = data.depth[27];
+        leftTrans    = data.trans[27];
         Output.index = 28;
 
     } else
     #endif
 
     #if AOIT_RT_COUNT > 6    
-    if(fragmentDepth > data.depth[5].w) {
-        depth        = data.depth[6];
-        trans        = data.trans[6];
-        leftDepth    = data.depth[5].w;
-        leftTrans    = data.trans[5].w;
+    if(fragmentDepth > data.depth[23]) {
+        leftDepth    = data.depth[23];
+        leftTrans    = data.trans[23];
         Output.index = 24;
 
     } else
     #endif
 
     #if AOIT_RT_COUNT > 5    
-    if(fragmentDepth > data.depth[4].w) {
-        depth        = data.depth[5];
-        trans        = data.trans[5];
-        leftDepth    = data.depth[4].w;
-        leftTrans    = data.trans[4].w;
+    if(fragmentDepth > data.depth[19]) {
+        leftDepth    = data.depth[19];
+        leftTrans    = data.trans[19];
         Output.index = 20;
 
     } else
     #endif
 
     #if AOIT_RT_COUNT > 4    
-    if(fragmentDepth > data.depth[3].w) {
-        depth        = data.depth[4];
-        trans        = data.trans[4];
-        leftDepth    = data.depth[3].w;
-        leftTrans    = data.trans[3].w;    
+    if(fragmentDepth > data.depth[15]) {
+        leftDepth    = data.depth[15];
+        leftTrans    = data.trans[15];    
         Output.index = 16;
 
     } else
     #endif
 
     #if AOIT_RT_COUNT > 3    
-    if(fragmentDepth > data.depth[2].w) {
-        depth        = data.depth[3];
-        trans        = data.trans[3];
-        leftDepth    = data.depth[2].w;
-        leftTrans    = data.trans[2].w;    
+    if(fragmentDepth > data.depth[11]) {
+        leftDepth    = data.depth[11];
+        leftTrans    = data.trans[11];    
         Output.index = 12;
 
     } else
     #endif
 
     #if AOIT_RT_COUNT > 2    
-    if(fragmentDepth > data.depth[1].w) {
-        depth        = data.depth[2];
-        trans        = data.trans[2];
-        leftDepth    = data.depth[1].w;
-        leftTrans    = data.trans[1].w;          
+    if(fragmentDepth > data.depth[7]) {
+        leftDepth    = data.depth[7];
+        leftTrans    = data.trans[7];          
         Output.index = 8;
 
     } else
     #endif
 
     #if AOIT_RT_COUNT > 1    
-    if(fragmentDepth > data.depth[0].w) {
-        depth        = data.depth[1];
-        trans        = data.trans[1];
-        leftDepth    = data.depth[0].w;
-        leftTrans    = data.trans[0].w;       
+    if(fragmentDepth > data.depth[3]) {
+        leftDepth    = data.depth[3];
+        leftTrans    = data.trans[3];       
         Output.index = 4;
 
     } else
     #endif
 
     {    
-        depth        = data.depth[0];
-        trans        = data.trans[0];
-        leftDepth    = data.depth[0].x;
-        leftTrans    = data.trans[0].x;      
+        leftDepth    = data.depth[0];
+        leftTrans    = data.trans[0];      
         Output.index = 0;        
     } 
-      
-    if(fragmentDepth <= depth.x) {
+    
+    for(short i = 0; i < 4; i++) {
+        depth[i] = data.depth[Output.index + i];
+        trans[i] = data.trans[Output.index + i];
+    }
+
+    if(fragmentDepth <= depth[0]) {
         Output.depthA = leftDepth;
         Output.transA = leftTrans;
 
-    } else if(fragmentDepth <= depth.y) {
+    } else if(fragmentDepth <= depth[1]) {
         Output.index += 1;
-        Output.depthA = depth.x; 
-        Output.transA = trans.x;
+        Output.depthA = depth[0]; 
+        Output.transA = trans[0];
 
-    } else if(fragmentDepth <= depth.z) {
+    } else if(fragmentDepth <= depth[2]) {
         Output.index += 2;
-        Output.depthA = depth.y;
-        Output.transA = trans.y;
+        Output.depthA = depth[1];
+        Output.transA = trans[1];
 
-    } else if(fragmentDepth <= depth.w) {
+    } else if(fragmentDepth <= depth[3]) {
         Output.index += 3;    
-        Output.depthA = depth.z;
-        Output.transA = trans.z;
+        Output.depthA = depth[2];
+        Output.transA = trans[2];
 
     } else {
         Output.index += 4;       
-        Output.depthA = depth.w;
-        Output.transA = trans.w;
+        Output.depthA = depth[3];
+        Output.transA = trans[3];
     }
     
     return Output;
@@ -222,17 +181,6 @@ __device__ AOITFragment AOITFindFragment(AOITData data, float fragmentDepth) {
 ////////////////////////////////////////////////////
 
 __device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOITData &data) {
-    // Unpack AOIT data    
-    float depth[AOIT_NODE_COUNT + 1];	
-    float trans[AOIT_NODE_COUNT + 1];
-
-    for(int i = 0; i < AOIT_RT_COUNT; i++) {
-	    for(int j = 0; j < 4; j++) {
-		    depth[4 * i + j] = getVectorValue(data.depth[i], j);
-		    trans[4 * i + j] = getVectorValue(data.trans[i], j);
-	    }
-    }	
-
     // Find insertion index 
     AOITFragment tempFragment = AOITFindFragment(data, fragmentDepth);
     const int index = tempFragment.index;
@@ -245,21 +193,21 @@ __device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOI
     // (except for the node that represents the new fragment)
     for(int i = AOIT_NODE_COUNT - 1; i >= 0; i--) {
         if(index <= i) {
-            depth[i + 1] = depth[i];
-            trans[i + 1] = trans[i] * fragmentTrans;
+            data.depth[i + 1] = data.depth[i];
+            data.trans[i + 1] = data.trans[i] * fragmentTrans;
         }
     }
     
     // Insert new fragment
     for(int i = 0; i <= AOIT_NODE_COUNT; i++) {
         if(index == i) {
-            depth[i] = fragmentDepth;
-            trans[i] = fragmentTrans * prevTrans;
+            data.depth[i] = fragmentDepth;
+            data.trans[i] = fragmentTrans * prevTrans;
         }
     } 
     
     // pack representation if we have too many nodes
-    if(depth[AOIT_NODE_COUNT] != AIOT_EMPTY_NODE_DEPTH) {	                
+    if(data.depth[AOIT_NODE_COUNT] != AIOT_EMPTY_NODE_DEPTH) {	                
         
         // That's total number of nodes that can be possibly removed
         const int removalCandidateCount = (AOIT_NODE_COUNT + 1) - 1;
@@ -279,7 +227,7 @@ __device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOI
         float nodeUnderError[removalCandidateCount];
 
         for(int i = startRemovalIdx; i < removalCandidateCount; i++) {
-            nodeUnderError[i] = (depth[i] - depth[i - 1]) * (trans[i - 1] - trans[i]);
+            nodeUnderError[i] = (data.depth[i] - data.depth[i - 1]) * (data.trans[i - 1] - data.trans[i]);
         }
 
         // Find the node the generates the smallest removal error
@@ -300,22 +248,14 @@ __device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOI
         // Remove that node..
         for(int i = startRemovalIdx; i < AOIT_NODE_COUNT; i++) {
             if(i >= smallestErrorIdx) {
-                depth[i] = depth[i + 1];
+                data.depth[i] = data.depth[i + 1];
             }
 
             if(i - 1 >= smallestErrorIdx - 1) {
-                trans[i - 1] = trans[i];
+                data.trans[i - 1] = data.trans[i];
             }
         }
     }
-    
-    // Pack AOIT data
-    for(int i = 0; i < AOIT_RT_COUNT; i++) {
-	    for(int j = 0; j < 4; j++) {
-		    setVectorValue(data.depth[i], j, depth[4 * i + j]);
-		    setVectorValue(data.trans[i], j, trans[4 * i + j]);
-	    }
-    }	
 }
 
 /*

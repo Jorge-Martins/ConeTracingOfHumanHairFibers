@@ -31,7 +31,7 @@ float initHorizontalAngle = 180.0f, initVerticalAngle = 90.0f, initRadius = 20.0
 int xDragStart, yDragStart, dragging, zooming;
 float fov;
 
-bool stopRender = false, videoMode = false, nff = false;
+bool stopRender = false, videoMode = false, nff = false, lock = false;
 
 cudaEvent_t c_start, c_end;
 
@@ -377,18 +377,24 @@ void keyboardKey(unsigned char key, int x, int y) {
     if(key == 'f') {
         stopRender = false;
     }
-
+    
     if(key == 'm') {
-        if(videoMode) {
-            std::cout << "frame Mode:" << std::endl << std::endl;
+        if(!lock) {
+            if(videoMode) {
+                std::cout << "frame Mode:" << std::endl << std::endl;
+            } else {
+                std::cout << "video Mode:" << std::endl << std::endl;
+            }
+
+            videoMode = !videoMode;
+
         } else {
-            std::cout << "video Mode:" << std::endl << std::endl;
+            std::cout << "Release lock!" << std::endl << std::endl;
         }
-
-        videoMode = !videoMode;
     }
-
+    
     if(key == 'i') {
+        lock = true;
         std::cout << std::endl;
         std::cout << "-----------------------------------------------------------" << std::endl;
         std::cout << "Image comparator Menu" << std::endl;
@@ -414,8 +420,13 @@ void keyboardKey(unsigned char key, int x, int y) {
                 std::cout << "Command not supported" << std::endl;
             }
         }
-
+            
         std::cout << "-----------------------------------------------------------" << std::endl << std::endl;
+    }
+
+    if(key == 'l') {
+        std::cout << "Lock released" << std::endl << std::endl;
+        lock = false;
     }
 }
 
@@ -518,13 +529,13 @@ int main(int argc, char *argv[]) {
     } else {
         path = resourceDirPath + "HairModels/";
 
-        /*sceneName = "straight"; 
+        sceneName = "straight"; 
         initHorizontalAngle = 180.0f;
-        initFov = 28.0f;*/
+        initFov = 28.0f;
 
-        sceneName = "wCurly"; 
-        //initHorizontalAngle = 100.0f;
-        initFov = 44.0f;
+        //sceneName = "wCurly"; 
+        ////initHorizontalAngle = 100.0f;
+        //initFov = 44.0f;
         
         if (!load_hair(path + sceneName, scene, sceneName)) {
             cleanup();

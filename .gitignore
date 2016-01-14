@@ -25,3 +25,5 @@
 projects/*/obj/*
 projects/*/ipch/*
 
+ipch/
+x64/
