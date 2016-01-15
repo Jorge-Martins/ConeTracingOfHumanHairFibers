@@ -6,6 +6,13 @@
 #include <helper_math.h>
 #include <helper_cuda.h>
 
+#define GENERAL_INTERSECTION
+//#define SOFT_SHADOWS
+#define AT_SHADOWS
+
+#define AOIT_NODE_COUNT 4
+#define INTERSECTION_LST_SIZE (2 * AOIT_NODE_COUNT)
+
 #define SUPER_SAMPLING 3
 #define SUPER_SAMPLING_F (1.0f / SUPER_SAMPLING)
 #define SUPER_SAMPLING_2 (SUPER_SAMPLING * SUPER_SAMPLING)

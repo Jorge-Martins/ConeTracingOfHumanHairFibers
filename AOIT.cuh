@@ -5,33 +5,6 @@
 
 #include "tracing.cuh"
 
-#define GENERAL_INTERSECTION
-//#define SOFT_SHADOWS
-#define AT_SHADOWS
-
-#define AOIT_NODE_COUNT 4
-#define INTERSECTION_LST_SIZE (2 * AOIT_NODE_COUNT)
-
-// Copyright 2011 Intel Corporation
-// All Rights Reserved
-//
-// Permission is granted to use, copy, distribute and prepare derivative works of this
-// software for any purpose and without fee, provided, that the above copyright notice
-// and this statement appear in all copies.  Intel makes no representations about the
-// suitability of this software for any purpose.  THIS SOFTWARE IS PROVIDED "AS IS."
-// INTEL SPECIFICALLY DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, AND ALL LIABILITY,
-// INCLUDING CONSEQUENTIAL AND OTHER INDIRECT DAMAGES, FOR THE USE OF THIS SOFTWARE,
-// INCLUDING LIABILITY FOR INFRINGEMENT OF ANY PROPRIETARY RIGHTS, AND INCLUDING THE
-// WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.  Intel does not
-// assume any responsibility for any errors which may appear in this software nor any
-// responsibility to update it.
-
-
-//////////////////////////////////////////////
-// Defines
-//////////////////////////////////////////////
-
-
 #define AOIT_FIRT_NODE_TRANS	(1)
 #define AOIT_RT_COUNT			(AOIT_NODE_COUNT / 4)
 #define AIOT_EMPTY_NODE_DEPTH	(1E30)
@@ -39,20 +12,6 @@
 // Forces compression to only work on the second half of the nodes (cheaper and better IQ in most cases)
 #define AOIT_DONT_COMPRESS_FIRST_HALF 
 
-//////////////////////////////////////////////
-// Structs
-//////////////////////////////////////////////
-
-struct AOITData {
-    float depth[AOIT_NODE_COUNT + 1];
-    float trans[AOIT_NODE_COUNT + 1];
-};
-
-struct AOITFragment {
-    int   index;
-    float depthA;
-    float transA;
-};
 
 __device__ void initAT(AOITData &dataAT) {
     // Initialize AVSM data    
@@ -62,10 +21,6 @@ __device__ void initAT(AOITData &dataAT) {
     }
 }
 
-//////////////////////////////////////////////////
-// Two-level search for AT visibility functions
-//////////////////////////////////////////////////
- 
 __device__ AOITFragment AOITFindFragment(AOITData data, float fragmentDepth) {
     float depth[4];
     float trans[4];
@@ -176,21 +131,15 @@ __device__ AOITFragment AOITFindFragment(AOITData data, float fragmentDepth) {
     return Output;
 }	
 
-////////////////////////////////////////////////////
-// Insert a new fragment in the visibility function
-////////////////////////////////////////////////////
-
 __device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOITData &data) {
     // Find insertion index 
     AOITFragment tempFragment = AOITFindFragment(data, fragmentDepth);
     const int index = tempFragment.index;
 
     // If we are inserting in the first node then use 1.0 as previous transmittance value
-    // (we don't store it, but it's implicitly set to 1. This allows us to store one more node)
     const float prevTrans = index != 0 ? tempFragment.transA : 1.0f;
 
     // Make space for the new fragment. Also composite new fragment with the current curve 
-    // (except for the node that represents the new fragment)
     for(int i = AOIT_NODE_COUNT - 1; i >= 0; i--) {
         if(index <= i) {
             data.depth[i + 1] = data.depth[i];
@@ -493,13 +442,13 @@ __device__ float3 computeAOITColor(IntersectionLstItem *shapeIntersectionLst, in
     return color;
 }
 
-__device__ float3 computeTransparency(int **d_shapes, uint *d_shapeSizes, Ray feeler) {
-    AOITData dataAT;
-    bool intersectionFound = false;
+__device__ float3 computeTransparency(int **d_shapes, uint *d_shapeSizes, Ray feeler, 
+                                      IntersectionLstItem *shapeIntersectionLst) {
 
+    bool intersectionFound = false;
+    AOITData dataAT;
     initAT(dataAT);
 
-    IntersectionLstItem shapeIntersectionLst[INTERSECTION_LST_SIZE];
     int lstSize = 0;
 
     for(uint shapeType = 0; shapeType < nShapes; shapeType++) {
@@ -549,14 +498,13 @@ __device__ float3 computeTransparency(int **d_shapes, uint *d_shapeSizes, Ray fe
     return color;
 }
 
-__device__ float3 cylComputeTransparency(int **d_shapes, uint *d_shapeSizes, Ray feeler) {
+__device__ float3 cylComputeTransparency(int **d_shapes, uint *d_shapeSizes, Ray feeler,
+                                         IntersectionLstItem *shapeIntersectionLst) {
     CylinderNode *bvh = (CylinderNode*) d_shapes[cylinderIndex];
-    AOITData dataAT;
     bool intersectionFound = false;
-
+    AOITData dataAT;
     initAT(dataAT);
 
-    IntersectionLstItem shapeIntersectionLst[INTERSECTION_LST_SIZE];
     int lstSize = 0;
 
     intersectionFound = traverseHybridBVH(bvh, d_shapeSizes[cylinderIndex], feeler, shapeIntersectionLst, lstSize, dataAT);
@@ -570,7 +518,9 @@ __device__ float3 cylComputeTransparency(int **d_shapes, uint *d_shapeSizes, Ray
 }
 
 __device__ float3 computeShadows(int **d_shapes, uint *d_shapeSizes, Light* lights, Ray ray, 
-                                 RayIntersection intersect, uint li, float3 feelerDir) {
+                                 RayIntersection intersect, uint li, float3 feelerDir, 
+                                 IntersectionLstItem *intersectionLst) {
+
     Ray feeler = Ray(intersect.point, feelerDir);
     bool result = false;
 
@@ -586,9 +536,9 @@ __device__ float3 computeShadows(int **d_shapes, uint *d_shapeSizes, Light* ligh
     #else
 
     #ifdef GENERAL_INTERSECTION
-    float3 transmitance = computeTransparency(d_shapes, d_shapeSizes, feeler);
+    float3 transmitance = computeTransparency(d_shapes, d_shapeSizes, feeler, intersectionLst);
     #else
-    float3 transmitance = cylComputeTransparency(d_shapes, d_shapeSizes, feeler);
+    float3 transmitance = cylComputeTransparency(d_shapes, d_shapeSizes, feeler, intersectionLst);
     #endif
             
     result = length(transmitance) > 0.01;
@@ -613,7 +563,8 @@ __device__ float3 computeShadows(int **d_shapes, uint *d_shapeSizes, Light* ligh
 }
 
 __device__ float3 computeSoftShadows(int **d_shapes, uint *d_shapeSizes, Light* lights, Ray ray, 
-                                     RayIntersection intersect, uint li, float3 feelerDir) {
+                                     RayIntersection intersect, uint li, float3 feelerDir,
+                                     IntersectionLstItem *intersectionLst) {
     float3 u, v;
     const float3 xAxis = make_float3(1, 0, 0);
     const float3 yAxis = make_float3(0, 1, 0);
@@ -635,7 +586,7 @@ __device__ float3 computeSoftShadows(int **d_shapes, uint *d_shapeSizes, Light* 
 			feelerDir = normalize((lights[li].position + xCoord*u + yCoord*v) - intersect.point);
                     
             localColor += SUM_FACTOR * computeShadows(d_shapes, d_shapeSizes, lights, ray,
-                                                      intersect, li, feelerDir);
+                                                      intersect, li, feelerDir, intersectionLst);
 		}
 	}
 

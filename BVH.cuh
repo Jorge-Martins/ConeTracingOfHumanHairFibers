@@ -128,7 +128,7 @@ __device__ void propagateAreaCost(BVHNodeType *root, BVHNodeType **leaves, int n
  */
 template <typename BVHNodeType>
 __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIntersection *minIntersect, 
-                                  int *rayHairIntersections) {
+                                  int &rayHairIntersections) {
     float distance;
     bool intersectionFound = false;
    
@@ -153,18 +153,6 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIn
         return false;
     }
 
-    // Leaf node (if no bvh)
-    /*if (node->shape != nullptr) {
-        (*rayHairIntersections)++;
-        intersectionFound = intersection(ray, &curr, node->shape);
-
-        if(intersectionFound && (curr.distance < minIntersect->distance)) {
-            *minIntersect = curr;
-            return true;
-        }
-        return false;
-    }*/
-
     bool result = false;
     bool lIntersection, rIntersection, traverseL, traverseR; 
     while(node != nullptr) {
@@ -182,7 +170,7 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIn
             if (lIntersection && distance < minIntersect->distance) {
                 // Leaf node
                 if (childL->shape != nullptr) {
-                    (*rayHairIntersections)++;
+                    rayHairIntersections++;
                     intersectionFound = intersection(ray, &curr, childL->shape);
 
                     if(intersectionFound && (curr.distance < minIntersect->distance)) {
@@ -208,7 +196,7 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIn
             if (rIntersection && distance < minIntersect->distance) {
                 // Leaf node
                 if (childR->shape != nullptr) {
-                    (*rayHairIntersections)++;
+                    rayHairIntersections++;
                     intersectionFound = intersection(ray, &curr, childR->shape);
 
                     if(intersectionFound && (curr.distance < minIntersect->distance)) {
@@ -239,7 +227,7 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIn
 
 template <typename BVHNodeType>
 __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIntersection *minIntersect, 
-                         int *rayHairIntersections) {
+                         int &rayHairIntersections) {
     float distance;
     bool intersectionFound = false;
    
@@ -261,18 +249,6 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIntersectio
         return false;
     }
 
-    // Leaf node (if no bvh)
-    /*if (node->shape != nullptr) {
-        (*rayHairIntersections)++;
-        intersectionFound = intersection(ray, &curr, node->shape);
-
-        if(intersectionFound && (curr.distance < minIntersect->distance)) {
-            *minIntersect = curr;
-            return true;
-        }
-        return false;
-    }*/
-
     bool result = false;
     bool lIntersection, rIntersection, traverseL, traverseR; 
     while(node != nullptr) {
@@ -287,7 +263,7 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIntersectio
             if (lIntersection && distance < minIntersect->distance) {
                 // Leaf node
                 if (childL->shape != nullptr) {
-                    (*rayHairIntersections)++;
+                    rayHairIntersections++;
                     intersectionFound = intersection(ray, &curr, childL->shape);
 
                     if(intersectionFound && (curr.distance < minIntersect->distance)) {
@@ -310,7 +286,7 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIntersectio
             if (rIntersection && distance < minIntersect->distance) {
                 // Leaf node
                 if (childR->shape != nullptr) {
-                    (*rayHairIntersections)++;
+                    rayHairIntersections++;
                     intersectionFound = intersection(ray, &curr, childR->shape);
 
                     if(intersectionFound && (curr.distance < minIntersect->distance)) {

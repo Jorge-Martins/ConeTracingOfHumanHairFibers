@@ -47,7 +47,7 @@ bool cylFindShadow(int **d_shapes, uint *d_shapeSizes, Ray feeler) {
 }
 
 __device__
-bool cylNearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersection *out, int *rayHairIntersections) {
+bool cylNearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersection *out, int &rayHairIntersections) {
 	RayIntersection minIntersect(FLT_MAX, make_float3(0.0f), make_float3(0.0f));
 	bool intersectionFound = false;
     
@@ -63,9 +63,10 @@ bool cylNearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayInterse
 }
 
 __device__
-bool nearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersection *out, int *rayHairIntersections) {
+bool nearestIntersect(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersection *out, int &rayHairIntersections) {
 	RayIntersection minIntersect(FLT_MAX, make_float3(0.0f), make_float3(0.0f));
-	bool minIntersectionFound = false, intersectionFound = false;
+	bool minIntersectionFound = false;
+    bool intersectionFound = false;
 
 	RayIntersection curr = minIntersect;
     

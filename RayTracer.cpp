@@ -9,7 +9,7 @@
 #include <cuda_gl_interop.h>
 #include <helper_functions.h>
 
-
+//#define nff
 
 Scene *scene = 0;
 Camera *camera = 0;
@@ -17,21 +17,31 @@ Camera *camera = 0;
 RayInfo *d_raysInfo = 0;
 float3 *d_colors = 0;
 unsigned char *d_colorContributionType = 0;
+IntersectionLstItem *d_intersectionLst = 0;
 
 int fpsCount = 0;
 int fpsLimit = 1;        // FPS limit for sampling
 
-int RES_X = 512, RES_Y = 512;
+int RES_X = 512;
+int RES_Y = 512;
+
 dim3 blockSize(8, 8);
 dim3 gridSize;
 
 float horizontalAngle, verticalAngle, radius;
-float initHorizontalAngle = 180.0f, initVerticalAngle = 90.0f, initRadius = 20.0f, initFov = 40.0f;
+
+float initHorizontalAngle = 180.0f;
+float initVerticalAngle = 90.0f;
+float initRadius = 20.0f;
+float initFov = 40.0f;
 
 int xDragStart, yDragStart, dragging, zooming;
 float fov;
 
-bool stopRender = false, videoMode = false, nff = false, lock = false;
+bool stopRender = false;
+bool videoMode = false;
+
+bool lock = false;
 
 cudaEvent_t c_start, c_end;
 
@@ -54,12 +64,12 @@ std::string path;
 extern void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
                             int resX, int resY, float width, float height, float atDistance, float3 xe, 
                             float3 ye, float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize,
-                            RayInfo *d_raysInfo, float3 *d_colors, unsigned char * d_colorContributionType, long seed);
+                            RayInfo *d_raysInfo, float3 *d_colors, unsigned char * d_colorContributionType, long seed,
+                            IntersectionLstItem *d_intersectionLst);
 
 extern float deviceBuildCylinderBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes, 
                                    cudaEvent_t &c_start, cudaEvent_t &c_end, Cylinder *d_shapes, Matrix *d_matrixes, 
                                    float3 *d_translations, uint *d_OBBIndexes, uint nOBBs);
-
 
 extern float deviceBuildSphereBVH(SphereNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes, 
                                   cudaEvent_t &c_start, cudaEvent_t &c_end, Sphere *d_shapes);
@@ -165,6 +175,15 @@ void cudaInit() {
     totalSize += size;
     checkCudaErrors(cudaMalloc((void**) &d_colorContributionType, size));
 
+    #ifdef AT_SHADOWS
+    size = RES_X * RES_Y * INTERSECTION_LST_SIZE * sizeof(IntersectionLstItem);
+    totalSize += size;
+    checkCudaErrors(cudaMalloc((void**) &d_intersectionLst, size));
+
+    size = RES_X * RES_Y * sizeof(AOITData);
+    totalSize += size;
+    #endif
+
     delete[] raysInfo;
     delete[] colors;
     clock_t end = clock();
@@ -220,7 +239,7 @@ void render() {
         deviceDrawScene(scene->getDShapes(), scene->getDShapesSize(), scene->getDLights(), scene->getDLightsSize(), 
                         scene->getBackcolor(), RES_X, RES_Y, camera->width, camera->height, camera->atDistance, 
                         camera->xe, camera->ye, camera->ze, camera->from, d_output, gridSize, blockSize, 
-                        d_raysInfo, d_colors, d_colorContributionType, seed);
+                        d_raysInfo, d_colors, d_colorContributionType, seed, d_intersectionLst);
 
         cudaError_t error = cudaGetLastError();
         if(error != cudaSuccess) {
@@ -509,41 +528,42 @@ int main(int argc, char *argv[]) {
     float3 at = make_float3(0.0f);
     float3 up = make_float3(0.0f , 0.0f, 1.0f);
 
-    if(nff) {
-        path = resourceDirPath + "nffFiles/";
-        //sceneName = "balls_low";
-        sceneName = "balls_low_t";
-        //sceneName = "balls_medium";
-        //sceneName = "balls_high";
-        //sceneName = "mount_low";
-        //sceneName = "mount_very_high";
-        //sceneName = "rings_low";
-        //sceneName = "rings";
+    #ifdef nff
+    path = resourceDirPath + "nffFiles/";
+    //sceneName = "balls_low";
+    sceneName = "balls_low_t";
+    //sceneName = "balls_medium";
+    //sceneName = "balls_high";
+    //sceneName = "mount_low";
+    //sceneName = "mount_very_high";
+    //sceneName = "rings_low";
+    //sceneName = "rings";
 
-	    if (!load_nff(path + sceneName, scene, &initRadius, &initVerticalAngle, &initHorizontalAngle, &initFov, &up)) {
-            cleanup();
+	if (!load_nff(path + sceneName, scene, &initRadius, &initVerticalAngle, &initHorizontalAngle, &initFov, &up)) {
+        cleanup();
 
-            getchar();
-		    return -1;
-	    }
-    } else {
-        path = resourceDirPath + "HairModels/";
+        getchar();
+		return -1;
+	}
 
-        sceneName = "straight"; 
-        initHorizontalAngle = 180.0f;
-        initFov = 28.0f;
+    #else
+    path = resourceDirPath + "HairModels/";
 
-        //sceneName = "wCurly"; 
-        ////initHorizontalAngle = 100.0f;
-        //initFov = 44.0f;
+    sceneName = "straight"; 
+    initHorizontalAngle = 180.0f;
+    initFov = 28.0f;
+
+    //sceneName = "wCurly"; 
+    ////initHorizontalAngle = 100.0f;
+    //initFov = 44.0f;
         
-        if (!load_hair(path + sceneName, scene, sceneName)) {
-            cleanup();
+    if (!load_hair(path + sceneName, scene, sceneName)) {
+        cleanup();
 
-            getchar();
-		    return -1;
-	    }
-    }
+        getchar();
+		return -1;
+	}
+    #endif
 
     initPosition();
     

@@ -593,4 +593,15 @@ struct IntersectionLstItem {
     }
 };
 
+struct AOITData {
+    float depth[AOIT_NODE_COUNT + 1];
+    float trans[AOIT_NODE_COUNT + 1];
+};
+
+struct AOITFragment {
+    int   index;
+    float depthA;
+    float transA;
+};
+
 #endif
