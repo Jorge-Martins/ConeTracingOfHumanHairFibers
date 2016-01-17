@@ -549,13 +549,13 @@ int main(int argc, char *argv[]) {
     #else
     path = resourceDirPath + "HairModels/";
 
-    sceneName = "straight"; 
+    /*sceneName = "straight"; 
     initHorizontalAngle = 180.0f;
-    initFov = 28.0f;
+    initFov = 28.0f;*/
 
-    //sceneName = "wCurly"; 
-    ////initHorizontalAngle = 100.0f;
-    //initFov = 44.0f;
+    sceneName = "wCurly"; 
+    //initHorizontalAngle = 100.0f;
+    initFov = 44.0f;
         
     if (!load_hair(path + sceneName, scene, sceneName)) {
         cleanup();
