@@ -37,6 +37,7 @@ struct RayInfo {
     float3 direction;
     unsigned char type;
     unsigned char depth;
+    float importance;
 
     __host__ __device__ 
     RayInfo() {
@@ -44,6 +45,7 @@ struct RayInfo {
         direction = make_float3(0.0f, 0.0f, 1.0f);
         type = PRIMARY;
         depth = 0;
+        importance = 1.0f;
     }
 
     __device__
@@ -52,14 +54,16 @@ struct RayInfo {
         this->direction = direction;
         type = PRIMARY;
         depth = 0;
+        importance = 1.0f;
     }
 
     __device__
-    void update(float3 origin, float3 direction, unsigned char type, unsigned char depth) {
+    void update(float3 origin, float3 direction, unsigned char type, unsigned char depth, float importance) {
         this->origin = origin;
         this->direction = direction;
         this->type = type;
         this->depth = depth;
+        this->importance = importance; 
     }
 };
 

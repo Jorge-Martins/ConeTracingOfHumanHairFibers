@@ -10,7 +10,7 @@
 #include <thrust/random.h>
 
 #define rtStackSize (2 * MAX_DEPTH)
-
+#define STOP_IMPORTANCE 0.04
 
 __device__
 float2 cudaRandom(thrust::default_random_engine &rng) {
@@ -161,9 +161,11 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
             if(info.depth < MAX_DEPTH) {
                 // reflection
                 colorAux = blackColor;
-	            if(mat.Kspecular > 0.0f) {
+	            if(mat.Kspecular > EPSILON && info.importance > STOP_IMPORTANCE) {
                     float3 reflectDir = reflect(ray.direction, intersect.normal);
-                    rayInfoStack[rayIndex++].update(intersect.point, reflectDir, REFLECTED, info.depth + 1);
+                    float importance = info.importance * fminf(length(mat.color) , 1.0f) * mat.Kspecular;
+                    rayInfoStack[rayIndex++].update(intersect.point, reflectDir, REFLECTED, 
+                                                    info.depth + 1, importance);
                     colorAux = mat.color * mat.Kspecular;
                     computeColor = false;
                 }
@@ -171,7 +173,7 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
 
 	            // transmission
                 colorAux = blackColor;
-	            if(mat.transparency > 0.0f) {
+                if(mat.transparency > EPSILON && info.importance > STOP_IMPORTANCE) {
 		            float ior1, ior2;
 		            if(intersect.isEntering) {
 			            ior1 = 1.0f;
@@ -183,8 +185,10 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
 		            }
 		            float3 refractionDir = computeTransmissionDir(ray.direction, intersect.normal, ior1, ior2);
 		            
-                    if (!equal(length(refractionDir), 0.0f)) {
-			            rayInfoStack[rayIndex++].update(intersect.point, refractionDir, REFRACTED, info.depth + 1);
+                    if (length(refractionDir) > EPSILON) {
+                        float importance = info.importance * fminf(length(mat.color) , 1.0f) * mat.transparency;
+			            rayInfoStack[rayIndex++].update(intersect.point, refractionDir, REFRACTED, 
+                                                        info.depth + 1, importance);
                         colorAux = mat.color * mat.transparency;
                         computeColor = false;
                     }
@@ -412,9 +416,9 @@ void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize
 
     uint index = y * resX + x;
 
-    d_output[index] = naiveSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
+    /*d_output[index] = naiveSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                          from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
-                                         resY, d_intersectionLst);
+                                         resY, d_intersectionLst);*/
     
     /*d_output[index] = naiveRdmSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                             from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
@@ -428,9 +432,9 @@ void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize
                                                      from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
                                                      resY, seed, 16, d_intersectionLst);*/
 
-    /*d_output[index] = stocasticHSSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
+    d_output[index] = stocasticHSSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                                from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
-                                               resY, seed, d_intersectionLst);*/
+                                               resY, seed, d_intersectionLst);
 
 }
 

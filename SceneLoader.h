@@ -96,11 +96,17 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
     float Kd, Ks, shininess;
     float3 color, base, top, translation = make_float3(0.0f);
     //https://support.solidangle.com/display/NodeRef/hair
+
+    float lightHeight = 10.0f;
+    float lightRadius = 10.0f;
+
     if(sceneName == "wCurly") {
-        Kd = 0.6f; 
-        Ks = 0.6f;  
-        shininess = 50.0f;
+        Kd = 0.8f; 
+        Ks = 0.7f;  
+        shininess = 15.0f; //or 10
         translation = make_float3(0.0f, 0.0f, -2.0f);
+        lightRadius = 20.0f;
+        sc->addLight(make_float3(0.0f, 0.0f, lightHeight));
         
     } else if(sceneName == "straight") {
         Kd = 0.4f; 
@@ -119,18 +125,17 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
     float transparency = hairfile.GetHeader().d_transparency;
     float thickness = hairfile.GetHeader().d_thickness;
 
-    float scale = 0.1f; float thicknessScale = 0.4f;
+    float scale = 0.1f; 
+    float thicknessScale = 0.4f;
 
    
     color = make_float3(hairfile.GetHeader().d_color[0], hairfile.GetHeader().d_color[1], hairfile.GetHeader().d_color[2]);
     
     float3 hairRoot = make_float3(pointsArray[0], pointsArray[1], pointsArray[2]);
     
-    sc->setBackcolor(make_float3(0.8f, 0.8f, 0.8f));
+    sc->setBackcolor(make_float3(0.8f));
 
-    float lightHeight = 10.0f;
-    float lightRadius = 10.0f;
-
+    
     sc->addLight(make_float3(-lightRadius, -lightRadius, lightHeight));
     sc->addLight(make_float3(-lightRadius, lightRadius, lightHeight));
     sc->addLight(make_float3(lightRadius, -lightRadius, lightHeight));
@@ -161,7 +166,7 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
 
                 base = make_float3(pointsArray[cpIndex], pointsArray[cpIndex + 1], pointsArray[cpIndex + 2]) + translation;
                 top = make_float3(pointsArray[cpIndex + 3], pointsArray[cpIndex + 4], pointsArray[cpIndex + 5]) + translation;
-                sc->addCylinder(make_float3(scale) * base, make_float3(scale) * top, thicknessScale * scale * thickness);
+                sc->addCylinder(scale * base, scale * top, thicknessScale * scale * thickness);
             }
             
             pointIndex += segmentSize + 1;
@@ -189,7 +194,7 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
 
                 base = make_float3(pointsArray[cpIndex], pointsArray[cpIndex + 1], pointsArray[cpIndex + 2]) + translation;
                 top = make_float3(pointsArray[cpIndex + 3], pointsArray[cpIndex + 4], pointsArray[cpIndex + 5]) + translation;
-                sc->addCylinder(make_float3(scale) * base, make_float3(scale) * top, thicknessScale * scale * thickness);
+                sc->addCylinder(scale * base, scale * top, thicknessScale * scale * thickness);
             }
 
             pointIndex += segmentSize + 1;
