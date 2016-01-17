@@ -103,7 +103,7 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
     if(sceneName == "wCurly") {
         Kd = 0.8f; 
         Ks = 0.7f;  
-        shininess = 15.0f; //or 10
+        shininess = 10.0f; //or 10
         translation = make_float3(0.0f, 0.0f, -2.0f);
         lightRadius = 20.0f;
         sc->addLight(make_float3(0.0f, 0.0f, lightHeight));

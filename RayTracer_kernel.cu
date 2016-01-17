@@ -163,7 +163,7 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
                 colorAux = blackColor;
 	            if(mat.Kspecular > EPSILON && info.importance > STOP_IMPORTANCE) {
                     float3 reflectDir = reflect(ray.direction, intersect.normal);
-                    float importance = info.importance * fminf(length(mat.color) , 1.0f) * mat.Kspecular;
+                    float importance = info.importance * fminf(length(mat.color) * 0.66f, 1.0f) * mat.Kspecular;
                     rayInfoStack[rayIndex++].update(intersect.point, reflectDir, REFLECTED, 
                                                     info.depth + 1, importance);
                     colorAux = mat.color * mat.Kspecular;
@@ -174,22 +174,24 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
 	            // transmission
                 colorAux = blackColor;
                 if(mat.transparency > EPSILON && info.importance > STOP_IMPORTANCE) {
-		            float ior1, ior2;
+		            float ior1, ior2, importance;
 		            if(intersect.isEntering) {
 			            ior1 = 1.0f;
 			            ior2 = mat.ior;
+                        importance = mat.transparency;
 
 		            } else {
 			            ior1 = mat.ior;
 			            ior2 = 1.0f;
+                        importance = 1.0f;
 		            }
 		            float3 refractionDir = computeTransmissionDir(ray.direction, intersect.normal, ior1, ior2);
 		            
                     if (length(refractionDir) > EPSILON) {
-                        float importance = info.importance * fminf(length(mat.color) , 1.0f) * mat.transparency;
+                        colorAux = mat.color * importance;
+                        importance *= info.importance * fminf(length(mat.color) * 0.66f, 1.0f);
 			            rayInfoStack[rayIndex++].update(intersect.point, refractionDir, REFRACTED, 
                                                         info.depth + 1, importance);
-                        colorAux = mat.color * mat.transparency;
                         computeColor = false;
                     }
 	            }
