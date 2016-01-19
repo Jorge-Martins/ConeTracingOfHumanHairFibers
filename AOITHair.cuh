@@ -1,0 +1,390 @@
+#pragma once
+
+#ifndef __AOITHAIR__
+#define __AOITHAIR__
+
+#define AOIT_HAIR_RT_COUNT (AOIT_HAIR_NODE_COUNT / 4)
+
+#include "AOIT.cuh"
+
+/*
+ * Traverse BVH and save all intersections with shapes
+ */
+template <typename BVHNodeType>
+__device__ bool traverseHairHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, 
+                                  RayIntersection *shapeIntersectionLst, int &lstIndex) {
+    
+    bool intersectionFound = false;
+    RayIntersection curr = RayIntersection();
+
+    BVHNodeType *stackNodes[StackSize];
+    
+    uint stackIndex = 0;
+
+    stackNodes[stackIndex++] = nullptr;
+    
+    BVHNodeType *childL, *childR, *node = &bvh[0], tmp;
+
+    tmp = *node;
+    if(tmp.type == AABB) {
+        intersectionFound = AABBIntersection(ray, tmp.min, tmp.max);
+    } else {
+        intersectionFound = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
+    }
+    
+    if(!intersectionFound) {
+        return false;
+    }
+
+    bool result = false;
+    bool lIntersection, rIntersection, traverseL, traverseR; 
+
+    while(node != nullptr) {
+        lIntersection = rIntersection = traverseL = traverseR = false;
+
+        childL = node->lchild;
+        if(childL != nullptr) {
+            tmp = *childL;
+            if(tmp.type == AABB) {
+                lIntersection = AABBIntersection(ray, tmp.min, tmp.max);
+            } else {
+                lIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
+            }
+
+            if (lIntersection) {
+                // Leaf node
+                if (childL->shape != nullptr) {
+                    if(lstIndex < HAIR_INTERSECTION_LST_SIZE) {
+                        intersectionFound = intersection(ray, &curr, childL->shape);
+
+                        if(intersectionFound) {
+                            shapeIntersectionLst[lstIndex] = curr;
+                            lstIndex++;
+                            result = true;
+                        }
+
+                    } else {
+                        return result;
+                    }
+
+                } else {
+                    traverseL = true;
+                }
+            }
+        }
+
+        childR = node->rchild;
+        if(childR != nullptr) {
+            tmp = *childR;
+            if(tmp.type == AABB) {
+                rIntersection = AABBIntersection(ray, tmp.min, tmp.max);
+            } else {
+                rIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
+            }
+
+            if (rIntersection) {
+                // Leaf node
+                if (childR->shape != nullptr) {
+                    if(lstIndex < HAIR_INTERSECTION_LST_SIZE) {
+                        intersectionFound = intersection(ray, &curr, childR->shape);
+
+                        if(intersectionFound) {
+                            shapeIntersectionLst[lstIndex] = curr;
+                            lstIndex++;
+                            result = true;
+                            
+                        }
+
+                    } else {
+                        return result;
+                    }
+
+                } else {
+                    traverseR = true;
+                }
+            }
+        }
+
+        
+        if (!traverseL && !traverseR) {
+            node = stackNodes[--stackIndex]; // pop
+
+        } else {
+            node = (traverseL) ? childL : childR;
+            if (traverseL && traverseR) {             
+                stackNodes[stackIndex++] = childR; // push
+            }
+        }
+    }
+
+    return result;
+}
+
+__device__ void initAT(AOITHair &dataAT) {
+    // Initialize AVSM data    
+    for(int i = 0; i < AOIT_HAIR_NODE_COUNT; i++) {
+        dataAT.depth[i] = AIOT_EMPTY_NODE_DEPTH;
+        dataAT.trans[i] = AOIT_FIRT_NODE_TRANS;
+    }
+}
+
+__device__ AOITFragment AOITFindFragment(AOITHair data, float fragmentDepth) {
+    float depth[4];
+    float trans[4];
+    float  leftDepth;
+    float  leftTrans;
+    
+    AOITFragment Output;      
+
+    #if AOIT_HAIR_RT_COUNT > 7    
+    if(fragmentDepth > data.depth[27]) {
+        leftDepth    = data.depth[27];
+        leftTrans    = data.trans[27];
+        Output.index = 28;
+
+    } else
+    #endif
+
+    #if AOIT_HAIR_RT_COUNT > 6    
+    if(fragmentDepth > data.depth[23]) {
+        leftDepth    = data.depth[23];
+        leftTrans    = data.trans[23];
+        Output.index = 24;
+
+    } else
+    #endif
+
+    #if AOIT_HAIR_RT_COUNT > 5    
+    if(fragmentDepth > data.depth[19]) {
+        leftDepth    = data.depth[19];
+        leftTrans    = data.trans[19];
+        Output.index = 20;
+
+    } else
+    #endif
+
+    #if AOIT_HAIR_RT_COUNT > 4    
+    if(fragmentDepth > data.depth[15]) {
+        leftDepth    = data.depth[15];
+        leftTrans    = data.trans[15];    
+        Output.index = 16;
+
+    } else
+    #endif
+
+    #if AOIT_HAIR_RT_COUNT > 3    
+    if(fragmentDepth > data.depth[11]) {
+        leftDepth    = data.depth[11];
+        leftTrans    = data.trans[11];    
+        Output.index = 12;
+
+    } else
+    #endif
+
+    #if AOIT_HAIR_RT_COUNT > 2    
+    if(fragmentDepth > data.depth[7]) {
+        leftDepth    = data.depth[7];
+        leftTrans    = data.trans[7];          
+        Output.index = 8;
+
+    } else
+    #endif
+
+    #if AOIT_HAIR_RT_COUNT > 1    
+    if(fragmentDepth > data.depth[3]) {
+        leftDepth    = data.depth[3];
+        leftTrans    = data.trans[3];       
+        Output.index = 4;
+
+    } else
+    #endif
+
+    {    
+        leftDepth    = data.depth[0];
+        leftTrans    = data.trans[0];      
+        Output.index = 0;        
+    } 
+    
+    for(short i = 0; i < 4; i++) {
+        depth[i] = data.depth[Output.index + i];
+        trans[i] = data.trans[Output.index + i];
+    }
+
+    if(fragmentDepth <= depth[0]) {
+        Output.depthA = leftDepth;
+        Output.transA = leftTrans;
+
+    } else if(fragmentDepth <= depth[1]) {
+        Output.index += 1;
+        Output.depthA = depth[0]; 
+        Output.transA = trans[0];
+
+    } else if(fragmentDepth <= depth[2]) {
+        Output.index += 2;
+        Output.depthA = depth[1];
+        Output.transA = trans[1];
+
+    } else if(fragmentDepth <= depth[3]) {
+        Output.index += 3;    
+        Output.depthA = depth[2];
+        Output.transA = trans[2];
+
+    } else {
+        Output.index += 4;       
+        Output.depthA = depth[3];
+        Output.transA = trans[3];
+    }
+    
+    return Output;
+}	
+
+__device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOITHair &data) {
+    // Find insertion index 
+    AOITFragment tempFragment = AOITFindFragment(data, fragmentDepth);
+    const int index = tempFragment.index;
+
+    // If we are inserting in the first node then use 1.0 as previous transmittance value
+    const float prevTrans = index != 0 ? tempFragment.transA : 1.0f;
+
+    // Make space for the new fragment. Also composite new fragment with the current curve 
+    for(int i = AOIT_HAIR_NODE_COUNT - 1; i >= 0; i--) {
+        if(index <= i) {
+            data.depth[i + 1] = data.depth[i];
+            data.trans[i + 1] = data.trans[i] * fragmentTrans;
+        }
+    }
+    
+    // Insert new fragment
+    for(int i = 0; i <= AOIT_HAIR_NODE_COUNT; i++) {
+        if(index == i) {
+            data.depth[i] = fragmentDepth;
+            data.trans[i] = fragmentTrans * prevTrans;
+        }
+    } 
+    
+    // pack representation if we have too many nodes
+    if(data.depth[AOIT_HAIR_NODE_COUNT] != AIOT_EMPTY_NODE_DEPTH) {	                
+        
+        // That's total number of nodes that can be possibly removed
+        const int removalCandidateCount = (AOIT_HAIR_NODE_COUNT + 1) - 1;
+
+        #ifdef AOIT_DONT_COMPRESS_FIRST_HALF
+        // Although to bias our compression scheme in order to favor..
+        // .. the closest nodes to the eye we skip the first 50%
+
+		const int startRemovalIdx = removalCandidateCount / 2;
+        
+        #else
+
+		const int startRemovalIdx = 1;
+
+        #endif
+
+        float nodeUnderError[removalCandidateCount];
+
+        for(int i = startRemovalIdx; i < removalCandidateCount; i++) {
+            nodeUnderError[i] = (data.depth[i] - data.depth[i - 1]) * (data.trans[i - 1] - data.trans[i]);
+        }
+
+        // Find the node the generates the smallest removal error
+        int smallestErrorIdx;
+        float smallestError;
+
+        smallestErrorIdx = startRemovalIdx;
+        smallestError = nodeUnderError[smallestErrorIdx];
+        
+
+        for(int i = startRemovalIdx + 1; i < removalCandidateCount; i++) {
+            if(nodeUnderError[i] < smallestError) {
+                smallestError = nodeUnderError[i];
+                smallestErrorIdx = i;
+            } 
+        }
+
+        // Remove that node..
+        for(int i = startRemovalIdx; i < AOIT_HAIR_NODE_COUNT; i++) {
+            if(i >= smallestErrorIdx) {
+                data.depth[i] = data.depth[i + 1];
+            }
+
+            if(i - 1 >= smallestErrorIdx - 1) {
+                data.trans[i - 1] = data.trans[i];
+            }
+        }
+    }
+}
+
+__device__ bool findHairIntersections(int **d_shapes, uint *d_shapeSizes, Ray feeler, RayIntersection *shapeIntersectionLst,
+                                      int &lstSize) {
+
+    CylinderNode *bvh = (CylinderNode*) d_shapes[cylinderIndex];
+    
+    bool intersectionFound = traverseHairHybridBVH(bvh, d_shapeSizes[cylinderIndex], feeler, shapeIntersectionLst, lstSize);
+
+    return intersectionFound;
+}
+
+__device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightSize, Ray ray,
+                                IntersectionLstItem *shapeIntersectionLst, RayIntersection *hairIntersections,
+                                float3 backgroundColor, float backgroundDistance) {
+
+    int lstSize = 0;
+    float3 colorAux;
+    float3 black = make_float3(0.0f);
+    RayIntersection *node;
+
+    AOITHair dataAT;
+    initAT(dataAT);
+
+    hairIntersections[lstSize].distance = backgroundDistance;
+    hairIntersections[lstSize].shapeMaterial.color = backgroundColor;
+    hairIntersections[lstSize].shapeMaterial.transparency = 0.0f;
+    lstSize++;
+    AOITInsertFragment(backgroundDistance, 0.0f, dataAT);
+
+    bool foundIntersect = findHairIntersections(d_shapes, d_shapeSizes, ray, hairIntersections, lstSize);
+
+    if(foundIntersect) {    
+        for(int i = 1; i < lstSize; i++) {
+            // local illumination
+            colorAux = black;
+	        for(uint li = 0; li < lightSize; li++) {
+                #ifndef SOFT_SHADOWS
+                colorAux += computeShadows(d_shapes, d_shapeSizes, lights, ray, hairIntersections[i],
+                                           li, normalize(lights[li].position - hairIntersections[i].point),
+                                           shapeIntersectionLst);
+                    
+                #else
+                colorAux += computeSoftShadows(d_shapes, d_shapeSizes, lights, ray, hairIntersections[i],
+                                               li, normalize(lights[li].position - hairIntersections[i].point),
+                                               shapeIntersectionLst);
+                #endif
+	        }
+
+            
+            hairIntersections[i].shapeMaterial.color = colorAux;
+            AOITInsertFragment(hairIntersections[i].distance, hairIntersections[i].shapeMaterial.transparency, dataAT);
+            
+        }
+    }
+
+    float3 color = black;
+    // Fetch all nodes again and composite them
+    float vis;
+    for(int i = 0; i < lstSize; i++) {
+        node = &hairIntersections[i];
+
+        AOITFragment frag = AOITFindFragment(dataAT, node->distance);
+
+        vis = frag.index == 0 ? 1.0f : frag.transA;
+        color += node->shapeMaterial.color * (1.0f - node->shapeMaterial.transparency) * vis;
+                  
+    }
+
+    return color;
+}
+
+
+
+
+#endif

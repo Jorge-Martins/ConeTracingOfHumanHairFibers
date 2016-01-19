@@ -3,14 +3,12 @@
 #ifndef _RAYTRACER_KERNEL_CU_
 #define _RAYTRACER_KERNEL_CU_
 
-
-#include <cfloat>
-
-#include "AOIT.cuh"
+#include "AOITHair.cuh"
 #include <thrust/random.h>
 
 #define rtStackSize (2 * MAX_DEPTH)
 #define STOP_IMPORTANCE 0.04
+//#define PRINT_N_INTERSECTIONS
 
 __device__
 float2 cudaRandom(thrust::default_random_engine &rng) {
@@ -80,7 +78,8 @@ float3 computeTransmissionDir(float3 inDir, float3 normal, float beforeIOR, floa
 __device__
 float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightSize, float3 backcolor, 
                  float3 rayOrigin, float3 rayDirection, RayInfo *globalRayInfo, float3 *globalColors, 
-                 unsigned char *globalColorContributionType, uint offset, IntersectionLstItem *globalIntersectionLst) {
+                 unsigned char *globalColorContributionType, uint offset, IntersectionLstItem *globalIntersectionLst,
+                 RayIntersection *hairIntersectionLst) {
 
     RayInfo *rayInfoStack = &globalRayInfo[offset * rtStackSize];
 
@@ -89,10 +88,10 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
     float3 *refractionColsStack = &reflectionColsStack[rtStackSize];
 
     #ifdef AT_SHADOWS
-    IntersectionLstItem *intersectionLst = &globalIntersectionLst[INTERSECTION_LST_SIZE * offset];
+    IntersectionLstItem *atShadowintersectionLst = &globalIntersectionLst[INTERSECTION_LST_SIZE * offset];
 
     #else 
-    IntersectionLstItem *intersectionLst = nullptr;
+    IntersectionLstItem *atShadowintersectionLst = nullptr;
     #endif
 
     unsigned char *colorContributionType = &globalColorContributionType[offset * rtStackSize];
@@ -125,8 +124,12 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
         ray.update(info.origin, info.direction);
         foundIntersect = false;
 
+        #ifdef AT_HAIR
+        localsStack[0] = computeHairAT(d_shapes, d_shapeSizes, lights, lightSize, ray, atShadowintersectionLst,
+                                       hairIntersectionLst, backcolor, 100.0f);
         
-        
+        #else
+
         #ifdef GENERAL_INTERSECTION 
         foundIntersect = nearestIntersect(d_shapes, d_shapeSizes, ray, &intersect, rayHairIntersections);
         #else
@@ -203,6 +206,7 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
             }
         }
 
+        #ifndef PRINT_N_INTERSECTIONS
         if(computeColor && info.type != PRIMARY) {
             if(info.type == REFLECTED) {
                 unsigned char type;
@@ -233,15 +237,20 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
                 contributionIndex--;
             }
         }
-
+        #endif
         computeColor = false;
+
+        #endif
     }
 
-    
+    #ifndef PRINT_N_INTERSECTIONS
     colorAux = localsStack[0] + reflectionColsStack[0] + refractionColsStack[0];
-
-    //return printRayHairIntersections(rayHairIntersections, colorAux, nRays);
-
+    
+    #else
+    colorAux = make_float3(rayHairIntersections, nRays, 0.0f);
+    
+    #endif
+    
     return colorAux;
 }
 
@@ -249,7 +258,7 @@ __device__
 float3 naiveSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
                           float3 xe, float3 ye, float3 zeFactor, float3 from, RayInfo* rayInfo, float3* d_colors, 
                           unsigned char *d_colorContributionType, uint index, uint x, uint y, int resX, int resY,
-                          IntersectionLstItem *d_intersectionLst) {
+                          IntersectionLstItem *d_intersectionLst, RayIntersection *hairIntersectionLst) {
 
     float3 direction, color = make_float3(0.0f), yeFactor, xeFactor;
     for(int sx = 0; sx < SUPER_SAMPLING; sx++) {
@@ -260,7 +269,8 @@ float3 naiveSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, uin
             direction = normalize(zeFactor + yeFactor + xeFactor);
 
             color += SUPER_SAMPLING_2_F * rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
-                                                     rayInfo, d_colors, d_colorContributionType, index, d_intersectionLst);
+                                                     rayInfo, d_colors, d_colorContributionType, index, d_intersectionLst,
+                                                     hairIntersectionLst);
         }
     }
 
@@ -271,7 +281,7 @@ __device__
 float3 naiveRdmSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
                              float3 xe, float3 ye, float3 zeFactor, float3 from, RayInfo* rayInfo, float3* d_colors, 
                              unsigned char *d_colorContributionType, uint index, uint x, uint y, int resX, int resY,
-                             long seed, IntersectionLstItem *d_intersectionLst) {
+                             long seed, IntersectionLstItem *d_intersectionLst, RayIntersection *hairIntersectionLst) {
 
     thrust::default_random_engine rng(seed + index);
     thrust::uniform_real_distribution<float> uniDist;
@@ -286,7 +296,8 @@ float3 naiveRdmSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, 
             direction = normalize(zeFactor + yeFactor + xeFactor);
 
             color += SUPER_SAMPLING_2_F * rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
-                                                     rayInfo, d_colors, d_colorContributionType, index, d_intersectionLst);
+                                                     rayInfo, d_colors, d_colorContributionType, index, d_intersectionLst,
+                                                     hairIntersectionLst);
         }
     }
 
@@ -297,7 +308,7 @@ __device__
 float3 stocasticSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
                               float3 xe, float3 ye, float3 zeFactor, float3 from, RayInfo* rayInfo, float3* d_colors, 
                               unsigned char *d_colorContributionType, uint index, uint x, uint y, int resX, int resY,
-                              long seed, IntersectionLstItem *d_intersectionLst) {
+                              long seed, IntersectionLstItem *d_intersectionLst, RayIntersection *hairIntersectionLst) {
 
     thrust::default_random_engine rng(seed + index);
     thrust::uniform_real_distribution<float> uniDist;
@@ -311,7 +322,8 @@ float3 stocasticSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights,
 
         direction = normalize(zeFactor + yeFactor + xeFactor);
         color += SUPER_SAMPLING_2_F * rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
-                                                 rayInfo, d_colors, d_colorContributionType, index, d_intersectionLst);
+                                                 rayInfo, d_colors, d_colorContributionType, index, d_intersectionLst,
+                                                 hairIntersectionLst);
     }
 
     return color;
@@ -321,7 +333,7 @@ __device__
 float3 stocasticHSSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
                                 float3 xe, float3 ye, float3 zeFactor, float3 from, RayInfo* rayInfo, float3* d_colors, 
                                 unsigned char *d_colorContributionType, uint index, uint x, uint y, int resX, int resY,
-                                long seed, IntersectionLstItem *d_intersectionLst) {
+                                long seed, IntersectionLstItem *d_intersectionLst, RayIntersection *hairIntersectionLst) {
 
     uint hsIndex = index + seed;
 
@@ -333,7 +345,8 @@ float3 stocasticHSSupersampling(int **d_shapes, uint *d_shapeSizes, Light *light
         direction = normalize(zeFactor + yeFactor + xeFactor);
 
         color += SUPER_SAMPLING_2_F * rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
-                                                 rayInfo, d_colors, d_colorContributionType, index, d_intersectionLst);
+                                                 rayInfo, d_colors, d_colorContributionType, index, d_intersectionLst,
+                                                 hairIntersectionLst);
     }
 
     return color;
@@ -343,7 +356,8 @@ __device__
 float3 adaptiveStocasticSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
                                       float3 xe, float3 ye, float3 zeFactor, float3 from, RayInfo* rayInfo, float3* d_colors, 
                                       unsigned char *d_colorContributionType, uint index, uint x, uint y, int resX, int resY,
-                                      long seed, int initNSamples, IntersectionLstItem *d_intersectionLst) {
+                                      long seed, int initNSamples, IntersectionLstItem *d_intersectionLst,
+                                      RayIntersection *hairIntersectionLst) {
 
     thrust::default_random_engine rng(seed + index);
     thrust::uniform_real_distribution<float> uniDist;
@@ -366,7 +380,8 @@ float3 adaptiveStocasticSupersampling(int **d_shapes, uint *d_shapeSizes, Light 
         direction = normalize(zeFactor + yeFactor + xeFactor);
 
         tmp = rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
-                         rayInfo, d_colors, d_colorContributionType, index, d_intersectionLst);
+                         rayInfo, d_colors, d_colorContributionType, index, d_intersectionLst, 
+                         hairIntersectionLst);
 
         color += factor * tmp;
 
@@ -417,26 +432,38 @@ void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize
     }
 
     uint index = y * resX + x;
+    
+    #ifdef AT_HAIR
+    RayIntersection hairIntersectionLst[HAIR_INTERSECTION_LST_SIZE];
+    #else
+    RayIntersection *hairIntersectionLst = nullptr;
+    #endif
 
     /*d_output[index] = naiveSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                          from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
-                                         resY, d_intersectionLst);*/
+                                         resY, d_intersectionLst, hairIntersectionLst);*/
     
     /*d_output[index] = naiveRdmSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                             from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
-                                            resY, seed, d_intersectionLst);*/
+                                            resY, seed, d_intersectionLst, hairIntersectionLst);*/
 
     /*d_output[index] = stocasticSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                              from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
-                                             resY, seed, d_intersectionLst);*/
+                                             resY, seed, d_intersectionLst, hairIntersectionLst);*/
 
     /*d_output[index] = adaptiveStocasticSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                                      from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
-                                                     resY, seed, 16, d_intersectionLst);*/
+                                                     resY, seed, 16, d_intersectionLst, hairIntersectionLst);*/
 
     d_output[index] = stocasticHSSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                                from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
-                                               resY, seed, d_intersectionLst);
+                                               resY, seed, d_intersectionLst, hairIntersectionLst);
+
+    #ifdef PRINT_N_INTERSECTIONS
+    int rayHairIntersections = d_output[index].x;
+    int nRays = d_output[index].y;
+    d_output[index] = printRayHairIntersections(rayHairIntersections, backcolor, nRays);
+    #endif
 
 }
 

@@ -72,19 +72,6 @@ struct Ray {
     float3 direction;
     float3 invDirection;
 
-    /*williams implementation
-    int sign[3];
-    
-
-    __host__ __device__
-    void computeSign() {
-        invDirection = 1.0f / direction;
-
-        sign[0] = (invDirection.x < 0);
-        sign[1] = (invDirection.y < 0);
-        sign[2] = (invDirection.z < 0);
-    }*/
-
     //slope
     short classification;
     float x_y, y_x, y_z, z_y, x_z, z_x; 
@@ -142,7 +129,6 @@ struct Ray {
         origin = make_float3(0.0f);
         direction = make_float3(0.0f, 0.0f, 1.0f);
         
-        //computeSign();
         computeSlopes();
     }
 
@@ -150,8 +136,7 @@ struct Ray {
     Ray(float3 origin, float3 direction) {
         this->origin = origin;
         this->direction = direction;
-        
-        //computeSign();
+
         computeSlopes();
     }
 
@@ -159,8 +144,7 @@ struct Ray {
     void update(float3 origin, float3 direction) {
         this->origin = origin;
         this->direction = direction;
-        
-        //computeSign();
+
         computeSlopes();
     }
 };
@@ -600,6 +584,11 @@ struct IntersectionLstItem {
 struct AOITData {
     float depth[AOIT_NODE_COUNT + 1];
     float trans[AOIT_NODE_COUNT + 1];
+};
+
+struct AOITHair {
+    float depth[AOIT_HAIR_NODE_COUNT + 1];
+    float trans[AOIT_HAIR_NODE_COUNT + 1];
 };
 
 struct AOITFragment {

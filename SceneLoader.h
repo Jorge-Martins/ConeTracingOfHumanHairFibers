@@ -101,22 +101,36 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
     float lightRadius = 10.0f;
 
     if(sceneName == "wCurly") {
+        #ifndef AT_HAIR
         Kd = 0.8f; 
-        Ks = 0.7f;  
-        shininess = 10.0f; //or 10
+        Ks = 0.7f;
+        shininess = 10.0f;
+        #else
+        Kd = 3.2f;
+        Ks = 2.8f;
+        shininess = 30.0f;
+        #endif
+        
         translation = make_float3(0.0f, 0.0f, -2.0f);
         lightRadius = 20.0f;
         sc->addLight(make_float3(0.0f, 0.0f, lightHeight));
         
     } else if(sceneName == "straight") {
+        #ifndef AT_HAIR
         Kd = 0.4f; 
-        Ks = 0.4f;  
+        Ks = 0.4f;
         shininess = 10.0f;
+        #else
+        Kd = 1.5f;
+        Ks = 2.0f;
+        shininess = 40.0f;
+        #endif
+
         translation = make_float3(0.0f, 0.0f, -18.0f);
 
     } else {
-        Kd = 0.5f; 
-        Ks = 0.5f;  
+        Kd = 1.0f; 
+        Ks = 1.0f;  
         shininess = 50.0f;
     }
 

@@ -123,6 +123,7 @@
     <ClCompile Include="parsing\mc_driver.cpp" />
     <ClCompile Include="RayTracer.cpp" />
     <ClInclude Include="AOIT.cuh" />
+    <ClInclude Include="AOITHair.cuh" />
     <ClInclude Include="BVH.cuh" />
     <ClInclude Include="ImageComparator.h" />
     <ClInclude Include="Intersection.cuh" />

@@ -531,13 +531,14 @@ int main(int argc, char *argv[]) {
     #ifdef nff
     path = resourceDirPath + "nffFiles/";
     //sceneName = "balls_low";
-    sceneName = "balls_low_t";
+    //sceneName = "balls_low_t";
     //sceneName = "balls_medium";
     //sceneName = "balls_high";
     //sceneName = "mount_low";
     //sceneName = "mount_very_high";
     //sceneName = "rings_low";
     //sceneName = "rings";
+    sceneName = "cyl";
 
 	if (!load_nff(path + sceneName, scene, &initRadius, &initVerticalAngle, &initHorizontalAngle, &initFov, &up)) {
         cleanup();
