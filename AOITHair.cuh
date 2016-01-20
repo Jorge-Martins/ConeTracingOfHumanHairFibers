@@ -7,127 +7,6 @@
 
 #include "AOIT.cuh"
 
-/*
- * Traverse BVH and save all intersections with shapes
- */
-template <typename BVHNodeType>
-__device__ bool traverseHairHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, 
-                                  RayIntersection *shapeIntersectionLst, int &lstIndex) {
-    
-    bool intersectionFound = false;
-    RayIntersection curr = RayIntersection();
-
-    BVHNodeType *stackNodes[StackSize];
-    
-    uint stackIndex = 0;
-
-    stackNodes[stackIndex++] = nullptr;
-    
-    BVHNodeType *childL, *childR, *node = &bvh[0], tmp;
-
-    tmp = *node;
-    if(tmp.type == AABB) {
-        intersectionFound = AABBIntersection(ray, tmp.min, tmp.max);
-    } else {
-        intersectionFound = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
-    }
-    
-    if(!intersectionFound) {
-        return false;
-    }
-
-    bool result = false;
-    bool lIntersection, rIntersection, traverseL, traverseR; 
-
-    while(node != nullptr) {
-        lIntersection = rIntersection = traverseL = traverseR = false;
-
-        childL = node->lchild;
-        if(childL != nullptr) {
-            tmp = *childL;
-            if(tmp.type == AABB) {
-                lIntersection = AABBIntersection(ray, tmp.min, tmp.max);
-            } else {
-                lIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
-            }
-
-            if (lIntersection) {
-                // Leaf node
-                if (childL->shape != nullptr) {
-                    if(lstIndex < HAIR_INTERSECTION_LST_SIZE) {
-                        intersectionFound = intersection(ray, &curr, childL->shape);
-
-                        if(intersectionFound) {
-                            shapeIntersectionLst[lstIndex] = curr;
-                            lstIndex++;
-                            result = true;
-                        }
-
-                    } else {
-                        return result;
-                    }
-
-                } else {
-                    traverseL = true;
-                }
-            }
-        }
-
-        childR = node->rchild;
-        if(childR != nullptr) {
-            tmp = *childR;
-            if(tmp.type == AABB) {
-                rIntersection = AABBIntersection(ray, tmp.min, tmp.max);
-            } else {
-                rIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
-            }
-
-            if (rIntersection) {
-                // Leaf node
-                if (childR->shape != nullptr) {
-                    if(lstIndex < HAIR_INTERSECTION_LST_SIZE) {
-                        intersectionFound = intersection(ray, &curr, childR->shape);
-
-                        if(intersectionFound) {
-                            shapeIntersectionLst[lstIndex] = curr;
-                            lstIndex++;
-                            result = true;
-                            
-                        }
-
-                    } else {
-                        return result;
-                    }
-
-                } else {
-                    traverseR = true;
-                }
-            }
-        }
-
-        
-        if (!traverseL && !traverseR) {
-            node = stackNodes[--stackIndex]; // pop
-
-        } else {
-            node = (traverseL) ? childL : childR;
-            if (traverseL && traverseR) {             
-                stackNodes[stackIndex++] = childR; // push
-            }
-        }
-    }
-
-    return result;
-}
-
-__device__ void initAT(AOITHair &dataAT) {
-    // Initialize AVSM data    
-    for(int i = 0; i < AOIT_HAIR_NODE_COUNT; i++) {
-        dataAT.depth[i] = AIOT_EMPTY_NODE_DEPTH;
-        dataAT.trans[i] = AOIT_FIRT_NODE_TRANS;
-    }
-}
-
 __device__ AOITFragment AOITFindFragment(AOITHair data, float fragmentDepth) {
     float depth[4];
     float trans[4];
@@ -314,19 +193,169 @@ __device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOI
     }
 }
 
-__device__ bool findHairIntersections(int **d_shapes, uint *d_shapeSizes, Ray feeler, RayIntersection *shapeIntersectionLst,
-                                      int &lstSize) {
+/*
+ * Traverse BVH and save all intersections with shapes
+ */
+template <typename BVHNodeType>
+__device__ bool traverseHairHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, 
+                                      RayIntersection *shapeIntersectionLst, int &lstIndex,
+                                      int &rayHairIntersections, AOITHair &dataAT) {
+    float distance;
+    float minDistance = FLT_MAX;
+    bool intersectionFound = false;
+    const float factor = 1.13f; 
+    RayIntersection curr = RayIntersection();
+
+    BVHNodeType *stackNodes[StackSize];
+    
+    uint stackIndex = 0;
+
+    stackNodes[stackIndex++] = nullptr;
+    
+    BVHNodeType *childL, *childR, *node = &bvh[0], tmp;
+
+    tmp = *node;
+    if(tmp.type == AABB) {
+        intersectionFound = AABBIntersection(ray, tmp.min, tmp.max);
+    } else {
+        intersectionFound = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation);
+    }
+    
+    if(!intersectionFound) {
+        return false;
+    }
+
+    bool lIntersection, rIntersection, traverseL, traverseR; 
+
+    while(node != nullptr) {
+        lIntersection = rIntersection = traverseL = traverseR = false;
+
+        childL = node->lchild;
+        if(childL != nullptr) {
+            tmp = *childL;
+            if(tmp.type == AABB) {
+                lIntersection = AABBIntersection(ray, tmp.min, tmp.max, distance);
+            } else {
+                lIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation, distance);
+            }
+
+            if (lIntersection && distance < minDistance) {
+                // Leaf node
+                if (childL->shape != nullptr) {
+                    #ifdef PRINT_N_INTERSECTIONS
+                    rayHairIntersections++;
+                    #endif
+                    intersectionFound = intersection(ray, &curr, childL->shape);
+
+                    if(intersectionFound) {
+                        AOITInsertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
+
+                        if(lstIndex < HAIR_INTERSECTION_LST_SIZE) {
+                            shapeIntersectionLst[lstIndex] = curr;
+                            lstIndex++;
+
+                        } else {
+                            distance = curr.distance;
+                            
+                            for(int i = 1; i < HAIR_INTERSECTION_LST_SIZE; i++) {
+                                if(shapeIntersectionLst[i].distance > distance) {
+                                    shapeIntersectionLst[i] = curr;
+                                    break;
+                                }
+                            }
+                        }
+
+                        minDistance = fminf(minDistance, factor * curr.distance);
+                    }
+
+                } else {
+                    traverseL = true;
+                }
+            }
+        }
+
+        childR = node->rchild;
+        if(childR != nullptr) {
+            tmp = *childR;
+            if(tmp.type == AABB) {
+                rIntersection = AABBIntersection(ray, tmp.min, tmp.max, distance);
+            } else {
+                rIntersection = OBBIntersection(ray, tmp.min, tmp.max, tmp.matrix, tmp.translation, distance);
+            }
+
+            if (rIntersection && distance < minDistance) {
+                // Leaf node
+                if (childR->shape != nullptr) {
+                    #ifdef PRINT_N_INTERSECTIONS
+                    rayHairIntersections++;
+                    #endif
+                    intersectionFound = intersection(ray, &curr, childR->shape);
+
+                    if(intersectionFound) {
+                        AOITInsertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
+
+                        if(lstIndex < HAIR_INTERSECTION_LST_SIZE) {
+                            shapeIntersectionLst[lstIndex] = curr;
+                            lstIndex++;
+                        
+                        } else {
+                            distance = curr.distance;
+                            
+                            for(int i = 1; i < HAIR_INTERSECTION_LST_SIZE; i++) {
+                                if(shapeIntersectionLst[i].distance > distance) {
+                                    shapeIntersectionLst[i] = curr;
+                                    break;
+                                }
+                            }
+                        }
+
+                        minDistance = fminf(minDistance, factor * curr.distance);
+                    }
+                    
+                } else {
+                    traverseR = true;
+                }
+            }
+        }
+
+        
+        if (!traverseL && !traverseR) {
+            node = stackNodes[--stackIndex]; // pop
+
+        } else {
+            node = (traverseL) ? childL : childR;
+            if (traverseL && traverseR) {             
+                stackNodes[stackIndex++] = childR; // push
+            }
+        }
+    }
+
+    return lstIndex > 1;
+}
+
+__device__ void initAT(AOITHair &dataAT) {
+    // Initialize AVSM data    
+    for(int i = 0; i < AOIT_HAIR_NODE_COUNT; i++) {
+        dataAT.depth[i] = AIOT_EMPTY_NODE_DEPTH;
+        dataAT.trans[i] = AOIT_FIRT_NODE_TRANS;
+    }
+}
+
+__device__ bool findHairIntersections(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersection *shapeIntersectionLst,
+                                      int &lstSize, int &rayHairIntersections, AOITHair &dataAT) {
 
     CylinderNode *bvh = (CylinderNode*) d_shapes[cylinderIndex];
     
-    bool intersectionFound = traverseHairHybridBVH(bvh, d_shapeSizes[cylinderIndex], feeler, shapeIntersectionLst, lstSize);
+    bool intersectionFound = traverseHairHybridBVH(bvh, d_shapeSizes[cylinderIndex], ray, 
+                                                   shapeIntersectionLst, lstSize, 
+                                                   rayHairIntersections, dataAT);
 
     return intersectionFound;
 }
 
 __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightSize, Ray ray,
                                 IntersectionLstItem *shapeIntersectionLst, RayIntersection *hairIntersections,
-                                float3 backgroundColor, float backgroundDistance) {
+                                float3 backgroundColor, float backgroundDistance, int &rayHairIntersections) {
 
     int lstSize = 0;
     float3 colorAux;
@@ -342,7 +371,8 @@ __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* light
     lstSize++;
     AOITInsertFragment(backgroundDistance, 0.0f, dataAT);
 
-    bool foundIntersect = findHairIntersections(d_shapes, d_shapeSizes, ray, hairIntersections, lstSize);
+    bool foundIntersect = findHairIntersections(d_shapes, d_shapeSizes, ray, hairIntersections, 
+                                                lstSize, rayHairIntersections, dataAT);
 
     if(foundIntersect) {    
         for(int i = 1; i < lstSize; i++) {
@@ -361,10 +391,8 @@ __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* light
                 #endif
 	        }
 
-            
+            //save local color
             hairIntersections[i].shapeMaterial.color = colorAux;
-            AOITInsertFragment(hairIntersections[i].distance, hairIntersections[i].shapeMaterial.transparency, dataAT);
-            
         }
     }
 

@@ -170,7 +170,9 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIn
             if (lIntersection && distance < minIntersect->distance) {
                 // Leaf node
                 if (childL->shape != nullptr) {
+                    #ifdef PRINT_N_INTERSECTIONS
                     rayHairIntersections++;
+                    #endif
                     intersectionFound = intersection(ray, &curr, childL->shape);
 
                     if(intersectionFound && (curr.distance < minIntersect->distance)) {
@@ -196,7 +198,9 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIn
             if (rIntersection && distance < minIntersect->distance) {
                 // Leaf node
                 if (childR->shape != nullptr) {
+                    #ifdef PRINT_N_INTERSECTIONS
                     rayHairIntersections++;
+                    #endif
                     intersectionFound = intersection(ray, &curr, childR->shape);
 
                     if(intersectionFound && (curr.distance < minIntersect->distance)) {
@@ -263,7 +267,9 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIntersectio
             if (lIntersection && distance < minIntersect->distance) {
                 // Leaf node
                 if (childL->shape != nullptr) {
+                    #ifdef PRINT_N_INTERSECTIONS
                     rayHairIntersections++;
+                    #endif
                     intersectionFound = intersection(ray, &curr, childL->shape);
 
                     if(intersectionFound && (curr.distance < minIntersect->distance)) {
@@ -286,7 +292,9 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray, RayIntersectio
             if (rIntersection && distance < minIntersect->distance) {
                 // Leaf node
                 if (childR->shape != nullptr) {
+                    #ifdef PRINT_N_INTERSECTIONS
                     rayHairIntersections++;
+                    #endif
                     intersectionFound = intersection(ray, &curr, childR->shape);
 
                     if(intersectionFound && (curr.distance < minIntersect->distance)) {
