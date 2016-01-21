@@ -149,6 +149,19 @@ struct Ray {
     }
 };
 
+struct Cone {
+    float3 origin;
+    float3 direction;
+    float spread;
+
+    __host__ __device__
+    Cone(float3 origin, float3 direction, float spread) {
+        this->origin = origin;
+        this->direction = direction;
+        this->spread = spread;
+    }
+};
+
 struct Material {
     float3 color;
     float Kdiffuse;

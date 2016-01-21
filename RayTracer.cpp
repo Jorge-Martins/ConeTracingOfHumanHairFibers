@@ -18,6 +18,7 @@ RayInfo *d_raysInfo = 0;
 float3 *d_colors = 0;
 unsigned char *d_colorContributionType = 0;
 IntersectionLstItem *d_intersectionLst = 0;
+RayIntersection *d_hairIntersectionLst = 0;
 
 int fpsCount = 0;
 int fpsLimit = 1;        // FPS limit for sampling
@@ -64,8 +65,8 @@ std::string path;
 extern void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
                             int resX, int resY, float width, float height, float atDistance, float3 xe, 
                             float3 ye, float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize,
-                            RayInfo *d_raysInfo, float3 *d_colors, unsigned char * d_colorContributionType, long seed,
-                            IntersectionLstItem *d_intersectionLst);
+                            RayInfo *d_raysInfo, float3 *d_colors, unsigned char *d_colorContributionType, long seed,
+                            IntersectionLstItem *d_intersectionLst, RayIntersection *d_hairIntersectionLst);
 
 extern float deviceBuildCylinderBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes, 
                                    cudaEvent_t &c_start, cudaEvent_t &c_end, Cylinder *d_shapes, Matrix *d_matrixes, 
@@ -156,20 +157,14 @@ void cudaInit() {
 
     //stack size 
     uint stackSize = RES_X * RES_Y * (2 * MAX_DEPTH);
-    
-
-    RayInfo *raysInfo = new RayInfo[stackSize]; 
-    float3 *colors = new float3[3 * stackSize];
 
     size = stackSize * sizeof(RayInfo);
     totalSize += size; 
     checkCudaErrors(cudaMalloc((void**) &d_raysInfo, size));
-    checkCudaErrors(cudaMemcpyAsync(d_raysInfo, raysInfo, size, cudaMemcpyHostToDevice));
 
     size = 3 * stackSize * sizeof(float3);
     totalSize += size;
     checkCudaErrors(cudaMalloc((void**) &d_colors, size));
-    checkCudaErrors(cudaMemcpyAsync(d_colors, colors, size, cudaMemcpyHostToDevice));
 
     size = stackSize * sizeof(unsigned char);
     totalSize += size;
@@ -184,8 +179,13 @@ void cudaInit() {
     totalSize += size;
     #endif
 
-    delete[] raysInfo;
-    delete[] colors;
+    #ifdef AT_HAIR
+    size = RES_X * RES_Y * HAIR_INTERSECTION_LST_SIZE * sizeof(RayIntersection);
+    totalSize += size;
+    checkCudaErrors(cudaMalloc((void**) &d_hairIntersectionLst, size));
+
+    size = RES_X * RES_Y * sizeof(AOITHair);
+    #endif
     clock_t end = clock();
 
     //debug info
@@ -239,7 +239,7 @@ void render() {
         deviceDrawScene(scene->getDShapes(), scene->getDShapesSize(), scene->getDLights(), scene->getDLightsSize(), 
                         scene->getBackcolor(), RES_X, RES_Y, camera->width, camera->height, camera->atDistance, 
                         camera->xe, camera->ye, camera->ze, camera->from, d_output, gridSize, blockSize, 
-                        d_raysInfo, d_colors, d_colorContributionType, seed, d_intersectionLst);
+                        d_raysInfo, d_colors, d_colorContributionType, seed, d_intersectionLst, d_hairIntersectionLst);
 
         cudaError_t error = cudaGetLastError();
         if(error != cudaSuccess) {
@@ -551,8 +551,8 @@ int main(int argc, char *argv[]) {
     path = resourceDirPath + "HairModels/";
     int hairScene = 0;
 
-    hairScene = straight;
-    //hairScene = blonde;
+    //hairScene = straight;
+    hairScene = blonde;
     //hairScene = natural;
     //hairScene = curly;
     //hairScene = darkStraight;
