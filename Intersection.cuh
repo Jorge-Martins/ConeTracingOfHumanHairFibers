@@ -16,31 +16,6 @@ float3 getTransformed(Matrix *m, float3 *translation, float3 v) {
     return *m * (v + *translation);
 }
 
-/* williams implementation
-__device__
-bool AABBIntersection(Ray ray, float3 min, float3 max) {
-    float txmin, txmax, tymin, tymax, tzmin, tzmax;
-    float3 *bb[2];
-
-    bb[0] = &min;
-    bb[1] = &max;
-
-    txmin = (bb[ray.sign[0]]->x - ray.origin.x) * ray.invDirection.x;
-    txmax = (bb[1 - ray.sign[0]]->x - ray.origin.x) * ray.invDirection.x;
-
-    tymin = (bb[ray.sign[1]]->y - ray.origin.y) * ray.invDirection.y;
-    tymax = (bb[1 - ray.sign[1]]->y - ray.origin.y) * ray.invDirection.y;
-    
-    tzmin = (bb[ray.sign[2]]->z - ray.origin.z) * ray.invDirection.z;
-    tzmax = (bb[1 - ray.sign[2]]->z - ray.origin.z) * ray.invDirection.z;
-
-    txmin = fmaxf(fminf(fminf(txmin, tymin), tzmin), 0.0f);
-    txmax = fmaxf(fmaxf(txmax, tymax), tzmax);
-
-    return txmax >= txmin;
-}
-*/
-
 __device__
 bool nnn(Ray ray, float3 min, float3 max) {	
     return !((ray.origin.x < min.x) || (ray.origin.y < min.y) || (ray.origin.z < min.z)

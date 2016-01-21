@@ -549,15 +549,66 @@ int main(int argc, char *argv[]) {
 
     #else
     path = resourceDirPath + "HairModels/";
+    int hairScene = 0;
 
-    /*sceneName = "straight"; 
-    initHorizontalAngle = 180.0f;
-    initFov = 28.0f;*/
+    hairScene = straight;
+    //hairScene = blonde;
+    //hairScene = natural;
+    //hairScene = curly;
+    //hairScene = darkStraight;
+    //hairScene = wavy;
+    //hairScene = wavyThin;
 
-    sceneName = "wCurly"; 
-    //initHorizontalAngle = 100.0f;
-    initFov = 44.0f;
-        
+    if(hairScene == straight) {
+        sceneName = "straight"; 
+        initHorizontalAngle = 180.0f;
+        initVerticalAngle = 90.0f;
+        initFov = 28.0f;
+
+    } else if(hairScene == blonde) {
+        sceneName = "blonde"; 
+        initHorizontalAngle = 270.0f;
+        initVerticalAngle = 90.0f;
+        initFov = 30.0f;
+
+    } else if(hairScene == natural) {
+        sceneName = "natural"; 
+        initHorizontalAngle = 250.0f;
+        initVerticalAngle = 60.0f;
+        initFov = 35.0f;
+
+    } else if(hairScene == curly) {
+        sceneName = "wCurly"; 
+        initHorizontalAngle = 180.0f;
+        initVerticalAngle = 90.0f;
+        initFov = 44.0f;
+
+    } else if(hairScene == darkStraight) {
+        sceneName = "wStraight"; 
+        initHorizontalAngle = 270.0f;
+        initVerticalAngle = 80.0f;
+        initFov = 40.0f;
+
+    } else if(hairScene == wavy) {
+        sceneName = "wWavy"; 
+        initHorizontalAngle = 270.0f;
+        initVerticalAngle = 60.0f;
+        initFov = 42.0f;
+
+    } else if(hairScene == wavyThin) {
+        sceneName = "wWavyThin"; 
+        initHorizontalAngle = 180.0f;
+        initVerticalAngle = 70.0f;
+        initFov = 44.0f;
+
+    } else {
+        std::cout << "Unknowned hair scene" << std::endl << std::endl;
+        cleanup();
+
+        getchar();
+		return -1;
+    }
+
     if (!load_hair(path + sceneName, scene, sceneName)) {
         cleanup();
 

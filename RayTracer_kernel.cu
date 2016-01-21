@@ -110,8 +110,11 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
     int rayHairIntersections = 0;
 
     int nRays = 0;
-    //bool foundIntersect;
-    //bool computeColor = false;
+
+    #ifndef AT_HAIR
+    bool foundIntersect;
+    bool computeColor = false;
+    #endif
     Material mat;
 
     while(rayIndex > 0) {
@@ -148,12 +151,12 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
                 #ifndef SOFT_SHADOWS
                 colorAux += computeShadows(d_shapes, d_shapeSizes, lights, ray, intersect,
                                            li, normalize(lights[li].position - intersect.point),
-                                           intersectionLst);
+                                           atShadowintersectionLst);
                     
                 #else
                 colorAux += computeSoftShadows(d_shapes, d_shapeSizes, lights, ray, intersect,
                                                li, normalize(lights[li].position - intersect.point),
-                                               intersectionLst);
+                                               atShadowintersectionLst);
                 #endif
 	        }
             
@@ -438,9 +441,9 @@ void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize
     RayIntersection *hairIntersectionLst = nullptr;
     #endif
 
-    d_output[index] = naiveSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
+    /*d_output[index] = naiveSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                          from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
-                                         resY, d_intersectionLst, hairIntersectionLst);
+                                         resY, d_intersectionLst, hairIntersectionLst);*/
     
     /*d_output[index] = naiveRdmSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                             from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
@@ -454,9 +457,9 @@ void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize
                                                      from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
                                                      resY, seed, 16, d_intersectionLst, hairIntersectionLst);*/
 
-    /*d_output[index] = stocasticHSSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
+    d_output[index] = stocasticHSSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                                from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
-                                               resY, seed, d_intersectionLst, hairIntersectionLst);*/
+                                               resY, seed, d_intersectionLst, hairIntersectionLst);
 
     #ifdef PRINT_N_INTERSECTIONS
     int rayHairIntersections = d_output[index].x;

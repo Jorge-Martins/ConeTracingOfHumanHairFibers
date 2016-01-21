@@ -7,6 +7,10 @@
 #include "parsing/mc_driver.hpp"
 #include "parsing/cyHairFile.h"
 
+enum HairScenes{
+    straight, blonde, natural, darkStraight, curly, wavy, wavyThin
+};
+
 bool load_nff(std::string filePath, Scene *sc, float *initRadius, float *initLongitude, 
               float *initLatitude, float *initFov, float3 *up) {
     clock_t start, end;
@@ -102,12 +106,12 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
 
     if(sceneName == "wCurly") {
         #ifndef AT_HAIR
-        Kd = 0.8f; 
-        Ks = 0.7f;
+        Kd = 0.9f; 
+        Ks = 0.8f;  
         shininess = 10.0f;
         #else
-        Kd = 3.2f;
-        Ks = 2.8f;
+        Kd = 3.6f;
+        Ks = 3.2f;
         shininess = 30.0f;
         #endif
         
@@ -117,9 +121,9 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
         
     } else if(sceneName == "straight") {
         #ifndef AT_HAIR
-        Kd = 0.4f; 
-        Ks = 0.4f;
-        shininess = 10.0f;
+        Kd = 0.3f; 
+        Ks = 0.5f;
+        shininess = 30.0f;
         #else
         Kd = 1.5f;
         Ks = 2.0f;
@@ -128,20 +132,76 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
 
         translation = make_float3(0.0f, 0.0f, -18.0f);
 
+    } else if(sceneName == "blonde") {
+        #ifndef AT_HAIR
+        Kd = 0.5f; 
+        Ks = 0.55f;
+        #else
+        Kd = 2.0f; 
+        Ks = 2.2f;  
+        #endif
+
+        shininess = 40.0f;
+        translation = make_float3(0.0f, 0.0f, -18.0f);
+
+    } else if(sceneName == "natural") {
+        #ifndef AT_HAIR
+        Kd = 0.2f; 
+        Ks = 0.55f;
+        #else
+        Kd = 1.7f; 
+        Ks = 2.2f;  
+        #endif
+
+        shininess = 40.0f;
+        translation = make_float3(0.0f, 0.0f, -10.0f);
+
+    } else if(sceneName == "wStraight"){
+        #ifndef AT_HAIR
+        Kd = 0.7f; 
+        Ks = 0.6f;
+        #else
+        Kd = 2.8f; 
+        Ks = 2.4f;  
+        #endif
+
+        shininess = 40.0f;
+        translation = make_float3(10.0f, 0.0f, 0.0f);
+        
+    } else if(sceneName == "wWavy"){
+        #ifndef AT_HAIR
+        Kd = 0.7f; 
+        Ks = 0.6f;
+        #else
+        Kd = 2.8f; 
+        Ks = 2.4f;  
+        #endif
+
+        shininess = 40.0f;
+        translation = make_float3(10.0f, 0.0f, 0.0f);
+
+    } else if(sceneName == "wWavyThin"){
+        #ifndef AT_HAIR
+        Kd = 0.9f; 
+        Ks = 0.8f;
+        #else
+        Kd = 3.6f; 
+        Ks = 3.2f;  
+        #endif
+
+        shininess = 40.0f;
+        
     } else {
         Kd = 1.0f; 
         Ks = 1.0f;  
         shininess = 50.0f;
     }
 
-
-
     float transparency = hairfile.GetHeader().d_transparency;
     float thickness = hairfile.GetHeader().d_thickness;
 
     float scale = 0.1f; 
     float thicknessScale = 0.4f;
-
    
     color = make_float3(hairfile.GetHeader().d_color[0], hairfile.GetHeader().d_color[1], hairfile.GetHeader().d_color[2]);
     
@@ -149,16 +209,14 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
     
     sc->setBackcolor(make_float3(0.8f));
 
-    
     sc->addLight(make_float3(-lightRadius, -lightRadius, lightHeight));
     sc->addLight(make_float3(-lightRadius, lightRadius, lightHeight));
     sc->addLight(make_float3(lightRadius, -lightRadius, lightHeight));
     sc->addLight(make_float3(lightRadius, lightRadius, lightHeight));
 
-    if (segments) {
-        // If segments array exists
-        
-        for (int segment = 0; segment < nSegments; segment++ ) {
+    // If segments array exists
+    if(segments) {
+        for(int segment = 0; segment < nSegments; segment++ ) {
             segmentSize = segments[segment];
 
             for(int point = pointIndex; point < pointIndex + segmentSize; point++) {
@@ -185,10 +243,9 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
             
             pointIndex += segmentSize + 1;
         }
+
     } else {
-        // If segments array does not exist, use default segment count      
-        
-        for (int segment = 0; segment < nSegments; segment++ ) {
+        for(int segment = 0; segment < nSegments; segment++ ) {
             for(int point = pointIndex; point < pointIndex + segmentSize; point++) {
                 int cpIndex = point * 3;
 
@@ -248,6 +305,7 @@ public:
         computeFrame();
 	    computeHitherDimensions();
     }
+
     //move
     void update(float3 from, float fov) {
         this->fov = fov;
@@ -255,6 +313,7 @@ public:
         computeFrame();
 	    computeHitherDimensions();
     }
+
     //reshape
     void update(float aspect) {
         this->aspect = aspect;
