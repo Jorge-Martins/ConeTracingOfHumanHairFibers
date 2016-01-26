@@ -7,7 +7,7 @@
 
 #include "AOIT.cuh"
 
-__device__ AOITFragment AOITFindFragment(AOITHair data, float fragmentDepth) {
+__device__ AOITFragment getFragment(AOITHair data, float fragmentDepth) {
     float depth[4];
     float trans[4];
     float  leftDepth;
@@ -117,9 +117,9 @@ __device__ AOITFragment AOITFindFragment(AOITHair data, float fragmentDepth) {
     return Output;
 }	
 
-__device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOITHair &data) {
+__device__ void insertFragment(float fragmentDepth, float fragmentTrans, AOITHair &data) {
     // Find insertion index 
-    AOITFragment tempFragment = AOITFindFragment(data, fragmentDepth);
+    AOITFragment tempFragment = getFragment(data, fragmentDepth);
     const int index = tempFragment.index;
 
     // If we are inserting in the first node then use 1.0 as previous transmittance value
@@ -196,8 +196,8 @@ __device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOI
 /*
  * Traverse BVH and save all intersections with shapes
  */
-template <typename BVHNodeType>
-__device__ bool traverseHairHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, 
+template <typename BVHNodeType, typename RayCone>
+__device__ bool traverseHairHybridBVH(BVHNodeType *bvh, uint bvhSize, RayCone ray, 
                                       RayIntersection *shapeIntersectionLst, int &lstIndex,
                                       int &rayHairIntersections, AOITHair &dataAT) {
     float distance;
@@ -248,7 +248,7 @@ __device__ bool traverseHairHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray,
                     intersectionFound = intersection(ray, &curr, childL->shape);
 
                     if(intersectionFound) {
-                        AOITInsertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
+                        insertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
 
                         if(lstIndex < HAIR_INTERSECTION_LST_SIZE) {
                             shapeIntersectionLst[lstIndex] = curr;
@@ -292,7 +292,7 @@ __device__ bool traverseHairHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray,
                     intersectionFound = intersection(ray, &curr, childR->shape);
 
                     if(intersectionFound) {
-                        AOITInsertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
+                        insertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
 
                         if(lstIndex < HAIR_INTERSECTION_LST_SIZE) {
                             shapeIntersectionLst[lstIndex] = curr;
@@ -341,7 +341,8 @@ __device__ void initAT(AOITHair &dataAT) {
     }
 }
 
-__device__ bool findHairIntersections(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersection *shapeIntersectionLst,
+template <typename RayCone>
+__device__ bool findHairIntersections(int **d_shapes, uint *d_shapeSizes, RayCone ray, RayIntersection *shapeIntersectionLst,
                                       int &lstSize, int &rayHairIntersections, AOITHair &dataAT) {
 
     CylinderNode *bvh = (CylinderNode*) d_shapes[cylinderIndex];
@@ -369,7 +370,7 @@ __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* light
     hairIntersections[lstSize].shapeMaterial.color = backgroundColor;
     hairIntersections[lstSize].shapeMaterial.transparency = 0.0f;
     lstSize++;
-    AOITInsertFragment(backgroundDistance, 0.0f, dataAT);
+    insertFragment(backgroundDistance, 0.0f, dataAT);
 
     bool foundIntersect = findHairIntersections(d_shapes, d_shapeSizes, ray, hairIntersections, 
                                                 lstSize, rayHairIntersections, dataAT);
@@ -402,7 +403,7 @@ __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* light
     for(int i = 0; i < lstSize; i++) {
         node = &hairIntersections[i];
 
-        AOITFragment frag = AOITFindFragment(dataAT, node->distance);
+        AOITFragment frag = getFragment(dataAT, node->distance);
 
         vis = frag.index == 0 ? 1.0f : frag.transA;
         color += node->shapeMaterial.color * (1.0f - node->shapeMaterial.transparency) * vis;
@@ -412,7 +413,67 @@ __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* light
     return color;
 }
 
+__device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightSize, Cone cone,
+                                IntersectionLstItem *shapeIntersectionLst, RayIntersection *hairIntersections,
+                                float3 backgroundColor, float backgroundDistance, int &rayHairIntersections) {
 
+    int lstSize = 0;
+    float3 colorAux;
+    float3 black = make_float3(0.0f);
+    RayIntersection *node;
+
+    AOITHair dataAT;
+    initAT(dataAT);
+
+    hairIntersections[lstSize].distance = backgroundDistance;
+    hairIntersections[lstSize].shapeMaterial.color = backgroundColor;
+    hairIntersections[lstSize].shapeMaterial.transparency = 0.0f;
+    lstSize++;
+    insertFragment(backgroundDistance, 0.0f, dataAT);
+
+    bool foundIntersect = findHairIntersections(d_shapes, d_shapeSizes, cone, hairIntersections, 
+                                                lstSize, rayHairIntersections, dataAT);
+
+    if(foundIntersect) {
+        //prov TODO
+        Ray ray = Ray(cone.origin, cone.direction);
+
+        for(int i = 1; i < lstSize; i++) {
+            // local illumination
+            colorAux = black;
+	        for(uint li = 0; li < lightSize; li++) {
+                #ifndef SOFT_SHADOWS
+                colorAux += computeShadows(d_shapes, d_shapeSizes, lights, ray, hairIntersections[i],
+                                           li, normalize(lights[li].position - hairIntersections[i].point),
+                                           shapeIntersectionLst);
+                    
+                #else
+                colorAux += computeSoftShadows(d_shapes, d_shapeSizes, lights, ray, hairIntersections[i],
+                                               li, normalize(lights[li].position - hairIntersections[i].point),
+                                               shapeIntersectionLst);
+                #endif
+	        }
+
+            //save local color * area fraction
+            hairIntersections[i].shapeMaterial.color = colorAux;
+        }
+    }
+
+    float3 color = black;
+    // Fetch all nodes again and composite them
+    float vis;
+    for(int i = 0; i < lstSize; i++) {
+        node = &hairIntersections[i];
+
+        AOITFragment frag = getFragment(dataAT, node->distance);
+
+        vis = frag.index == 0 ? 1.0f : frag.transA;
+        color += node->shapeMaterial.color * (1.0f - node->shapeMaterial.transparency) * vis;
+                  
+    }
+
+    return color;
+}
 
 
 #endif

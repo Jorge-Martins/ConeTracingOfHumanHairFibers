@@ -10,14 +10,27 @@
 //#define SOFT_SHADOWS
 #define AT_SHADOWS
 #define AT_HAIR
+//#define CONE_TRACING
 //#define PRINT_N_INTERSECTIONS
 
-#define SUPER_SAMPLING 4
+#ifdef CONE_TRACING
+    #ifndef AT_HAIR
+    #define AT_HAIR
+    #endif
+#endif
+
+#ifdef AT_HAIR
+    #ifdef GENERAL_INTERSECTION
+    #undef GENERAL_INTERSECTION
+    #endif
+#endif
+
+#define SUPER_SAMPLING 1
 #define SUPER_SAMPLING_F (1.0f / SUPER_SAMPLING)
 #define SUPER_SAMPLING_2 (SUPER_SAMPLING * SUPER_SAMPLING)
 #define SUPER_SAMPLING_2_F (1.0f / SUPER_SAMPLING_2)
 
-#define MAX_DEPTH 1
+#define MAX_DEPTH 3
 #define EPSILON 1E-4f
 #define OBB_AABB_EPSILON 15.0f
 

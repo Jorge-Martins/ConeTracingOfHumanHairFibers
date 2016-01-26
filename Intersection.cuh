@@ -655,9 +655,9 @@ bool AABBIntersection(Ray ray, float3 min, float3 max, float &distance) {
 
 __device__
 bool OBBIntersection(Ray ray, float3 min, float3 max, Matrix *m, float3 *translation) {
-    Ray temp = Ray(*m * (ray.origin + *translation), *m * ray.direction);
+    ray.update(*m * (ray.origin + *translation), *m * ray.direction);
     
-    return AABBIntersection(temp, min, max);
+    return AABBIntersection(ray, min, max);
 }
 
 __device__
@@ -944,11 +944,48 @@ bool intersection(Ray ray, RayIntersection *out, Cylinder *cylinder) {
 
         out->point += normal * EPSILON;
         
-        //out->shapeMaterial.color = make_float3(fabsf(normal.x), fabsf(normal.y), fabsf(normal.z));
 	}
 
     return true;
 }
 
+//---------- Cones ---------------------------------------
+
+__device__
+bool AABBIntersection(Cone cone, float3 min, float3 max) {
+    //TODO
+
+    return false;
+}
+
+__device__
+bool AABBIntersection(Cone cone, float3 min, float3 max, float &distance) {
+    //TODO
+
+    return false;
+}
+
+__device__
+bool OBBIntersection(Cone cone, float3 min, float3 max, Matrix *m, float3 *translation) {
+    cone.origin = *m * (cone.origin + *translation);
+    cone.direction = *m * cone.direction;
+    
+    return AABBIntersection(cone, min, max);
+}
+
+__device__
+bool OBBIntersection(Cone cone, float3 min, float3 max, Matrix *m, float3 *translation, float &distance) {
+    cone.origin = *m * (cone.origin + *translation);
+    cone.direction = *m * cone.direction;
+
+    return AABBIntersection(cone, min, max, distance);
+}
+
+__device__
+bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder) {
+    //TODO
+
+    return false;
+}
 
 #endif

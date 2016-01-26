@@ -21,7 +21,7 @@ __device__ void initAT(AOITData &dataAT) {
     }
 }
 
-__device__ AOITFragment AOITFindFragment(AOITData data, float fragmentDepth) {
+__device__ AOITFragment getFragment(AOITData data, float fragmentDepth) {
     float depth[4];
     float trans[4];
     float  leftDepth;
@@ -131,9 +131,9 @@ __device__ AOITFragment AOITFindFragment(AOITData data, float fragmentDepth) {
     return Output;
 }	
 
-__device__ void AOITInsertFragment(float fragmentDepth, float fragmentTrans, AOITData &data) {
+__device__ void insertFragment(float fragmentDepth, float fragmentTrans, AOITData &data) {
     // Find insertion index 
-    AOITFragment tempFragment = AOITFindFragment(data, fragmentDepth);
+    AOITFragment tempFragment = getFragment(data, fragmentDepth);
     const int index = tempFragment.index;
 
     // If we are inserting in the first node then use 1.0 as previous transmittance value
@@ -258,7 +258,7 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray,
                         intersectionFound = intersection(ray, &curr, childL->shape);
 
                         if(intersectionFound) {
-                            AOITInsertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
+                            insertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
                             shapeIntersectionLst[lstIndex++].update(curr);
                             result = true;
                             
@@ -290,7 +290,7 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray,
                         intersectionFound = intersection(ray, &curr, childR->shape);
 
                         if(intersectionFound) {
-                            AOITInsertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
+                            insertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
                             shapeIntersectionLst[lstIndex++].update(curr);
                             result = true;
                             
@@ -364,7 +364,7 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray,
 
                     if(intersectionFound) {
                         if(lstIndex < INTERSECTION_LST_SIZE) {
-                            AOITInsertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
+                            insertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
                             shapeIntersectionLst[lstIndex++].update(curr);
                             result = true;
                             
@@ -392,7 +392,7 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray,
                         intersectionFound = intersection(ray, &curr, childR->shape);
 
                         if(intersectionFound) {
-                            AOITInsertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
+                            insertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
                             shapeIntersectionLst[lstIndex++].update(curr);
                             result = true;
                             
@@ -433,7 +433,7 @@ __device__ float3 computeAOITColor(IntersectionLstItem *shapeIntersectionLst, in
     for(int i = 0; i < lstSize; i++) {
         node = &shapeIntersectionLst[i];
 
-        AOITFragment frag = AOITFindFragment(dataAT, node->distance);
+        AOITFragment frag = getFragment(dataAT, node->distance);
 
         vis = frag.index == 0 ? 1.0f : frag.transA;
         color += factor * node->color * node->transparency * vis;      
@@ -483,7 +483,7 @@ __device__ float3 computeTransparency(int **d_shapes, uint *d_shapeSizes, Ray fe
             if(result) {
                 shapeIntersectionLst[lstSize].update(curr);
                 lstSize++;
-                AOITInsertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
+                insertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
             }
 
             intersectionFound |= result;
@@ -527,6 +527,7 @@ __device__ float3 computeShadows(int **d_shapes, uint *d_shapeSizes, Light* ligh
     #ifndef AT_SHADOWS
     #ifdef GENERAL_INTERSECTION
     bool inShadow = findShadow(d_shapes, d_shapeSizes, feeler);
+
     #else
     bool inShadow = cylFindShadow(d_shapes, d_shapeSizes, feeler);
     #endif
@@ -537,6 +538,7 @@ __device__ float3 computeShadows(int **d_shapes, uint *d_shapeSizes, Light* ligh
 
     #ifdef GENERAL_INTERSECTION
     float3 transmitance = computeTransparency(d_shapes, d_shapeSizes, feeler, intersectionLst);
+
     #else
     float3 transmitance = cylComputeTransparency(d_shapes, d_shapeSizes, feeler, intersectionLst);
     #endif

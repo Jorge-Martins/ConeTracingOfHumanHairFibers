@@ -158,6 +158,7 @@ void cudaInit() {
     //stack size 
     uint stackSize = RES_X * RES_Y * (2 * MAX_DEPTH);
 
+    #ifndef AT_HAIR
     size = stackSize * sizeof(RayInfo);
     totalSize += size; 
     checkCudaErrors(cudaMalloc((void**) &d_raysInfo, size));
@@ -169,6 +170,7 @@ void cudaInit() {
     size = stackSize * sizeof(unsigned char);
     totalSize += size;
     checkCudaErrors(cudaMalloc((void**) &d_colorContributionType, size));
+    #endif
 
     #ifdef AT_SHADOWS
     size = RES_X * RES_Y * INTERSECTION_LST_SIZE * sizeof(IntersectionLstItem);
