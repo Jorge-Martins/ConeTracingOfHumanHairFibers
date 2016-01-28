@@ -605,9 +605,206 @@ struct AOITHair {
 };
 
 struct AOITFragment {
-    int   index;
+    int index;
     float depthA;
     float transA;
+};
+
+struct AABBPolygon {
+    unsigned char nPoints;
+    unsigned char point[6];
+    
+    __device__
+    AABBPolygon(unsigned char type) {
+        // ---
+        if(type == 0) {
+            nPoints = 6;
+
+            point[0] = 1; point[1] = 5; point[2] = 4;
+            point[3] = 6; point[4] = 2; point[5] = 3;
+
+        // 0--
+        } else if(type == 1) {
+            nPoints = 6;
+
+            point[0] = 0; point[1] = 2; point[2] = 3;
+            point[3] = 1; point[4] = 5; point[5] = 4;
+
+        // +--
+        } else if(type == 2) {
+            nPoints = 6;
+
+            point[0] = 0; point[1] = 2; point[2] = 3;
+            point[3] = 7; point[4] = 5; point[5] = 4;
+
+        // -0-
+        } else if(type == 3) {
+            nPoints = 6;
+
+            point[0] = 0; point[1] = 4; point[2] = 6;
+            point[3] = 2; point[4] = 3; point[5] = 1;
+        
+        // 00-
+        } else if(type == 4) {
+            nPoints = 4;
+
+            point[0] = 0; point[1] = 2;
+            point[2] = 3; point[3] = 1;
+        
+        // +0-
+        } else if(type == 5) {
+            nPoints = 6;
+
+            point[0] = 0; point[1] = 2; point[2] = 3;
+            point[3] = 7; point[4] = 5; point[5] = 1;
+        
+        // -+-
+        } else if(type == 6) {
+            nPoints = 6;
+
+            point[0] = 0; point[1] = 4; point[2] = 6;
+            point[3] = 7; point[4] = 3; point[5] = 1;
+        
+        // 0+-
+        } else if(type == 7) {
+            nPoints = 6;
+
+            point[0] = 0; point[1] = 2; point[2] = 6;
+            point[3] = 7; point[4] = 3; point[5] = 1;
+        
+        // ++-
+        } else if(type == 8) {
+            nPoints = 6;
+
+            point[0] = 0; point[1] = 2; point[2] = 6;
+            point[3] = 7; point[4] = 5; point[5] = 1;
+    
+        
+        // --0
+        } else if(type == 9) {
+            nPoints = 6;
+
+            point[0] = 0; point[1] = 1; point[2] = 5;
+            point[3] = 4; point[4] = 6; point[5] = 2;
+        
+        // 0-0
+        } else if(type == 10) {
+            nPoints = 4;
+
+            point[0] = 0; point[1] = 1;
+            point[2] = 2; point[3] = 4;
+        
+        // +-0
+        } else if(type == 11) {
+            nPoints = 6;
+
+            point[0] = 0; point[1] = 1; point[2] = 3;
+            point[3] = 7; point[4] = 5; point[5] = 4;
+        
+        // -00
+        } else if(type == 12) {
+            nPoints = 4;
+
+            point[0] = 0; point[1] = 4; 
+            point[2] = 6; point[3] = 2; 
+        
+        // 000
+        } else if(type == 13) {
+            nPoints = 0;
+        
+        // +00
+        } else if(type == 14) {
+            nPoints = 4;
+
+            point[0] = 1; point[1] = 3; 
+            point[2] = 7; point[3] = 5;
+        
+        // -+0
+        } else if(type == 15) {
+            nPoints = 6;
+
+            point[0] = 0; point[1] = 4; point[2] = 6;
+            point[3] = 7; point[4] = 3; point[5] = 2;
+        
+        // 0+0
+        } else if(type == 16) {
+            nPoints = 4;
+
+            point[0] = 2; point[1] = 6;
+            point[2] = 7; point[3] = 3; 
+        
+        // ++0
+        } else if(type == 17) {
+            nPoints = 6;
+
+            point[0] = 1; point[1] = 3; point[2] = 2;
+            point[3] = 6; point[4] = 7; point[5] = 5;
+        
+        // --+
+        } else if(type == 18) {
+            nPoints = 6;
+
+            point[0] = 0; point[1] = 1; point[2] = 5;
+            point[3] = 7; point[4] = 6; point[5] = 2;
+        
+        // 0-+
+        } else if(type == 19) {
+            nPoints = 6;
+
+            point[0] = 0; point[1] = 1; point[2] = 5;
+            point[3] = 7; point[4] = 6; point[5] = 4;
+        
+        // +-+
+        } else if(type == 20) {
+            nPoints = 6;
+
+            point[0] = 0; point[1] = 1; point[2] = 3;
+            point[3] = 7; point[4] = 6; point[5] = 4;
+        
+        // -0+
+        } else if(type == 21) {
+            nPoints = 6;
+
+            point[0] = 0; point[1] = 4; point[2] = 5;
+            point[3] = 7; point[4] = 6; point[5] = 2;
+        
+        // 00+
+        } else if(type == 22) {
+            nPoints = 4;
+
+            point[0] = 4; point[1] = 5;
+            point[2] = 7; point[3] = 6;
+        
+        // +0+
+        } else if(type == 23) {
+            nPoints = 6;
+
+            point[0] = 1; point[1] = 3; point[2] = 7;
+            point[3] = 6; point[4] = 4; point[5] = 5;
+        
+        // -++
+        } else if(type == 24) {
+            nPoints = 6;
+
+            point[0] = 0; point[1] = 4; point[2] = 5;
+            point[3] = 7; point[4] = 3; point[5] = 2;
+
+        // 0++
+        } else if(type == 25) {
+            nPoints = 6;
+
+            point[0] = 2; point[1] = 6; point[2] = 4;
+            point[3] = 5; point[4] = 7; point[5] = 3;
+
+        // +++
+        } else {
+            nPoints = 6;
+
+            point[0] = 1; point[1] = 3; point[2] = 2;
+            point[3] = 6; point[4] = 4; point[5] = 5;
+        
+        }
+    }
 };
 
 #endif

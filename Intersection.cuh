@@ -953,7 +953,151 @@ bool intersection(Ray ray, RayIntersection *out, Cylinder *cylinder) {
 
 __device__
 bool AABBIntersection(Cone cone, float3 min, float3 max) {
-    //TODO
+    float3 boxCenter = (max + min) * 0.5f;
+    float3 boxExtent = (max - min) * 0.5f;
+    
+    // Quick-rejection test for boxes below the supporting plane of the cone.
+    float3 boxConeVec = boxCenter - cone.origin;
+    float ConeDirDOTboxConeVec = dot(cone.direction, boxConeVec);
+    float radius =  dot(boxExtent, fabsf(cone.direction));
+
+    if(ConeDirDOTboxConeVec + radius <= 0.0f) {
+        // The box is in the halfspace below the supporting plane of the cone.
+        return false;
+    }
+
+    // Determine the box faces that are visible to the cone vertex.
+    int type = 0;
+    type += (boxConeVec.x < -boxExtent.x ? 2 : (boxConeVec.x > boxExtent.x ? 0 : 1));
+    type += 3 * (boxConeVec.y < -boxExtent.y ? 2 : (boxConeVec.y > boxExtent.y ? 0 : 1));
+    type += 9 * (boxConeVec.z < -boxExtent.z ? 2 : (boxConeVec.z > boxExtent.z ? 0 : 1));
+    
+    //if cone vertex inside the box
+    if(type == 13) {
+        // The cone vertex is in the box.
+        return true;
+    }
+    
+    AABBPolygon polygon = AABBPolygon(type);
+
+    // Test polygon points.
+    float3 X[8], PmV[8];
+    float coneDirDOTPmV[8], sqrConeDirDOTPmV[8], sqrLenPmV[8], q;
+    int iMax = -1, jMax = -1;
+    float coneCosAngle_2 = cos(cone.spread) * cos(cone.spread);
+
+    for(unsigned char i = 0; i < polygon.nPoints; i++) {
+        int j = polygon.point[i];
+        X[j].x = (j & 1 ? boxExtent.x : -boxExtent.x);
+        X[j].y = (j & 2 ? boxExtent.y : -boxExtent.y);
+        X[j].z = (j & 4 ? boxExtent.z : -boxExtent.z);
+        coneDirDOTPmV[j] = dot(cone.direction, X[j]) + ConeDirDOTboxConeVec;
+
+        if(coneDirDOTPmV[j] > 0.0f) {
+            PmV[j] = X[j] + boxConeVec;
+            sqrConeDirDOTPmV[j] = coneDirDOTPmV[j] * coneDirDOTPmV[j];
+            sqrLenPmV[j] = dot(PmV[j], PmV[j]);
+            q = sqrConeDirDOTPmV[j] - coneCosAngle_2 * sqrLenPmV[j];
+
+            if(q > 0.0f) {
+                return true;
+            }
+
+            // Keep track of the maximum in case we must process box edges.
+            // This supports the gradient ascent search.
+            if (iMax == -1 || sqrConeDirDOTPmV[j] * sqrLenPmV[jMax] > sqrConeDirDOTPmV[jMax] * sqrLenPmV[j]) {
+                iMax = i;
+                jMax = j;
+            }
+        }
+    }
+
+    if(iMax == -1) {
+        return false;
+    }
+
+    // Start the gradient ascent search at index jMax.
+    float maxSqrLenPmV = sqrLenPmV[jMax];
+    float maxConeDirDOTPmV = coneDirDOTPmV[jMax];
+    float3 maxX = X[jMax];
+    float maxPmV[] = {PmV[jMax].x, PmV[jMax].y, PmV[jMax].z};
+    int k0, k1, k2, jDiff;
+    float s, fder, numer, denom, DdMmV, det;
+    float3 MmV;
+    float coneDirection[] = {cone.direction.x, cone.direction.y, cone.direction.z};
+
+    // Search the counterclockwise edge <corner[jMax],corner[jNext]>.
+    int iNext = (iMax < polygon.nPoints - 1 ? iMax + 1 : 0);
+    int jNext = polygon.point[iNext];
+    jDiff = jNext - jMax;
+    s = (jDiff > 0 ? 1.0f : -1.0f);
+    k0 = abs(jDiff) >> 1;
+    fder = s * (coneDirection[k0] * maxSqrLenPmV - maxConeDirDOTPmV * maxPmV[k0]);
+
+    if(fder > 0.0f) {
+        // The edge has an interior local maximum in F because
+        // F(K[j0]) >= F(K[j1]) and the directional derivative of F at K0
+        // is positive.  Compute the local maximum point.
+        k1 = (k0 + 1) % 3;
+        k2 = (k1 + 1) % 3;
+        numer = maxPmV[k1] * maxPmV[k1] + maxPmV[k2] * maxPmV[k2];
+        denom = coneDirection[k1] * maxPmV[k1] + coneDirection[k2] * maxPmV[k2];
+
+        setVectorValue(MmV, k0, numer * coneDirection[k0]);
+        setVectorValue(MmV, k1, denom * (getVectorValue(maxX, k1) + getVectorValue(boxConeVec, k1)));
+        setVectorValue(MmV, k2, denom * (getVectorValue(maxX, k2) + getVectorValue(boxConeVec, k2)));
+
+        // Theoretically, DdMmV > 0, so there is no need to test positivity.
+        DdMmV = dot(cone.direction, MmV);
+        q = DdMmV * DdMmV - coneCosAngle_2 * dot(MmV, MmV);
+        
+        if(q > 0.0f) {
+            return true;
+        }
+
+        // Determine on which side of the spherical arc coneDirection lives on.  
+        // If in the polygon side, then there is an intersection.
+        det = s * (coneDirection[k1] * maxPmV[k2] - coneDirection[k2] * maxPmV[k1]);
+        
+        return (det <= 0.0f);
+        
+    }
+
+    // Search the clockwise edge <corner[jMax],corner[jPrev]>.
+    int iPrev = (iMax > 0 ? iMax - 1 : polygon.nPoints - 1);
+    int jPrev = polygon.point[iPrev];
+    jDiff = jMax - jPrev;
+    s = (jDiff > 0 ? 1.0f : -1.0f);
+    k0 = abs(jDiff) >> 1;
+    fder = -s * (coneDirection[k0] * maxSqrLenPmV - maxConeDirDOTPmV * maxPmV[k0]);
+    
+    if(fder > 0.0f) {
+        // The edge has an interior local maximum in F because
+        // F(K[j0]) >= F(K[j1]) and the directional derivative of F at K0
+        // is positive.  Compute the local maximum point.
+        k1 = (k0 + 1) % 3;
+        k2 = (k1 + 1) % 3;
+        numer = maxPmV[k1] * maxPmV[k1] + maxPmV[k2] * maxPmV[k2];
+        denom = coneDirection[k1] * maxPmV[k1] + coneDirection[k2] * maxPmV[k2];
+
+        setVectorValue(MmV, k0, numer * coneDirection[k0]);
+        setVectorValue(MmV, k1, denom * (getVectorValue(maxX, k1) + getVectorValue(boxConeVec, k1)));
+        setVectorValue(MmV, k2, denom * (getVectorValue(maxX, k2) + getVectorValue(boxConeVec, k2)));
+
+        // Theoretically, DdMmV > 0, so there is no need to test positivity.
+        DdMmV = dot(cone.direction, MmV);
+        q = DdMmV * DdMmV - coneCosAngle_2 * dot(MmV, MmV);
+        
+        if(q > 0.0f) {
+            return true;
+        }
+
+        // Determine on which side of the spherical arc coneDirection lives on.  
+        // If in the polygon side, then there is an intersection.
+        det = s * (coneDirection[k1] * maxPmV[k2] - coneDirection[k2] * maxPmV[k1]);
+
+        return (det <= 0.0f);
+    }
 
     return false;
 }
@@ -961,8 +1105,11 @@ bool AABBIntersection(Cone cone, float3 min, float3 max) {
 __device__
 bool AABBIntersection(Cone cone, float3 min, float3 max, float &distance) {
     //TODO
+    distance = 0;
 
-    return false;
+    return AABBIntersection(cone, min, max);
+
+    //return false;
 }
 
 __device__
@@ -985,7 +1132,10 @@ __device__
 bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder) {
     //TODO
 
-    return false;
+    //return false;
+
+    Ray ray = Ray(cone.origin, cone.direction);
+    return intersection(ray, out, cylinder);
 }
 
 #endif

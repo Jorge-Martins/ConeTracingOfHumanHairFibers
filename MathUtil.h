@@ -10,7 +10,7 @@
 //#define SOFT_SHADOWS
 #define AT_SHADOWS
 #define AT_HAIR
-//#define CONE_TRACING
+#define CONE_TRACING
 //#define PRINT_N_INTERSECTIONS
 
 #ifdef CONE_TRACING
@@ -232,6 +232,30 @@ float3 computeCenter(float3 cmin, float3 cmax, float3 min, float3 max) {
 inline __host__ __device__
 float3 projectVector(float3 a, float3 b) {
     return b * dot(a, b);
+}
+
+inline __device__ void setVectorValue(float3 &vec, int pos, float value) {
+    if(pos == 0) {
+        vec.x = value;
+
+    } else if(pos == 1) {
+        vec.y = value;
+
+    } else {
+        vec.z = value;
+    } 
+}
+
+inline __device__ float getVectorValue(float3 vec, int pos) {
+    if(pos == 0) {
+        return vec.x;
+
+    } else if(pos == 1) {
+        return vec.y;
+
+    } else {
+        return vec.z;
+    }
 }
 
 #endif
