@@ -692,7 +692,7 @@ struct AABBPolygon {
             nPoints = 4;
 
             point[0] = 0; point[1] = 1;
-            point[2] = 2; point[3] = 4;
+            point[2] = 5; point[3] = 4;
         
         // +-0
         } else if(type == 11) {

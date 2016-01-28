@@ -554,7 +554,7 @@ void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lig
     ye *= height;
     xe *= width;
     ze = -ze * atDistance;
-    float pixelSize = 0.5 * width / (float) resX;
+    float pixelSize = 0.5f * width / (float) resX;
     float coneSpread = atanf(pixelSize / atDistance);
     drawScene<<<gridSize, blockSize>>>(d_shapes, d_shapeSizes, lights, lightSize, backcolor, resX, resY,
                                        coneSpread, xe, ye, ze, from, d_output, rayInfo, d_colors, 
