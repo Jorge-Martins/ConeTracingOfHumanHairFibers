@@ -1104,12 +1104,8 @@ bool AABBIntersection(Cone cone, float3 min, float3 max) {
 
 __device__
 bool AABBIntersection(Cone cone, float3 min, float3 max, float &distance) {
-    //TODO
-    distance = 0;
-
-    return AABBIntersection(cone, min, max);
-
-    //return false;
+   distance = 0.0f;
+   return AABBIntersection(cone, min, max);
 }
 
 __device__
