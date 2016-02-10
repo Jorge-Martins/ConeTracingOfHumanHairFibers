@@ -363,6 +363,17 @@ struct Triangle {
 	    normal = normalize(cross(e1, e2));
     }
 
+    __device__
+	Triangle(float3 v0, float3 v1, float3 v2) {
+        this->vertices[0] = v0;
+        this->vertices[1] = v1;
+        this->vertices[2] = v2;
+
+	    e1 = vertices[1] - vertices[0];
+	    e2 = vertices[2] - vertices[0];
+	    normal = normalize(cross(e1, e2));
+    }
+
     __host__
     std::string print() {
         std::ostringstream os;

@@ -455,7 +455,7 @@ __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* light
 	        }
 
             //save local color * area fraction
-            hairIntersections[i].shapeMaterial.color = colorAux;
+            hairIntersections[i].shapeMaterial.color = colorAux * hairIntersections[i].shapeMaterial.ior;
         }
     }
 

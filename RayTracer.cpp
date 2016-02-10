@@ -320,59 +320,59 @@ void mouseMove(int x, int y) {
     float xstep = 0.01f;
     float zstep = 0.01f;
 
-    if (dragging == 1) {
+    if(dragging == 1) {
         horizontalAngle += (-x + xDragStart) * xstep;
 
         if(horizontalAngle > 360) {
             horizontalAngle -= 360;
+
         } else if(horizontalAngle < 0) {
             horizontalAngle += 360;
         }
 
         verticalAngle += (-y + yDragStart) * ystep;
 
-        if(verticalAngle > 179){
+        if(verticalAngle > 179) {
             verticalAngle = 179;
+
         } else if(verticalAngle < 1) {
             verticalAngle = 1;
         }
 
-        //std::cout<< "Ha: " << horizontalAngle << std::endl << "Va: "<< verticalAngle << std::endl;
         camera->update(computeFromCoordinates(camera->up), fov);
-
     }
+
     if(zooming == 1) {
         fov += (y - yDragStart) * zstep;
 
-        if(fov > 179){
+        if(fov > 179) {
             fov = 179;
         } else if(fov < 1) {
             fov = 1;
         }
 
-        //std::cout<< "fov: " << fov << std::endl;
         camera->update(computeFromCoordinates(camera->up), fov);
-        //std::cout<< "From: " << camera->from.x << " " << camera->from.y << " " << camera->from.z << std::endl;
-        //std::cout<< "radius: " << radius << std::endl;
     } 
 }
 
 void mousePressed(int button, int state, int x, int y) {
-	if (button == GLUT_LEFT_BUTTON) {
-		if (state == GLUT_DOWN) { 
+	if(button == GLUT_LEFT_BUTTON) {
+		if(state == GLUT_DOWN) { 
 			dragging = 1; 
 			xDragStart = x; 
-            yDragStart = y; 
+            yDragStart = y;
+
 		} else  {
 			dragging = 0;
 		}
 	}
 
-   if (button == GLUT_RIGHT_BUTTON){
-      if(state == GLUT_DOWN){
+   if(button == GLUT_RIGHT_BUTTON){
+      if(state == GLUT_DOWN) {
          zooming = 1;
          yDragStart = y;
-      } else{
+
+      } else {
          zooming = 0;
       }
    }
@@ -386,12 +386,12 @@ void initPosition() {
 }
 
 void keyboardKey(unsigned char key, int x, int y) {
-	if (key == 'c'){
+	if(key == 'c') {
 		initPosition();
         camera->update(computeFromCoordinates(camera->up), fov);
 	}
 
-	if (key == 'p'){
+	if(key == 'p') {
         saveFrame(tex, sceneName, RES_X, RES_Y);
 	}
 

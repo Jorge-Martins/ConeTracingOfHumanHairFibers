@@ -1124,14 +1124,69 @@ bool OBBIntersection(Cone cone, float3 min, float3 max, Matrix *m, float3 *trans
     return AABBIntersection(cone, min, max, distance);
 }
 
+//aproximate cone cylinder intersection
 __device__
-bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder) {
-    //TODO
+bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder) { 
+    float3 quad[4];
+    float3 max = fmaxf(cylinder->base, cylinder->top) + cylinder->radius;
+    float3 coneCircleV = cone.origin + (length(max - cone.origin)) * cone.direction;
+    float coneCircleR = length(coneCircleV - cone.origin) * tanf(cone.spread);
+
+    //find projection plane
+    float3 planeNormal = -cone.direction;
+    float planeDistance = -dot(planeNormal, coneCircleV);
+
+    //compute cylinder coordenate system
+    float3 axis = normalize(cylinder->top - cylinder->base);
+    float3 xx = normalize(cross(axis, cone.direction));
+    float3 yy = normalize(cross(axis, xx));
+    float cylinderBaseRadius[2];
+    
+    float3 point = cylinder->base;
+    for(int i = 0; i < 2; i++) {
+        //compute 4 points, 2 on the base and 2 on the top and project to the plane
+        quad[i * 2] = projectToPlane(point + cylinder->radius * xx, planeNormal, planeDistance);
+        quad[i * 2 + 1] = projectToPlane(point - cylinder->radius * xx, planeNormal, planeDistance);
+
+        cylinderBaseRadius[i] = 0.5f * length(projectToPlane(point + cylinder->radius * yy, planeNormal, planeDistance) -
+                                                projectToPlane(point - cylinder->radius * yy, planeNormal, planeDistance));
+    
+        point = cylinder->top;
+    }
+
+    float3 projectedAxis = normalize(projectToPlane(cylinder->top, planeNormal, planeDistance) -
+                                        projectToPlane(cylinder->base, planeNormal, planeDistance));
+    
+    //extend the quad according to the cylinder base diameters in the direction of the projected axis
+
+    //base cylinder
+    quad[0] -= projectedAxis * cylinderBaseRadius[0];
+    quad[1] -= projectedAxis * cylinderBaseRadius[0];
+
+    //top cylinder
+    quad[2] += projectedAxis * cylinderBaseRadius[1];
+    quad[3] += projectedAxis * cylinderBaseRadius[1];
+
+    Triangle t1 = Triangle(quad[0], quad[1], quad[2]);
+    Triangle t2 = Triangle(quad[1], quad[3], quad[2]);
+
+    
+    //TODO to de intersection between cone and triangles or circle triangles
 
     //return false;
 
     Ray ray = Ray(cone.origin, cone.direction);
-    return intersection(ray, out, cylinder);
+    bool result = false;
+    t1.material = cylinder->material;
+    t2.material = cylinder->material;
+    result |= intersection(ray, out, &t1);
+    result |= intersection(ray, out, &t2);
+
+    if(result) {
+        result = intersection(ray, out, cylinder);
+    }
+    //out->shapeMaterial.color = color;
+    return result;
 }
 
 #endif

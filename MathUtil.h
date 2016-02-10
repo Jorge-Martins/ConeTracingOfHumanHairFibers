@@ -52,6 +52,7 @@
 #define planeIndex 3
 #define nShapes 4
 
+#define PI 3.14159265359f
 
 struct Matrix {
     float3 M[3];
@@ -256,6 +257,12 @@ inline __device__ float getVectorValue(float3 vec, int pos) {
     } else {
         return vec.z;
     }
+}
+
+inline __device__ float3 projectToPlane(float3 point, float3 planeNormal, float planeDistance) {
+    float dist = dot(planeNormal, point) + planeDistance;
+
+    return point - dist * planeNormal;
 }
 
 #endif
