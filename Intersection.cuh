@@ -1124,12 +1124,303 @@ bool OBBIntersection(Cone cone, float3 min, float3 max, Matrix *m, float3 *trans
     return AABBIntersection(cone, min, max, distance);
 }
 
+__device__
+bool pointInside(Triangle2D tri, float3 point) {
+    return (dot(cross(tri.bc, point - tri.b), cross(tri.bc, tri.a - tri.b)) >= 0) &&
+           (dot(cross(tri.ac, point - tri.a), cross(tri.ac, tri.b - tri.a)) >= 0) &&
+           (dot(cross(tri.ab, point - tri.a), cross(tri.ab, tri.c - tri.a)) >= 0);
+}
+
+__device__
+bool pointInsideCircle(float3 circleV, float circleR, float3 point) {
+    return length(point - circleV) <= circleR;
+}
+
+__device__
+float getArea(Triangle2D tri) {
+    float a = length(tri.ab);
+    float b = length(tri.ac);
+    float c = length(tri.bc);
+
+    float s = 0.5f * (a + b + c);
+
+    return sqrtf(s * (s - a) * (s - b) * (s - c));
+}
+
+__device__
+float getArea(float circleR) {
+    return PI * circleR * circleR;
+}
+
+__device__
+float getCircularSectorArea(float circleR, float segmentLength) {
+    if(segmentLength <= EPSILON){ 
+		return 0.0f; 
+	}
+
+	segmentLength *= 0.5f;
+
+	float x = segmentLength / circleR;
+	if(x < (1.0f / 32.0f)){ // use taylor expansion for stuff in brackets
+		float c2 = 2.0f / 3.0f;
+		float c4 = 1.0f / 5.0f;
+		float c6 = 3.0f / 28.0f;
+		float c8 = 3.0f / 72.0f;
+		x *= x;
+
+		return circleR * segmentLength * (c2 + (c4 + (c6 + c8 * x) * x) * x) * x;
+
+	} else {
+		return circleR * segmentLength * (asinf(x)/x - sqrtf((1.0f + x) * (1.0f - x)));
+	}
+}
+
+__device__
+int circleSegmentIntersection(float3 circleV, float circleR, float3 seg[2], float3 *intersectionPoints) {
+    float3 p0c = seg[0] - circleV;
+	float3 p1p0 = seg[1] - seg[0];
+
+	float a = length(p1p0);
+	float b_2a = dot(p0c,p1p0) / a;
+	float c = length(p0c) - circleR * circleR;
+	float d = b_2a * b_2a - c / a;
+
+	if(d < 0) {
+		return 0;
+
+	} else {
+		int nIntersections = 0;
+		float t = -b_2a;
+
+		if(d == 0) {
+			if(t >= 0.0f && t <= 1.0f) {
+				intersectionPoints[0] = seg[0] + t * p1p0;
+				nIntersections++;
+			}
+
+		} else{
+			t -= sqrtf(d);
+
+			if(t >= 0.0f && t <= 1.0f) {
+				intersectionPoints[0] = seg[0] + t * p1p0;
+				nIntersections++;
+			}
+
+			t = sqrtf(d) - b_2a;
+
+			if(t >= 0.0f && t <= 1.0f) {
+				intersectionPoints[nIntersections] = seg[0] + t * p1p0;
+				nIntersections++;
+			}
+		}
+
+		return nIntersections;
+	}
+}
+
+__device__
+float triangleCircleIntersectionArea(Triangle2D tri, float3 circleV, float circleR, float3 *intersectionPoints, int &totalNIntersections) {  
+	// Get the 3 segments of the triangle
+	float3 segments[3][2] = {
+        {tri.a, tri.b},
+        {tri.b, tri.c},
+        {tri.c, tri.a}
+    };
+
+	int nSegmentIntersections[3]; 
+    totalNIntersections = 0;
+
+    // Get intersections of the circle with each segment
+	for(int i = 0; i < 3; i++) {
+		nSegmentIntersections[i] = circleSegmentIntersection(circleV, circleR, segments[i], &(intersectionPoints[2*i]));
+		totalNIntersections += nSegmentIntersections[i];
+	}
+
+	if(totalNIntersections & 1) {
+		// Attempt to fix it; this can happen if an intersection is very near a triangle vertex,
+		// such that only one of the segments registers an intersection with the circle.
+		// Try to remove the intersection that is closest to a vertex. Of course, this could
+		// backfire terribly and end up producing something nonsensical. An example is if
+		// two triangle vertices had this property, then the topology of the resulting
+		// intersections may be nonsensical. We hope to compute the area in such a way
+		// later that it doesn't matter.
+        float minDist_2 = tri.maxLen; 
+        minDist_2 *= minDist_2;
+		int min_dist2_xi = -1;
+
+		for(int i = 0; i < 3; i++){
+			for(int j = 0; j < nSegmentIntersections[i]; j++){
+				float d2;
+
+				for(int k = 0; k < 2; k++){
+					d2 = length(intersectionPoints[2*i+j] - segments[i][k]);
+
+					if(d2 < minDist_2){
+						minDist_2 = d2;
+						min_dist2_xi = i * 2 + j;
+					}
+				}
+			}
+		}
+
+		int h = min_dist2_xi / 2;
+		nSegmentIntersections[h]--; 
+        totalNIntersections--;
+
+		if((min_dist2_xi & 1) == 0){ // if it was the first one, then move the second one up
+			intersectionPoints[2*h] = intersectionPoints[2*h+1];
+		}
+	}
+	
+    // bit array of which triangle vertices are in circle, 4th bit is if circle center is in triangle
+	int inside = 0; 
+	if(pointInsideCircle(circleV, circleR, tri.a)){ 
+		inside |= (1 << 0); 
+	}
+
+    if(pointInsideCircle(circleV, circleR, tri.b)){ 
+		inside |= (1 << 1); 
+	}
+
+    if(pointInsideCircle(circleV, circleR, tri.c)){ 
+		inside |= (1 << 2); 
+	}
+
+    if(pointInside(tri, circleV)){ 
+		inside |= (1 << 3); 
+	}
+
+    // either no intersection area, or triangle entirely in circle, or circle in triangle
+	if(totalNIntersections == 0) {
+		// all triangle points in circle
+        if((inside & 0x7) == 0x7) {
+            intersectionPoints[0] = tri.a;
+            intersectionPoints[1] = tri.b;
+            intersectionPoints[2] = tri.c;
+            totalNIntersections = 3;
+
+			return getArea(tri);
+
+		} else { // either no intersection area, or circle in triangle
+			if(inside & (1 << 3)) {
+                // triangle contains circle center, intersection area is either circle area
+                intersectionPoints[0] = circleV;
+                totalNIntersections = 1;
+
+				return getArea(circleR);
+
+			} else {
+                //No intersection
+				return 0.0f;
+
+			}
+		}
+
+	} else if(totalNIntersections == 2) {
+		if(nSegmentIntersections[0] < 2 && 
+           nSegmentIntersections[1] < 2 && 
+           nSegmentIntersections[2] < 2) { 
+           // on different sides, area determined by tracing
+
+		} else {
+			int i;
+			for(i = 0; i < 3; i++) {
+				if(nSegmentIntersections[i] > 1) { 
+                    break; 
+                }
+			}
+			// Either the circle is mostly inside with a wedge poking out a side
+			// or the circle is mostly outside with a wedge poking inside
+			float sector_area = getCircularSectorArea(circleR, length(intersectionPoints[2*i+1] - intersectionPoints[2*i]));
+			
+            if(inside & (1 << 3)) {
+				// Area of circle minus a wedge
+                return getArea(circleR) - sector_area;
+
+			} else {
+				return sector_area;
+			}
+		}
+
+	} else if(totalNIntersections == 4 || totalNIntersections == 6) {
+		// The area is determined by tracing
+
+	} else {
+		// should never happen
+		return 0.0f;
+	}
+	
+	// At this point we expect to just trace out the intersection shape
+	// The vertices of the intersection shape is either a triangle vertex
+	// or a intersection point on a triangle edge.
+	int vtype[6]; // 1 = triangle vertex, 0 = intersection point
+	float3 vp[6];
+	int nVertices = 0; // number of actual vertices
+	
+	for(int i = 0; i < 3; i++) {
+		if(inside & (1 << i)){
+			vp[nVertices] = segments[i][0];
+			vtype[nVertices++] = 1;
+		}
+
+		for(int j = 0; j < nSegmentIntersections[i]; j++) {
+			vp[nVertices] = intersectionPoints[2*i+j];
+			vtype[nVertices++] = 0;
+		}
+	}
+
+
+	if(nVertices < 3){ 
+        // this should not be possible
+		return 0.0f;
+	}
+	
+	// All neighboring points in v which are intersection points should have circular caps added
+	float area = 0.0f;
+	for(int i = 2; i < nVertices; ++i) {
+		area += getArea(Triangle2D(vp[0], vp[i - 1], vp[i]));
+
+		if((vtype[i-1] == 0) && (vtype[i] == 0)) {
+			area += getCircularSectorArea(circleR, length(vp[i] - vp[i - 1]));
+		}
+	}
+	// Check the final segments (those next to vp[0]) to see if they need caps added
+	if(vtype[0] == 0){
+		if(vtype[1] == 0){
+			area += getCircularSectorArea(circleR, length(vp[1] - vp[0]));
+		}
+		if(vtype[nVertices - 1] == 0){
+			area += getCircularSectorArea(circleR, length(vp[0] - vp[nVertices - 1]));
+		}
+	}
+
+	return area;
+}
+
+
+__device__
+float quadCircleIntersectionArea(float3 *quad, float3 circleV, float circleR, float3 *intersectionPointsT1, 
+                                 float3 *intersectionPointsT2, int &nIntersectionsT1, int &nIntersectionsT2) {
+    float area = 0.0f;  
+    area += triangleCircleIntersectionArea(Triangle2D(quad[0], quad[1], quad[2]), circleV, 
+                                           circleR, intersectionPointsT1, nIntersectionsT1);
+    
+    area += triangleCircleIntersectionArea(Triangle2D(quad[1], quad[3], quad[2]), circleV, 
+                                           circleR,intersectionPointsT2, nIntersectionsT2);
+
+    return area;
+}
+
+
+
+
+
 //aproximate cone cylinder intersection
 __device__
 bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder) { 
     float3 quad[4];
-    float3 max = fmaxf(cylinder->base, cylinder->top) + cylinder->radius;
-    float3 coneCircleV = cone.origin + (length(max - cone.origin)) * cone.direction;
+    float3 coneCircleV = cone.origin + cone.direction * (length((fmaxf(cylinder->base, cylinder->top) + cylinder->radius) - 
+                                                         cone.origin));
     float coneCircleR = length(coneCircleV - cone.origin) * tanf(cone.spread);
 
     //find projection plane
@@ -1149,16 +1440,15 @@ bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder) {
         quad[i * 2 + 1] = projectToPlane(point - cylinder->radius * xx, planeNormal, planeDistance);
 
         cylinderBaseRadius[i] = 0.5f * length(projectToPlane(point + cylinder->radius * yy, planeNormal, planeDistance) -
-                                                projectToPlane(point - cylinder->radius * yy, planeNormal, planeDistance));
+                                              projectToPlane(point - cylinder->radius * yy, planeNormal, planeDistance));
     
         point = cylinder->top;
     }
 
     float3 projectedAxis = normalize(projectToPlane(cylinder->top, planeNormal, planeDistance) -
-                                        projectToPlane(cylinder->base, planeNormal, planeDistance));
+                                     projectToPlane(cylinder->base, planeNormal, planeDistance));
     
     //extend the quad according to the cylinder base diameters in the direction of the projected axis
-
     //base cylinder
     quad[0] -= projectedAxis * cylinderBaseRadius[0];
     quad[1] -= projectedAxis * cylinderBaseRadius[0];
@@ -1167,26 +1457,41 @@ bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder) {
     quad[2] += projectedAxis * cylinderBaseRadius[1];
     quad[3] += projectedAxis * cylinderBaseRadius[1];
 
-    Triangle t1 = Triangle(quad[0], quad[1], quad[2]);
-    Triangle t2 = Triangle(quad[1], quad[3], quad[2]);
+    float3 intersectionPointsT1[6], intersectionPointsT2[6];
+    int nIntersectionsT1, nIntersectionsT2;
 
-    
-    //TODO to de intersection between cone and triangles or circle triangles
+    float area = quadCircleIntersectionArea(quad, coneCircleV, coneCircleR, intersectionPointsT1, 
+                                            intersectionPointsT2, nIntersectionsT1, nIntersectionsT2);
 
-    //return false;
+    if(area > 0.0f) {
+        if(out != nullptr) {
+            Ray ray = Ray();
+            bool result = false;
+            float3 direction;
 
-    Ray ray = Ray(cone.origin, cone.direction);
-    bool result = false;
-    t1.material = cylinder->material;
-    t2.material = cylinder->material;
-    result |= intersection(ray, out, &t1);
-    result |= intersection(ray, out, &t2);
+            for(int i = 0; i < nIntersectionsT1 && !result; i++) {
+                direction = normalize(intersectionPointsT1[i] - cone.origin);
 
-    if(result) {
-        result = intersection(ray, out, cylinder);
+                ray.update(cone.origin, direction);
+                result |= intersection(ray, out, cylinder);
+            }
+
+            for(int i = 0; i < nIntersectionsT2 && !result; i++) {
+                direction = normalize(intersectionPointsT2[i] - cone.origin);
+
+                ray.update(cone.origin, direction);
+                result |= intersection(ray, out, cylinder);
+            }
+
+            out->shapeMaterial.ior = area / (PI * coneCircleR * coneCircleR);
+            
+            return result;
+        }
+
+        return true;
     }
-    //out->shapeMaterial.color = color;
-    return result;
+
+    return false;
 }
 
 #endif

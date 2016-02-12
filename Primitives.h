@@ -818,4 +818,30 @@ struct AABBPolygon {
     }
 };
 
+
+struct Triangle2D {
+    float3 a, b, c;
+    float3 ab, ac, bc;
+    float maxLen, minLen;
+
+    __device__
+    Triangle2D(float3 a, float3 b, float3 c) {
+        this->a = a;
+        this->b = b;
+        this->c = c;
+
+        ab = b - a;
+        ac = c - a;
+        bc = c - b;
+
+        float sizeAB = length(ab);
+        float sizeAC = length(ac);
+        float sizeBC = length(bc);
+
+        maxLen = fmaxf(sizeAB, fmaxf(sizeAC, sizeBC));
+        minLen = fminf(sizeAB, fminf(sizeAC, sizeBC));
+    }
+};
+
+
 #endif
