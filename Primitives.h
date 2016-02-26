@@ -589,27 +589,6 @@ struct PartitionEntry {
     }
 };
 
-struct IntersectionLstItem {
-    float3 color;
-    float transparency;
-    float distance;
-
-    __device__
-    IntersectionLstItem() {}
-
-    __device__ 
-    void update(RayIntersection info) {
-        color = info.shapeMaterial.color;
-        transparency = info.shapeMaterial.transparency;
-        distance = info.distance;
-    }
-};
-
-struct AOITData {
-    float depth[AOIT_NODE_COUNT + 1];
-    float trans[AOIT_NODE_COUNT + 1];
-};
-
 struct AOITHair {
     float depth[AOIT_HAIR_NODE_COUNT + 1];
     float trans[AOIT_HAIR_NODE_COUNT + 1];

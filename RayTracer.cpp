@@ -17,14 +17,13 @@ Camera *camera = 0;
 RayInfo *d_raysInfo = 0;
 float3 *d_colors = 0;
 unsigned char *d_colorContributionType = 0;
-IntersectionLstItem *d_intersectionLst = 0;
 RayIntersection *d_hairIntersectionLst = 0;
 
 int fpsCount = 0;
 int fpsLimit = 1;        // FPS limit for sampling
 
-int RES_X = 512;
-int RES_Y = 512;
+int RES_X = 1024;
+int RES_Y = 1024;
 
 dim3 blockSize(8, 8);
 dim3 gridSize;
@@ -65,8 +64,8 @@ std::string path;
 extern void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
                             int resX, int resY, float width, float height, float atDistance, float3 xe, 
                             float3 ye, float3 ze, float3 from, float3 *d_output, dim3 gridSize, dim3 blockSize,
-                            RayInfo *d_raysInfo, float3 *d_colors, unsigned char *d_colorContributionType, long seed,
-                            IntersectionLstItem *d_intersectionLst, RayIntersection *d_hairIntersectionLst);
+                            RayInfo *d_raysInfo, float3 *d_colors, unsigned char *d_colorContributionType, int seed,
+                            RayIntersection *d_hairIntersectionLst);
 
 extern float deviceBuildCylinderBVH(CylinderNode *bvh, uint nObjects, dim3 gridSize, dim3 blockSize, uint *mortonCodes, 
                                    cudaEvent_t &c_start, cudaEvent_t &c_end, Cylinder *d_shapes, Matrix *d_matrixes, 
@@ -172,14 +171,6 @@ void cudaInit() {
     checkCudaErrors(cudaMalloc((void**) &d_colorContributionType, size));
     #endif
 
-    #ifdef AT_SHADOWS
-    size = RES_X * RES_Y * INTERSECTION_LST_SIZE * sizeof(IntersectionLstItem);
-    totalSize += size;
-    checkCudaErrors(cudaMalloc((void**) &d_intersectionLst, size));
-
-    size = RES_X * RES_Y * sizeof(AOITData);
-    totalSize += size;
-    #endif
 
     #ifdef AT_HAIR
     size = RES_X * RES_Y * HAIR_INTERSECTION_LST_SIZE * sizeof(RayIntersection);
@@ -234,14 +225,14 @@ void render() {
         size_t num_bytes;
         checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&d_output, &num_bytes, cuda_pbo));
 
-        long seed = (long) clock();
+        int seed = (int) clock();
         cudaEventRecord(c_start);
         
         // call CUDA kernel, writing results to PBO
         deviceDrawScene(scene->getDShapes(), scene->getDShapesSize(), scene->getDLights(), scene->getDLightsSize(), 
                         scene->getBackcolor(), RES_X, RES_Y, camera->width, camera->height, camera->atDistance, 
                         camera->xe, camera->ye, camera->ze, camera->from, d_output, gridSize, blockSize, 
-                        d_raysInfo, d_colors, d_colorContributionType, seed, d_intersectionLst, d_hairIntersectionLst);
+                        d_raysInfo, d_colors, d_colorContributionType, seed, d_hairIntersectionLst);
 
         cudaError_t error = cudaGetLastError();
         if(error != cudaSuccess) {
@@ -533,14 +524,14 @@ int main(int argc, char *argv[]) {
     #ifdef nff
     path = resourceDirPath + "nffFiles/";
     //sceneName = "balls_low";
-    //sceneName = "balls_low_t";
+    sceneName = "balls_low_t";
     //sceneName = "balls_medium";
     //sceneName = "balls_high";
     //sceneName = "mount_low";
     //sceneName = "mount_very_high";
     //sceneName = "rings_low";
     //sceneName = "rings";
-    sceneName = "cyl";
+    //sceneName = "cyl";
 
 	if (!load_nff(path + sceneName, scene, &initRadius, &initVerticalAngle, &initHorizontalAngle, &initFov, &up)) {
         cleanup();

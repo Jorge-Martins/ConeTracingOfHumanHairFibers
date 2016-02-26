@@ -3,6 +3,8 @@
 #ifndef __AOITHAIR__
 #define __AOITHAIR__
 
+#define AOIT_FIRT_NODE_TRANS	(1)
+#define AIOT_EMPTY_NODE_DEPTH	(1E30)
 #define AOIT_HAIR_RT_COUNT (AOIT_HAIR_NODE_COUNT / 4)
 
 #include "AOIT.cuh"
@@ -355,8 +357,8 @@ __device__ bool findHairIntersections(int **d_shapes, uint *d_shapeSizes, RayCon
 }
 
 __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightSize, Ray ray,
-                                IntersectionLstItem *shapeIntersectionLst, RayIntersection *hairIntersections,
-                                float3 backgroundColor, float backgroundDistance, int &rayHairIntersections) {
+                                RayIntersection *hairIntersections,  float3 backgroundColor, 
+                                float backgroundDistance, int &rayHairIntersections) {
 
     int lstSize = 0;
     float3 colorAux;
@@ -382,13 +384,11 @@ __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* light
 	        for(uint li = 0; li < lightSize; li++) {
                 #ifndef SOFT_SHADOWS
                 colorAux += computeShadows(d_shapes, d_shapeSizes, lights, ray, hairIntersections[i],
-                                           li, normalize(lights[li].position - hairIntersections[i].point),
-                                           shapeIntersectionLst);
+                                           li, normalize(lights[li].position - hairIntersections[i].point));
                     
                 #else
                 colorAux += computeSoftShadows(d_shapes, d_shapeSizes, lights, ray, hairIntersections[i],
-                                               li, normalize(lights[li].position - hairIntersections[i].point),
-                                               shapeIntersectionLst);
+                                               li, normalize(lights[li].position - hairIntersections[i].point));
                 #endif
 	        }
 
@@ -414,8 +414,8 @@ __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* light
 }
 
 __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightSize, Cone cone,
-                                IntersectionLstItem *shapeIntersectionLst, RayIntersection *hairIntersections,
-                                float3 backgroundColor, float backgroundDistance, int &rayHairIntersections) {
+                                RayIntersection *hairIntersections, float3 backgroundColor, 
+                                float backgroundDistance, int &rayHairIntersections) {
 
     int lstSize = 0;
     float3 colorAux;
@@ -444,13 +444,11 @@ __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* light
 	        for(uint li = 0; li < lightSize; li++) {
                 #ifndef SOFT_SHADOWS
                 colorAux += computeShadows(d_shapes, d_shapeSizes, lights, ray, hairIntersections[i],
-                                           li, normalize(lights[li].position - hairIntersections[i].point),
-                                           shapeIntersectionLst);
+                                           li, normalize(lights[li].position - hairIntersections[i].point));
                     
                 #else
                 colorAux += computeSoftShadows(d_shapes, d_shapeSizes, lights, ray, hairIntersections[i],
-                                               li, normalize(lights[li].position - hairIntersections[i].point),
-                                               shapeIntersectionLst);
+                                               li, normalize(lights[li].position - hairIntersections[i].point));
                 #endif
 	        }
 
