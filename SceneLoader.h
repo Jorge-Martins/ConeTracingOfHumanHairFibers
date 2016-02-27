@@ -116,8 +116,13 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
         #endif
         
         translation = make_float3(0.0f, 0.0f, -2.0f);
-        lightRadius = 20.0f;
-        sc->addLight(make_float3(0.0f, 0.0f, lightHeight));
+        lightRadius = 25.0f;
+        lightHeight = 20.0f;
+
+        sc->addLight(make_float3(-lightRadius, -lightRadius, lightHeight));
+        sc->addLight(make_float3(-lightRadius, lightRadius, lightHeight));
+        //sc->addLight(make_float3(lightRadius, -lightRadius, lightHeight));
+        //sc->addLight(make_float3(lightRadius, lightRadius, lightHeight));
         
     } else if(sceneName == "straight") {
         #ifndef AT_HAIR
@@ -132,17 +137,27 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
 
         translation = make_float3(0.0f, 0.0f, -18.0f);
 
+        sc->addLight(make_float3(-lightRadius, -lightRadius, lightHeight));
+        sc->addLight(make_float3(-lightRadius, lightRadius, lightHeight));
+        //sc->addLight(make_float3(lightRadius, -lightRadius, lightHeight));
+        //sc->addLight(make_float3(lightRadius, lightRadius, lightHeight));
+
     } else if(sceneName == "blonde") {
         #ifndef AT_HAIR
         Kd = 0.5f; 
         Ks = 0.55f;
         #else
         Kd = 2.0f; 
-        Ks = 2.2f;  
+        Ks = 2.0f;  
         #endif
 
         shininess = 40.0f;
         translation = make_float3(0.0f, 0.0f, -18.0f);
+
+        sc->addLight(make_float3(-lightRadius, -lightRadius, lightHeight));
+        //sc->addLight(make_float3(-lightRadius, lightRadius, lightHeight));
+        sc->addLight(make_float3(lightRadius, -lightRadius, lightHeight));
+        //sc->addLight(make_float3(lightRadius, lightRadius, lightHeight));
 
     } else if(sceneName == "natural") {
         #ifndef AT_HAIR
@@ -150,11 +165,18 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
         Ks = 0.55f;
         #else
         Kd = 1.7f; 
-        Ks = 2.2f;  
+        Ks = 2.0f;  
         #endif
 
         shininess = 40.0f;
         translation = make_float3(0.0f, 0.0f, -10.0f);
+        lightHeight = 45.0f;
+        lightRadius = 30.0f;
+
+        sc->addLight(make_float3(-lightRadius, -lightRadius, lightHeight));
+        //sc->addLight(make_float3(-lightRadius, lightRadius, lightHeight));
+        sc->addLight(make_float3(lightRadius, -lightRadius, lightHeight));
+        //sc->addLight(make_float3(lightRadius, lightRadius, lightHeight));
 
     } else if(sceneName == "wStraight"){
         #ifndef AT_HAIR
@@ -165,8 +187,15 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
         Ks = 2.4f;  
         #endif
 
-        shininess = 40.0f;
+        shininess = 50.0f;
         translation = make_float3(10.0f, 0.0f, 0.0f);
+        lightHeight = 20.0f;
+        lightRadius = 30.0f;
+
+        sc->addLight(make_float3(-lightRadius, -lightRadius, lightHeight));
+        //sc->addLight(make_float3(-lightRadius, lightRadius, lightHeight));
+        sc->addLight(make_float3(lightRadius, -lightRadius, lightHeight));
+        //sc->addLight(make_float3(lightRadius, lightRadius, lightHeight));
         
     } else if(sceneName == "wWavy"){
         #ifndef AT_HAIR
@@ -179,6 +208,13 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
 
         shininess = 40.0f;
         translation = make_float3(10.0f, 0.0f, 0.0f);
+        lightHeight = 30.0f;
+        lightRadius = 30.0f;
+
+        sc->addLight(make_float3(-lightRadius, -lightRadius, lightHeight));
+        //sc->addLight(make_float3(-lightRadius, lightRadius, lightHeight));
+        sc->addLight(make_float3(lightRadius, -lightRadius, lightHeight));
+        //sc->addLight(make_float3(lightRadius, lightRadius, lightHeight));
 
     } else if(sceneName == "wWavyThin"){
         #ifndef AT_HAIR
@@ -190,11 +226,24 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
         #endif
 
         shininess = 40.0f;
-        
+        lightRadius = 40.0f;
+        lightHeight = 35.0f;
+
+        sc->addLight(make_float3(-lightRadius, -lightRadius, lightHeight));
+        sc->addLight(make_float3(-lightRadius, lightRadius, lightHeight));
+        //sc->addLight(make_float3(lightRadius, -lightRadius, lightHeight));
+        //sc->addLight(make_float3(lightRadius, lightRadius, lightHeight));
+
+
     } else {
         Kd = 1.0f; 
         Ks = 1.0f;  
         shininess = 50.0f;
+
+        sc->addLight(make_float3(-lightRadius, -lightRadius, lightHeight));
+        sc->addLight(make_float3(-lightRadius, lightRadius, lightHeight));
+        sc->addLight(make_float3(lightRadius, -lightRadius, lightHeight));
+        sc->addLight(make_float3(lightRadius, lightRadius, lightHeight));
     }
 
     float transparency = hairfile.GetHeader().d_transparency;
@@ -208,11 +257,6 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
     float3 hairRoot = make_float3(pointsArray[0], pointsArray[1], pointsArray[2]);
     
     sc->setBackcolor(make_float3(0.8f));
-
-    sc->addLight(make_float3(-lightRadius, -lightRadius, lightHeight));
-    sc->addLight(make_float3(-lightRadius, lightRadius, lightHeight));
-    sc->addLight(make_float3(lightRadius, -lightRadius, lightHeight));
-    sc->addLight(make_float3(lightRadius, lightRadius, lightHeight));
 
     // If segments array exists
     if(segments) {
