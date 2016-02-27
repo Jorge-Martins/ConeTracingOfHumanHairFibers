@@ -177,7 +177,17 @@ void saveFrame(GLuint tex, std::string sceneName, int resX, int resY) {
     std::string file;
     int size = resX * resY * 3;
 
-    ss << resourceDirPath << sceneName << "d" << MAX_DEPTH << "ss" << SUPER_SAMPLING << "_";
+    ss << resourceDirPath << sceneName;
+
+    #ifndef AT_HAIR
+    ss << "d" << MAX_DEPTH;
+
+    #else
+    ss << "AT" << AOIT_HAIR_NODE_COUNT << "_"  << HAIR_INTERSECTION_LST_SIZE;
+
+    #endif
+
+    ss << "ss" << SUPER_SAMPLING << "_";
 		
     file = ss.str() + std::to_string(static_cast<long long>(counter++)) + ".png";
     image = FreeImage_Load(FIF_PNG, file.c_str(), PNG_DEFAULT);
@@ -204,8 +214,17 @@ void saveFrame(GLuint tex, std::string sceneName, int resX, int resY) {
 	FreeImage_Unload(image);
 	delete[] imageData;
 
+    #ifndef AT_HAIR
 	std::cout << "Snapshot saved as " << sceneName << "d" << MAX_DEPTH << "ss" << SUPER_SAMPLING << "_" <<
                   std::to_string(static_cast<long long>(counter - 1)) << ".png"<< std::endl << std::endl;
+
+    #else
+    std::cout << "Snapshot saved as " << sceneName << "AT" << AOIT_HAIR_NODE_COUNT << "_"  << HAIR_INTERSECTION_LST_SIZE << "ss" << SUPER_SAMPLING << "_" <<
+                  std::to_string(static_cast<long long>(counter - 1)) << ".png"<< std::endl << std::endl;
+    
+    #endif
+
+
 }
 
 #endif;

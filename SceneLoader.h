@@ -132,8 +132,11 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
         #else
         Kd = 1.5f;
         Ks = 2.0f;
-        shininess = 40.0f;
+        shininess = 50.0f;
         #endif
+
+        lightRadius = 30.0f;
+        lightHeight = 30.0f;
 
         translation = make_float3(0.0f, 0.0f, -18.0f);
 
@@ -147,12 +150,14 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
         Kd = 0.5f; 
         Ks = 0.55f;
         #else
-        Kd = 2.0f; 
-        Ks = 2.0f;  
+        Kd = 1.6f; 
+        Ks = 0.3f;  
         #endif
 
-        shininess = 40.0f;
+        shininess = 50.0f;
         translation = make_float3(0.0f, 0.0f, -18.0f);
+        lightHeight = 40.0f;
+        lightRadius = 45.0f;
 
         sc->addLight(make_float3(-lightRadius, -lightRadius, lightHeight));
         //sc->addLight(make_float3(-lightRadius, lightRadius, lightHeight));
@@ -164,11 +169,11 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
         Kd = 0.2f; 
         Ks = 0.55f;
         #else
-        Kd = 1.7f; 
-        Ks = 2.0f;  
+        Kd = 1.6f; 
+        Ks = 0.5f;  
         #endif
 
-        shininess = 40.0f;
+        shininess = 60.0f;
         translation = make_float3(0.0f, 0.0f, -10.0f);
         lightHeight = 45.0f;
         lightRadius = 30.0f;
@@ -184,13 +189,13 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
         Ks = 0.6f;
         #else
         Kd = 2.8f; 
-        Ks = 2.4f;  
+        Ks = 2.0f;  
         #endif
 
-        shininess = 50.0f;
+        shininess = 40.0f;
         translation = make_float3(10.0f, 0.0f, 0.0f);
-        lightHeight = 20.0f;
-        lightRadius = 30.0f;
+        lightHeight = 40.0f;
+        lightRadius = 60.0f;
 
         sc->addLight(make_float3(-lightRadius, -lightRadius, lightHeight));
         //sc->addLight(make_float3(-lightRadius, lightRadius, lightHeight));
@@ -202,14 +207,14 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
         Kd = 0.7f; 
         Ks = 0.6f;
         #else
-        Kd = 2.8f; 
-        Ks = 2.4f;  
+        Kd = 1.6f; 
+        Ks = 2.0f;  
         #endif
 
         shininess = 40.0f;
         translation = make_float3(10.0f, 0.0f, 0.0f);
-        lightHeight = 30.0f;
-        lightRadius = 30.0f;
+        lightHeight = 60.0f;
+        lightRadius = 60.0f;
 
         sc->addLight(make_float3(-lightRadius, -lightRadius, lightHeight));
         //sc->addLight(make_float3(-lightRadius, lightRadius, lightHeight));
