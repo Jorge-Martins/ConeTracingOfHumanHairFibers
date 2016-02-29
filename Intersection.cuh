@@ -1154,7 +1154,7 @@ float getArea(float circleR) {
 
 __device__
 float getCircularSectorArea(float circleR, float segmentLength) {
-    if(segmentLength <= EPSILON){ 
+    if(segmentLength <= 0.0f){ 
 		return 0.0f; 
 	}
 
@@ -1347,7 +1347,7 @@ float triangleCircleIntersectionArea(Triangle2D tri, float3 circleV, float circl
 
 	} else {
 		// should never happen
-		return 0.0f;
+		return -1.0f;
 	}
 	
 	// At this point we expect to just trace out the intersection shape
@@ -1465,25 +1465,50 @@ bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder) {
 
     if(area > 0.0f) {
         if(out != nullptr) {
-            Ray ray = Ray();
             bool result = false;
+            Ray ray = Ray();
             float3 direction;
+            float3 normal = make_float3(0.0f);
+            float3 point = normal;
+            float distance = 0.0f;
 
-            for(int i = 0; i < nIntersectionsT1 && !result; i++) {
+            int nIntersectionT = 0;
+            for(int i = 0; i < nIntersectionsT1; i++) {
                 direction = normalize(intersectionPointsT1[i] - cone.origin);
 
                 ray.update(cone.origin, direction);
-                result |= intersection(ray, out, cylinder);
+                if(intersection(ray, out, cylinder)) {
+                    normal += out->normal;
+                    point += out->point;
+                    distance += out->distance;
+                    nIntersectionT++;
+                    result |= true;
+                }
             }
 
-            for(int i = 0; i < nIntersectionsT2 && !result; i++) {
+            for(int i = 0; i < nIntersectionsT2; i++) {
                 direction = normalize(intersectionPointsT2[i] - cone.origin);
 
                 ray.update(cone.origin, direction);
-                result |= intersection(ray, out, cylinder);
+                if(intersection(ray, out, cylinder)) {
+                    normal += out->normal;
+                    point += out->point;
+                    distance += out->distance;
+                    nIntersectionT++;
+                    result |= true;
+                }
             }
 
-            out->shapeMaterial.ior = area / (PI * coneCircleR * coneCircleR);
+            if(nIntersectionT > 0) {
+                normal = normalize(normal / nIntersectionT);
+                point /= nIntersectionT;
+                distance /= nIntersectionT;
+
+                out->distance = distance;
+                out->normal = normal;
+                out->point = point;
+                out->shapeMaterial.ior = area / (PI * coneCircleR * coneCircleR);
+            }
             
             return result;
         }

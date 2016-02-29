@@ -250,7 +250,14 @@ __device__ bool traverseHairHybridBVH(BVHNodeType *bvh, uint bvhSize, RayCone ra
                     intersectionFound = intersection(ray, &curr, childL->shape);
 
                     if(intersectionFound) {
+                        #ifndef CONE_TRACING
                         insertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
+                        
+                        #else
+                        float areaFraction = curr.shapeMaterial.ior;
+                        insertFragment(curr.distance, (1.0f - areaFraction) + (areaFraction * curr.shapeMaterial.transparency), dataAT);
+
+                        #endif
 
                         if(lstIndex < HAIR_INTERSECTION_LST_SIZE) {
                             shapeIntersectionLst[lstIndex] = curr;
@@ -294,7 +301,14 @@ __device__ bool traverseHairHybridBVH(BVHNodeType *bvh, uint bvhSize, RayCone ra
                     intersectionFound = intersection(ray, &curr, childR->shape);
 
                     if(intersectionFound) {
+                        #ifndef CONE_TRACING
                         insertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
+                        
+                        #else
+                        float areaFraction = curr.shapeMaterial.ior;
+                        insertFragment(curr.distance, (1.0f - areaFraction) + (areaFraction * curr.shapeMaterial.transparency), dataAT);
+
+                        #endif
 
                         if(lstIndex < HAIR_INTERSECTION_LST_SIZE) {
                             shapeIntersectionLst[lstIndex] = curr;
@@ -428,6 +442,7 @@ __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* light
     hairIntersections[lstSize].distance = backgroundDistance;
     hairIntersections[lstSize].shapeMaterial.color = backgroundColor;
     hairIntersections[lstSize].shapeMaterial.transparency = 0.0f;
+    hairIntersections[lstSize].shapeMaterial.ior = 1.0f;
     lstSize++;
     insertFragment(backgroundDistance, 0.0f, dataAT);
 
@@ -452,8 +467,7 @@ __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* light
                 #endif
 	        }
 
-            //save local color * area fraction
-            hairIntersections[i].shapeMaterial.color = colorAux * hairIntersections[i].shapeMaterial.ior;
+            hairIntersections[i].shapeMaterial.color = colorAux;
         }
     }
 
@@ -466,7 +480,8 @@ __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* light
         AOITFragment frag = getFragment(dataAT, node->distance);
 
         vis = frag.index == 0 ? 1.0f : frag.transA;
-        color += node->shapeMaterial.color * (1.0f - node->shapeMaterial.transparency) * vis;
+        //TODO check if the areaFraction is needed here...
+        color += node->shapeMaterial.color * node->shapeMaterial.ior * (1.0f - node->shapeMaterial.transparency) * vis;
                   
     }
 
