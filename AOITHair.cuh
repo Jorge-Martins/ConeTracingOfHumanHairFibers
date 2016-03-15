@@ -7,7 +7,9 @@
 #define AIOT_EMPTY_NODE_DEPTH	(1E30)
 #define AOIT_HAIR_RT_COUNT (AOIT_HAIR_NODE_COUNT / 4)
 
-#include "AOIT.cuh"
+//#define AOIT_DONT_COMPRESS_FIRST_HALF
+
+#include "ShadowTransmitance.cuh"
 
 __device__ AOITFragment getFragment(AOITHair data, float fragmentDepth) {
     float depth[4];
@@ -480,7 +482,7 @@ __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* light
         AOITFragment frag = getFragment(dataAT, node->distance);
 
         vis = frag.index == 0 ? 1.0f : frag.transA;
-        //TODO check if the areaFraction is needed here...
+
         color += node->shapeMaterial.color * node->shapeMaterial.ior * (1.0f - node->shapeMaterial.transparency) * vis;
                   
     }

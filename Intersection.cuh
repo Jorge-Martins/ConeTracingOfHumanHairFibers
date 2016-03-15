@@ -1124,300 +1124,196 @@ bool OBBIntersection(Cone cone, float3 min, float3 max, Matrix *m, float3 *trans
     return AABBIntersection(cone, min, max, distance);
 }
 
+
 __device__
-bool pointInside(Triangle2D tri, float3 point) {
-    return (dot(cross(tri.bc, point - tri.b), cross(tri.bc, tri.a - tri.b)) >= 0) &&
-           (dot(cross(tri.ac, point - tri.a), cross(tri.ac, tri.b - tri.a)) >= 0) &&
-           (dot(cross(tri.ab, point - tri.a), cross(tri.ab, tri.c - tri.a)) >= 0);
+float2 cangle(float2 s, float2 t) {
+	return make_float2(dot(s,t),s.x*t.y-s.y*t.x);
 }
 
 __device__
-bool pointInsideCircle(float3 circleV, float circleR, float3 point) {
-    return length(point - circleV) <= circleR;
+float2 cmul(float2 s, float2 t) {
+	return make_float2(s.x*t.x-s.y*t.y,s.x*t.y+s.y*t.x);
 }
 
+//this ignores length
 __device__
-float getArea(Triangle2D tri) {
-    float a = length(tri.ab);
-    float b = length(tri.ac);
-    float c = length(tri.bc);
-
-    float s = 0.5f * (a + b + c);
-
-    return sqrtf(s * (s - a) * (s - b) * (s - c));
-}
-
-__device__
-float getArea(float circleR) {
-    return PI * circleR * circleR;
-}
-
-__device__
-float getCircularSectorArea(float circleR, float segmentLength) {
-    if(segmentLength <= 0.0f){ 
-		return 0.0f; 
-	}
-
-	segmentLength *= 0.5f;
-
-	float x = segmentLength / circleR;
-	if(x < (1.0f / 32.0f)){ // use taylor expansion for stuff in brackets
-		float c2 = 2.0f / 3.0f;
-		float c4 = 1.0f / 5.0f;
-		float c6 = 3.0f / 28.0f;
-		float c8 = 3.0f / 72.0f;
-		x *= x;
-
-		return circleR * segmentLength * (c2 + (c4 + (c6 + c8 * x) * x) * x) * x;
-
-	} else {
-		return circleR * segmentLength * (asinf(x)/x - sqrtf((1.0f + x) * (1.0f - x)));
-	}
-}
-
-__device__
-int circleSegmentIntersection(float3 circleV, float circleR, float3 seg[2], float3 *intersectionPoints) {
-    float3 p0c = seg[0] - circleV;
-	float3 p1p0 = seg[1] - seg[0];
-
-	float a = length(p1p0);
-	float b_2a = dot(p0c,p1p0) / a;
-	float c = length(p0c) - circleR * circleR;
-	float d = b_2a * b_2a - c / a;
-
-	if(d < 0) {
-		return 0;
-
-	} else {
-		int nIntersections = 0;
-		float t = -b_2a;
-
-		if(d == 0) {
-			if(t >= 0.0f && t <= 1.0f) {
-				intersectionPoints[0] = seg[0] + t * p1p0;
-				nIntersections++;
-			}
-
-		} else{
-			t -= sqrtf(d);
-
-			if(t >= 0.0f && t <= 1.0f) {
-				intersectionPoints[0] = seg[0] + t * p1p0;
-				nIntersections++;
-			}
-
-			t = sqrtf(d) - b_2a;
-
-			if(t >= 0.0f && t <= 1.0f) {
-				intersectionPoints[nIntersections] = seg[0] + t * p1p0;
-				nIntersections++;
-			}
-		}
-
-		return nIntersections;
-	}
-}
-
-__device__
-float triangleCircleIntersectionArea(Triangle2D tri, float3 circleV, float circleR, float3 *intersectionPoints, int &totalNIntersections) {  
-	// Get the 3 segments of the triangle
-	float3 segments[3][2] = {
-        {tri.a, tri.b},
-        {tri.b, tri.c},
-        {tri.c, tri.a}
-    };
-
-	int nSegmentIntersections[3]; 
-    totalNIntersections = 0;
-
-    // Get intersections of the circle with each segment
-	for(int i = 0; i < 3; i++) {
-		nSegmentIntersections[i] = circleSegmentIntersection(circleV, circleR, segments[i], &(intersectionPoints[2*i]));
-		totalNIntersections += nSegmentIntersections[i];
-	}
-
-	if(totalNIntersections & 1) {
-		// Attempt to fix it; this can happen if an intersection is very near a triangle vertex,
-		// such that only one of the segments registers an intersection with the circle.
-		// Try to remove the intersection that is closest to a vertex. Of course, this could
-		// backfire terribly and end up producing something nonsensical. An example is if
-		// two triangle vertices had this property, then the topology of the resulting
-		// intersections may be nonsensical. We hope to compute the area in such a way
-		// later that it doesn't matter.
-        float minDist_2 = tri.maxLen; 
-        minDist_2 *= minDist_2;
-		int min_dist2_xi = -1;
-
-		for(int i = 0; i < 3; i++){
-			for(int j = 0; j < nSegmentIntersections[i]; j++){
-				float d2;
-
-				for(int k = 0; k < 2; k++){
-					d2 = length(intersectionPoints[2*i+j] - segments[i][k]);
-
-					if(d2 < minDist_2){
-						minDist_2 = d2;
-						min_dist2_xi = i * 2 + j;
-					}
-				}
-			}
-		}
-
-		int h = min_dist2_xi / 2;
-		nSegmentIntersections[h]--; 
-        totalNIntersections--;
-
-		if((min_dist2_xi & 1) == 0){ // if it was the first one, then move the second one up
-			intersectionPoints[2*h] = intersectionPoints[2*h+1];
-		}
-	}
+float2 csqrt(float2 a) {
+	float lg = length(a);
+	float r = lg + a.x;
+	float c = sqrtf((lg - a.x) * r) * (float)(((int)(a.y) & 0x80000000) + 0x3f800000);
 	
-    // bit array of which triangle vertices are in circle, 4th bit is if circle center is in triangle
-	int inside = 0; 
-	if(pointInsideCircle(circleV, circleR, tri.a)){ 
-		inside |= (1 << 0); 
-	}
-
-    if(pointInsideCircle(circleV, circleR, tri.b)){ 
-		inside |= (1 << 1); 
-	}
-
-    if(pointInsideCircle(circleV, circleR, tri.c)){ 
-		inside |= (1 << 2); 
-	}
-
-    if(pointInside(tri, circleV)){ 
-		inside |= (1 << 3); 
-	}
-
-    // either no intersection area, or triangle entirely in circle, or circle in triangle
-	if(totalNIntersections == 0) {
-		// all triangle points in circle
-        if((inside & 0x7) == 0x7) {
-            intersectionPoints[0] = tri.a;
-            intersectionPoints[1] = tri.b;
-            intersectionPoints[2] = tri.c;
-            totalNIntersections = 3;
-
-			return getArea(tri);
-
-		} else { // either no intersection area, or circle in triangle
-			if(inside & (1 << 3)) {
-                // triangle contains circle center, intersection area is either circle area
-                intersectionPoints[0] = circleV;
-                totalNIntersections = 1;
-
-				return getArea(circleR);
-
-			} else {
-                //No intersection
-				return 0.0f;
-
-			}
-		}
-
-	} else if(totalNIntersections == 2) {
-		if(nSegmentIntersections[0] < 2 && 
-           nSegmentIntersections[1] < 2 && 
-           nSegmentIntersections[2] < 2) { 
-           // on different sides, area determined by tracing
-
-		} else {
-			int i;
-			for(i = 0; i < 3; i++) {
-				if(nSegmentIntersections[i] > 1) { 
-                    break; 
-                }
-			}
-			// Either the circle is mostly inside with a wedge poking out a side
-			// or the circle is mostly outside with a wedge poking inside
-			float sector_area = getCircularSectorArea(circleR, length(intersectionPoints[2*i+1] - intersectionPoints[2*i]));
-			
-            if(inside & (1 << 3)) {
-				// Area of circle minus a wedge
-                return getArea(circleR) - sector_area;
-
-			} else {
-				return sector_area;
-			}
-		}
-
-	} else if(totalNIntersections == 4 || totalNIntersections == 6) {
-		// The area is determined by tracing
-
-	} else {
-		// should never happen
-		return -1.0f;
-	}
-	
-	// At this point we expect to just trace out the intersection shape
-	// The vertices of the intersection shape is either a triangle vertex
-	// or a intersection point on a triangle edge.
-	int vtype[6]; // 1 = triangle vertex, 0 = intersection point
-	float3 vp[6];
-	int nVertices = 0; // number of actual vertices
-	
-	for(int i = 0; i < 3; i++) {
-		if(inside & (1 << i)){
-			vp[nVertices] = segments[i][0];
-			vtype[nVertices++] = 1;
-		}
-
-		for(int j = 0; j < nSegmentIntersections[i]; j++) {
-			vp[nVertices] = intersectionPoints[2*i+j];
-			vtype[nVertices++] = 0;
-		}
-	}
-
-
-	if(nVertices < 3){ 
-        // this should not be possible
-		return 0.0f;
-	}
-	
-	// All neighboring points in v which are intersection points should have circular caps added
-	float area = 0.0f;
-	for(int i = 2; i < nVertices; ++i) {
-		area += getArea(Triangle2D(vp[0], vp[i - 1], vp[i]));
-
-		if((vtype[i-1] == 0) && (vtype[i] == 0)) {
-			area += getCircularSectorArea(circleR, length(vp[i] - vp[i - 1]));
-		}
-	}
-	// Check the final segments (those next to vp[0]) to see if they need caps added
-	if(vtype[0] == 0){
-		if(vtype[1] == 0){
-			area += getCircularSectorArea(circleR, length(vp[1] - vp[0]));
-		}
-		if(vtype[nVertices - 1] == 0){
-			area += getCircularSectorArea(circleR, length(vp[0] - vp[nVertices - 1]));
-		}
-	}
-
-	return area;
+    return make_float2(r,c);
 }
 
-
 __device__
-float quadCircleIntersectionArea(float3 *quad, float3 circleV, float circleR, float3 *intersectionPointsT1, 
-                                 float3 *intersectionPointsT2, int &nIntersectionsT1, int &nIntersectionsT2) {
-    float area = 0.0f;  
-    area += triangleCircleIntersectionArea(Triangle2D(quad[0], quad[1], quad[2]), circleV, 
-                                           circleR, intersectionPointsT1, nIntersectionsT1);
-    
-    area += triangleCircleIntersectionArea(Triangle2D(quad[1], quad[3], quad[2]), circleV, 
-                                           circleR,intersectionPointsT2, nIntersectionsT2);
+float quadCircleIntersectionArea(float2 *quad, float coneCircleR) {
+    float area = 0.0f;
+    float2 cc = make_float2(1.0f, 0.0f);
+    float2 A, B, D;
+    float sqA, sqD;
+    float sqR = sqrtf(coneCircleR);
+    float isqR = 1.0f / sqR;
+    size_t has0, has1;
+
+    for(int i = 0; i < 4; i++) {
+	    A = quad[(i + 3) % 4];
+	    B = quad[i];
+	    D = B - A;
+
+        sqA = length(A);
+	    sqD = length(D);
+	    float ndt = -dot(A, D);
+
+	    float delta = sqrtf(ndt) - (sqA - sqR) * sqD;
+	    float2 c = make_float2(1.0f, 0.0f);
+
+	    if(delta > 0.0f) {
+		    float isqD = 1.0f / sqD;
+		    float dside = sqrtf(delta);
+		    float t0 = (ndt - dside) * isqD;
+		    float t1 = (ndt + dside) * isqD;
+		    float2 xt0 = t0 * D + A;
+		    float2 xt1 = t1 * D + A;
+		    has0 = ((size_t)((int)(t0)) <= 0x3f800000u);
+		    has1 = ((size_t)((int)(t1)) <= 0x3f800000u);
+		
+            if(has0 > 0) {			
+			    c = cmul(c, cangle(A, xt0));
+			    A = xt0;
+            }
+
+		    if(has1 > 0) {			
+			    c = cmul(c, cangle(xt1, B));
+			    B = xt1;
+            }
+
+        } else {
+		    has0 = 0;
+		    has1 = 0;
+        }
+
+	    if(!(has0 | has1) && sqA > sqR) {
+		    c = cmul(c, cangle(A, B));
+
+        } else {
+		    area += length(cross(make_float3(A.x, A.y, 0.0f), make_float3(B.x, B.y, 0.0f))) * isqR;
+        }
+	
+        cc=cmul(cc,csqrt(c));
+        area += atan2f(cc.y, cc.x) * 2.0f;
+    }
 
     return area;
 }
 
+__device__
+float SignedPolygonArea(float2 *polygon, int nPoints) {
+    float area = 0.0f;
+    int j = nPoints - 1;  // The last vertex is the 'previous' one to the first
 
+  for(int i = 0; i<nPoints; i++) { 
+      area = area +  (polygon[j].x+polygon[i].x) * (polygon[j].y-polygon[i].y); 
+      j = i;  //j is previous vertex to i
+    }
 
+  return area * 0.5f;
+}
 
 
 //aproximate cone cylinder intersection
 __device__
-bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder) { 
+bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder) {
+    float3 coneCircleV = cone.origin + cone.direction * (length((fmaxf(cylinder->base, cylinder->top) + cylinder->radius) - 
+                                                         cone.origin));
+    float coneCircleR = length(coneCircleV - cone.origin) * tanf(cone.spread);
+
+    //find projection plane
+    float3 planeNormal = -cone.direction;
+    float planeDistance = -dot(planeNormal, coneCircleV);
+
+    //compute plane coordenate system and convert the problem to 2D
+    float3 planeXAxis = normalize(cross(make_float3(0.0f, 0.0f, 1.0f), planeNormal));
+    float3 planeYAxis = normalize(cross(planeNormal, planeXAxis));
+
+    /*approximation through rays
+    Idea shoot rays on the border of the circle and estimate the area (polygon area)
+       _x_
+     x/   \x
+    x|  x  |x
+     x\_x_/x
+        
+    */
+
+    int nPoints = 0;
+    float2 polygon[(int)N_POLYGONS_POINTS];
+    float theta = 0.0f;
+    float thetaStep = 2 * PI / N_POLYGONS_POINTS;
+    float3 direction;
+
+    float3 normals = make_float3(0.0f);
+    float distances = FLT_MAX;
+    float3 points;
+
+    for(int i = 0; i < N_POLYGONS_POINTS; i++) {
+        float3 point = coneCircleV + (planeYAxis * coneCircleR * sinf(theta) - planeXAxis * coneCircleR * cosf(theta));
+
+        direction = normalize(point - cone.origin);
+        if(intersection(Ray(cone.origin, direction), out, cylinder)) {                  
+            normals += out->normal;
+                    
+            if(distances > out->distance) {
+                distances = out->distance;
+                points = out->point;
+            }
+
+            polygon[nPoints++] = make_float2(dot(point, planeXAxis), dot(point, planeYAxis));
+        }
+
+        theta += thetaStep;
+    }
+
+    //If less than half of the points test the circle vertex
+    if(nPoints < (0.5f * N_POLYGONS_POINTS)) {
+        if(intersection(Ray(cone.origin, cone.direction), out, cylinder)) {
+            normals += out->normal;
+                    
+            if(distances > out->distance) {
+                distances = out->distance;
+                points = out->point;
+            }
+
+            //add circle vertex to polygon
+            polygon[nPoints++] = make_float2(dot(coneCircleV, planeXAxis), dot(coneCircleV, planeYAxis));
+        }
+    }
+
+    if(nPoints <= 2) {
+        return false;
+    }
+
+    float area = SignedPolygonArea(polygon, nPoints);
+
+    if(area > 0.0f && out != nullptr) {
+        float maxArea = 0.5f * coneCircleR * coneCircleR * N_POLYGONS_POINTS * sinf(thetaStep); 
+         
+        out->normal = normalize(normals / nPoints);
+        out->distance = distances;
+        out->point = points;
+        out->shapeMaterial = cylinder->material;
+
+        //update area fraction
+        out->shapeMaterial.ior = area / maxArea;
+
+        return true;
+        
+    }
+
+    return false;
+}
+
+//Proximate through projection into plane, quad creation, circle-quad intersection
+__device__
+bool intersection2(Cone cone, RayIntersection *out, Cylinder *cylinder) { 
     float3 quad[4];
     float3 coneCircleV = cone.origin + cone.direction * (length((fmaxf(cylinder->base, cylinder->top) + cylinder->radius) - 
                                                          cone.origin));
@@ -1434,6 +1330,14 @@ bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder) {
     float cylinderBaseRadius[2];
     
     float3 point = cylinder->base;
+
+     /*Quad 3D
+        2---3
+       /   /
+      /   /
+     0---1
+    */
+
     for(int i = 0; i < 2; i++) {
         //compute 4 points, 2 on the base and 2 on the top and project to the plane
         quad[i * 2] = projectToPlane(point + cylinder->radius * xx, planeNormal, planeDistance);
@@ -1457,63 +1361,73 @@ bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder) {
     quad[2] += projectedAxis * cylinderBaseRadius[1];
     quad[3] += projectedAxis * cylinderBaseRadius[1];
 
-    float3 intersectionPointsT1[6], intersectionPointsT2[6];
-    int nIntersectionsT1, nIntersectionsT2;
+    //compute plane coordenate system and convert the problem to 2D
+    float3 planeXAxis = normalize(cross(make_float3(0.0f, 0.0f, 1.0f), planeNormal));
+    float3 planeYAxis = normalize(cross(planeNormal, planeXAxis));
 
-    float area = quadCircleIntersectionArea(quad, coneCircleV, coneCircleR, intersectionPointsT1, 
-                                            intersectionPointsT2, nIntersectionsT1, nIntersectionsT2);
+    
+    float2 coneCircle2DV = make_float2(dot(coneCircleV, planeXAxis), dot(coneCircleV, planeYAxis));
 
-    if(area > 0.0f) {
-        if(out != nullptr) {
-            bool result = false;
-            Ray ray = Ray();
-            float3 direction;
-            float3 normal = make_float3(0.0f);
-            float3 point = normal;
-            float distance = 0.0f;
+    float2 quad2D[4];
+    for(int i = 0; i < 4; i++) {
+        quad2D[i].x = dot(quad[i], planeXAxis);
+        quad2D[i].y = dot(quad[i], planeYAxis);
 
-            int nIntersectionT = 0;
-            for(int i = 0; i < nIntersectionsT1; i++) {
-                direction = normalize(intersectionPointsT1[i] - cone.origin);
+        quad2D[i] -= coneCircle2DV;
 
-                ray.update(cone.origin, direction);
-                if(intersection(ray, out, cylinder)) {
-                    normal += out->normal;
-                    point += out->point;
-                    distance += out->distance;
-                    nIntersectionT++;
-                    result |= true;
-                }
-            }
-
-            for(int i = 0; i < nIntersectionsT2; i++) {
-                direction = normalize(intersectionPointsT2[i] - cone.origin);
-
-                ray.update(cone.origin, direction);
-                if(intersection(ray, out, cylinder)) {
-                    normal += out->normal;
-                    point += out->point;
-                    distance += out->distance;
-                    nIntersectionT++;
-                    result |= true;
-                }
-            }
-
-            if(nIntersectionT > 0) {
-                normal = normalize(normal / nIntersectionT);
-                point /= nIntersectionT;
-                distance /= nIntersectionT;
-
-                out->distance = distance;
-                out->normal = normal;
-                out->point = point;
-                out->shapeMaterial.ior = area / (PI * coneCircleR * coneCircleR);
-            }
-            
-            return result;
+        if(i == 3) {
+            float2 temp = quad2D[2];
+            quad2D[2] = quad2D[3];
+            quad2D[3] = temp;
         }
+    }
+
+    /*Quad 2D
+        3---2
+       /   /
+      /   /
+     0---1
+    */
+    
+    float area = quadCircleIntersectionArea(quad2D, coneCircleR);
+
+    if(area > 0.0f && out != nullptr) {
+        float3 normals = make_float3(0.0f);
+        float distances = FLT_MAX;
+        float3 points;
+
+        int nIntersections = 0;
+
+        float3 rayDirections[5];
+        rayDirections[0] = cone.direction;
+        rayDirections[1] = normalize((coneCircleV + planeXAxis * coneCircleR) - cone.origin);
+        rayDirections[2] = normalize((coneCircleV - planeXAxis * coneCircleR) - cone.origin);
+        rayDirections[3] = normalize((coneCircleV + planeYAxis * coneCircleR) - cone.origin);
+        rayDirections[4] = normalize((coneCircleV - planeYAxis * coneCircleR) - cone.origin);
+
+        for(int i = 0; i < 5; i++) {
+            if(intersection(Ray(cone.origin, rayDirections[i]), out, cylinder)) {
+                normals += out->normal;
+                    
+                if(distances > out->distance) {
+                    distances = out->distance;
+                    points = out->point;
+                }
+
+                nIntersections++;
+            }
+        }
+        
+        out->normal = normalize(normals / nIntersections);
+        out->distance = distances;
+        out->point = points;
+        out->shapeMaterial = cylinder->material;
+
+        //update area fraction
+        //out->shapeMaterial.ior = area / (PI * coneCircleR * coneCircleR);
 
         return true;
+        
     }
 
     return false;

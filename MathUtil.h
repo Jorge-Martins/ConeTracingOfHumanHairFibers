@@ -8,9 +8,9 @@
 
 //#define GENERAL_INTERSECTION
 //#define SOFT_SHADOWS
-#define AT_SHADOWS
+#define SHADOW_TRANSMITANCE
 #define AT_HAIR
-//#define CONE_TRACING
+#define CONE_TRACING
 //#define PRINT_N_INTERSECTIONS
 
 #ifdef CONE_TRACING
@@ -25,7 +25,7 @@
     #endif
 #endif
 
-#define SUPER_SAMPLING 2
+#define SUPER_SAMPLING 1
 #define SUPER_SAMPLING_F (1.0f / SUPER_SAMPLING)
 #define SUPER_SAMPLING_2 (SUPER_SAMPLING * SUPER_SAMPLING)
 #define SUPER_SAMPLING_2_F (1.0f / SUPER_SAMPLING_2)
@@ -34,6 +34,7 @@
 #define EPSILON 1E-4f
 #define OBB_AABB_EPSILON 15.0f
 
+#define N_POLYGONS_POINTS 6.0f
 
 #define INTERSECTION_LST_SIZE 4
 #define TRANSMITANCE_LIMIT 0.05f
@@ -45,7 +46,7 @@
 #define LIGHT_SAMPLE_RADIUS_F (1.0f / LIGHT_SAMPLE_RADIUS)
 #define LIGHT_SAMPLES (LIGHT_SAMPLE_RADIUS * LIGHT_SAMPLE_RADIUS)
 #define SUM_FACTOR (1.0f / LIGHT_SAMPLES)
-#define LIGHT_SOURCE_SIZE 0.2f
+#define LIGHT_SOURCE_SIZE 0.06f
 
 #define sphereIndex 0
 #define cylinderIndex 1
@@ -232,8 +233,13 @@ float3 computeCenter(float3 cmin, float3 cmax, float3 min, float3 max) {
 }
 
 inline __host__ __device__
-float3 projectVector(float3 a, float3 b) {
-    return b * dot(a, b);
+float3 projectVector(float3 vector, float3 axis) {
+    return axis * dot(vector, axis);
+}
+
+inline __host__ __device__
+float2 sqrt(float2 a) {
+    return make_float2(sqrt(a.x), sqrt(a.y));
 }
 
 inline __device__ void setVectorValue(float3 &vec, int pos, float value) {

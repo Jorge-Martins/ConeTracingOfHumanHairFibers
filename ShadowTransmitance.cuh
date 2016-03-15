@@ -1,7 +1,7 @@
 #pragma once
 
-#ifndef __AOIT__
-#define __AOIT__
+#ifndef __SHADOWTRANMITANCE__
+#define __SHADOWTRANMITANCE__
 
 #include "tracing.cuh"
 
@@ -289,7 +289,7 @@ __device__ float3 computeShadows(int **d_shapes, uint *d_shapeSizes, Light* ligh
     Ray feeler = Ray(intersect.point, feelerDir);
     bool result = false;
 
-    #ifndef AT_SHADOWS
+    #ifndef SHADOW_TRANSMITANCE
     #ifdef GENERAL_INTERSECTION
     bool inShadow = findShadow(d_shapes, d_shapeSizes, feeler);
 
@@ -317,7 +317,7 @@ __device__ float3 computeShadows(int **d_shapes, uint *d_shapeSizes, Light* ligh
         float Lspec = powf(fmaxf(dot(reflectDir, -ray.direction), 0.0f), mat->shininess);
         float Ldiff = fmaxf(dot(feelerDir, intersect.normal), 0.0f);
 
-        #ifndef AT_SHADOWS
+        #ifndef SHADOW_TRANSMITANCE
         return (Ldiff * mat->color * mat->Kdiffuse + Lspec * mat->Kspecular) * lights[li].color;
 
         #else

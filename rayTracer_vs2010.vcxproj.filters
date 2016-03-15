@@ -25,9 +25,6 @@
     <ClInclude Include="BVH.cuh">
       <Filter>cuda</Filter>
     </ClInclude>
-    <ClInclude Include="AOIT.cuh">
-      <Filter>cuda</Filter>
-    </ClInclude>
     <ClInclude Include="ImageComparator.h">
       <Filter>headers</Filter>
     </ClInclude>
@@ -35,6 +32,9 @@
       <Filter>cuda</Filter>
     </ClInclude>
     <ClInclude Include="AOITHair.cuh">
+      <Filter>cuda</Filter>
+    </ClInclude>
+    <ClInclude Include="ShadowTransmitance.cuh">
       <Filter>cuda</Filter>
     </ClInclude>
   </ItemGroup>
@@ -47,15 +47,15 @@
       <UniqueIdentifier>{747df255-278d-4355-8091-c47c2e3ec97d}</UniqueIdentifier>
       <Extensions>.cu</Extensions>
     </Filter>
-    <Filter Include="src">
-      <UniqueIdentifier>{c1bc5fe6-f571-4a52-b7cc-2d3203ab1c0d}</UniqueIdentifier>
-      <Extensions>.cpp</Extensions>
-    </Filter>
     <Filter Include="parsing files">
       <UniqueIdentifier>{3fc12018-add2-4572-bd9c-d8fad3d04c2c}</UniqueIdentifier>
     </Filter>
     <Filter Include="resource files">
       <UniqueIdentifier>{ba4f3d60-2ec0-4861-8237-a5872aef4a6f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{c1bc5fe6-f571-4a52-b7cc-2d3203ab1c0d}</UniqueIdentifier>
+      <Extensions>.cpp</Extensions>
     </Filter>
   </ItemGroup>
   <ItemGroup>
