@@ -200,8 +200,203 @@ __device__ void insertFragment(float fragmentDepth, float fragmentTrans, AOITHai
 /*
  * Traverse BVH and save all intersections with shapes
  */
-template <typename BVHNodeType, typename RayCone>
-__device__ bool traverseHairHybridBVH(BVHNodeType *bvh, uint bvhSize, RayCone ray, 
+template <typename BVHNodeType>
+__device__ bool traverseHairHybridBVH(BVHNodeType *bvh, uint bvhSize, Cone cone, 
+                                      RayIntersection *shapeIntersectionLst, int &lstIndex,
+                                      int &rayHairIntersections, AOITHair &dataAT, 
+                                      RayIntersection shadowPoints[][N_SHADOW_POINTS], 
+                                      int *nShadowPoints, float3 rayDirections[][N_SHADOW_POINTS]) {
+    float distance;
+    float minDistance = FLT_MAX;
+    bool intersectionFound = false;
+    const float factor = 1.13f; 
+    RayIntersection curr = RayIntersection();
+
+    BVHNodeType *stackNodes[StackSize];
+    
+    uint stackIndex = 0;
+
+    stackNodes[stackIndex++] = nullptr;
+    
+    BVHNodeType *childL, *childR, *node = &bvh[0], tmp;
+
+    tmp = *node;
+    if(tmp.type == AABB) {
+        intersectionFound = AABBIntersection(cone, tmp.min, tmp.max);
+    } else {
+        intersectionFound = OBBIntersection(cone, tmp.min, tmp.max, tmp.matrix, tmp.translation);
+    }
+    
+    if(!intersectionFound) {
+        return false;
+    }
+
+    RayIntersection tempShadowPoints[N_SHADOW_POINTS];
+    int tempNShadowPoints;
+    float3 tempRayDirections[N_SHADOW_POINTS];
+
+    bool lIntersection, rIntersection, traverseL, traverseR; 
+
+    while(node != nullptr) {
+        lIntersection = rIntersection = traverseL = traverseR = false;
+
+        childL = node->lchild;
+        if(childL != nullptr) {
+            tmp = *childL;
+            if(tmp.type == AABB) {
+                lIntersection = AABBIntersection(cone, tmp.min, tmp.max, distance);
+            } else {
+                lIntersection = OBBIntersection(cone, tmp.min, tmp.max, tmp.matrix, tmp.translation, distance);
+            }
+
+            if (lIntersection && distance < minDistance) {
+                // Leaf node
+                if (childL->shape != nullptr) {
+                    #ifdef PRINT_N_INTERSECTIONS
+                    rayHairIntersections++;
+                    #endif
+
+                    intersectionFound = intersection(cone, &curr, childL->shape, tempShadowPoints, 
+                                                     tempNShadowPoints, tempRayDirections);
+
+                    if(intersectionFound) {
+                        float areaFraction = curr.shapeMaterial.ior;
+                        insertFragment(curr.distance, (1.0f - areaFraction) + 
+                                                      (areaFraction * curr.shapeMaterial.transparency), dataAT);
+
+                        if(lstIndex < HAIR_INTERSECTION_LST_SIZE) {
+                            shapeIntersectionLst[lstIndex] = curr;
+
+                            nShadowPoints[lstIndex] = tempNShadowPoints;
+                            //store temp values
+                            for(int i = 0; i < tempNShadowPoints; i++) {
+                                shadowPoints[lstIndex][i].normal = tempShadowPoints[i].normal;
+                                shadowPoints[lstIndex][i].point = tempShadowPoints[i].point;
+                                shadowPoints[lstIndex][i].shapeMaterial = tempShadowPoints[i].shapeMaterial;
+
+                                rayDirections[lstIndex][i] = tempRayDirections[i];
+                            }
+
+                            lstIndex++;
+
+                        } else {
+                            distance = curr.distance;
+                            
+                            for(int i = 0; i < HAIR_INTERSECTION_LST_SIZE; i++) {
+                                if(shapeIntersectionLst[i].distance > distance) {
+                                    shapeIntersectionLst[i] = curr;
+
+                                    nShadowPoints[i] = tempNShadowPoints;
+                                    //store temp values
+                                    for(int j = 0; j < tempNShadowPoints; j++) {
+                                        shadowPoints[i][j].normal = tempShadowPoints[j].normal;
+                                        shadowPoints[i][j].point = tempShadowPoints[j].point;
+                                        shadowPoints[i][j].shapeMaterial = tempShadowPoints[j].shapeMaterial;
+
+                                        rayDirections[i][j] = tempRayDirections[j];
+                                    }
+
+                                    break;
+                                }
+                            }
+                        }
+
+                        minDistance = fminf(minDistance, factor * curr.distance);
+                    }
+
+                } else {
+                    traverseL = true;
+                }
+            }
+        }
+
+        childR = node->rchild;
+        if(childR != nullptr) {
+            tmp = *childR;
+            if(tmp.type == AABB) {
+                rIntersection = AABBIntersection(cone, tmp.min, tmp.max, distance);
+            } else {
+                rIntersection = OBBIntersection(cone, tmp.min, tmp.max, tmp.matrix, tmp.translation, distance);
+            }
+
+            if (rIntersection && distance < minDistance) {
+                // Leaf node
+                if (childR->shape != nullptr) {
+                    #ifdef PRINT_N_INTERSECTIONS
+                    rayHairIntersections++;
+                    #endif
+
+                    intersectionFound = intersection(cone, &curr, childR->shape, tempShadowPoints, 
+                                                     tempNShadowPoints, tempRayDirections);
+
+                    if(intersectionFound) {
+                        float areaFraction = curr.shapeMaterial.ior;
+                        insertFragment(curr.distance, (1.0f - areaFraction) + 
+                                                      (areaFraction * curr.shapeMaterial.transparency), dataAT);
+
+                        if(lstIndex < HAIR_INTERSECTION_LST_SIZE) {
+                            shapeIntersectionLst[lstIndex] = curr;
+                            
+                            nShadowPoints[lstIndex] = tempNShadowPoints;
+                            //store temp values
+                            for(int i = 0; i < tempNShadowPoints; i++) {
+                                shadowPoints[lstIndex][i].normal = tempShadowPoints[i].normal;
+                                shadowPoints[lstIndex][i].point = tempShadowPoints[i].point;
+                                shadowPoints[lstIndex][i].shapeMaterial = tempShadowPoints[i].shapeMaterial;
+
+                                rayDirections[lstIndex][i] = tempRayDirections[i];
+                            }
+
+                            lstIndex++;
+                        
+                        } else {
+                            distance = curr.distance;
+                            
+                            for(int i = 0; i < HAIR_INTERSECTION_LST_SIZE; i++) {
+                                if(shapeIntersectionLst[i].distance > distance) {
+                                    shapeIntersectionLst[i] = curr;
+
+                                    nShadowPoints[i] = tempNShadowPoints;
+                                    //store temp values
+                                    for(int j = 0; j < tempNShadowPoints; j++) {
+                                        shadowPoints[i][j].normal = tempShadowPoints[j].normal;
+                                        shadowPoints[i][j].point = tempShadowPoints[j].point;
+                                        shadowPoints[i][j].shapeMaterial = tempShadowPoints[j].shapeMaterial;
+
+                                        rayDirections[i][j] = tempRayDirections[j];
+                                    }
+
+                                    break;
+                                }
+                            }
+                        }
+
+                        minDistance = fminf(minDistance, factor * curr.distance);
+                    }
+                    
+                } else {
+                    traverseR = true;
+                }
+            }
+        }
+
+        
+        if (!traverseL && !traverseR) {
+            node = stackNodes[--stackIndex]; // pop
+
+        } else {
+            node = (traverseL) ? childL : childR;
+            if (traverseL && traverseR) {             
+                stackNodes[stackIndex++] = childR; // push
+            }
+        }
+    }
+
+    return lstIndex > 0;
+}
+
+template <typename BVHNodeType>
+__device__ bool traverseHairHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, 
                                       RayIntersection *shapeIntersectionLst, int &lstIndex,
                                       int &rayHairIntersections, AOITHair &dataAT) {
     float distance;
@@ -249,18 +444,12 @@ __device__ bool traverseHairHybridBVH(BVHNodeType *bvh, uint bvhSize, RayCone ra
                     #ifdef PRINT_N_INTERSECTIONS
                     rayHairIntersections++;
                     #endif
+
                     intersectionFound = intersection(ray, &curr, childL->shape);
 
                     if(intersectionFound) {
-                        #ifndef CONE_TRACING
                         insertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
                         
-                        #else
-                        float areaFraction = curr.shapeMaterial.ior;
-                        insertFragment(curr.distance, (1.0f - areaFraction) + (areaFraction * curr.shapeMaterial.transparency), dataAT);
-
-                        #endif
-
                         if(lstIndex < HAIR_INTERSECTION_LST_SIZE) {
                             shapeIntersectionLst[lstIndex] = curr;
                             lstIndex++;
@@ -268,7 +457,7 @@ __device__ bool traverseHairHybridBVH(BVHNodeType *bvh, uint bvhSize, RayCone ra
                         } else {
                             distance = curr.distance;
                             
-                            for(int i = 1; i < HAIR_INTERSECTION_LST_SIZE; i++) {
+                            for(int i = 0; i < HAIR_INTERSECTION_LST_SIZE; i++) {
                                 if(shapeIntersectionLst[i].distance > distance) {
                                     shapeIntersectionLst[i] = curr;
                                     break;
@@ -300,18 +489,12 @@ __device__ bool traverseHairHybridBVH(BVHNodeType *bvh, uint bvhSize, RayCone ra
                     #ifdef PRINT_N_INTERSECTIONS
                     rayHairIntersections++;
                     #endif
+
                     intersectionFound = intersection(ray, &curr, childR->shape);
 
                     if(intersectionFound) {
-                        #ifndef CONE_TRACING
                         insertFragment(curr.distance, curr.shapeMaterial.transparency, dataAT);
                         
-                        #else
-                        float areaFraction = curr.shapeMaterial.ior;
-                        insertFragment(curr.distance, (1.0f - areaFraction) + (areaFraction * curr.shapeMaterial.transparency), dataAT);
-
-                        #endif
-
                         if(lstIndex < HAIR_INTERSECTION_LST_SIZE) {
                             shapeIntersectionLst[lstIndex] = curr;
                             lstIndex++;
@@ -319,7 +502,7 @@ __device__ bool traverseHairHybridBVH(BVHNodeType *bvh, uint bvhSize, RayCone ra
                         } else {
                             distance = curr.distance;
                             
-                            for(int i = 1; i < HAIR_INTERSECTION_LST_SIZE; i++) {
+                            for(int i = 0; i < HAIR_INTERSECTION_LST_SIZE; i++) {
                                 if(shapeIntersectionLst[i].distance > distance) {
                                     shapeIntersectionLst[i] = curr;
                                     break;
@@ -348,8 +531,9 @@ __device__ bool traverseHairHybridBVH(BVHNodeType *bvh, uint bvhSize, RayCone ra
         }
     }
 
-    return lstIndex > 1;
+    return lstIndex > 0;
 }
+
 
 __device__ void initAT(AOITHair &dataAT) {
     // Initialize AVSM data    
@@ -359,8 +543,7 @@ __device__ void initAT(AOITHair &dataAT) {
     }
 }
 
-template <typename RayCone>
-__device__ bool findHairIntersections(int **d_shapes, uint *d_shapeSizes, RayCone ray, RayIntersection *shapeIntersectionLst,
+__device__ bool findHairIntersections(int **d_shapes, uint *d_shapeSizes, Ray ray, RayIntersection *shapeIntersectionLst,
                                       int &lstSize, int &rayHairIntersections, AOITHair &dataAT) {
 
     CylinderNode *bvh = (CylinderNode*) d_shapes[cylinderIndex];
@@ -368,6 +551,21 @@ __device__ bool findHairIntersections(int **d_shapes, uint *d_shapeSizes, RayCon
     bool intersectionFound = traverseHairHybridBVH(bvh, d_shapeSizes[cylinderIndex], ray, 
                                                    shapeIntersectionLst, lstSize, 
                                                    rayHairIntersections, dataAT);
+
+    return intersectionFound;
+}
+
+__device__ bool findHairIntersections(int **d_shapes, uint *d_shapeSizes, Cone cone, RayIntersection *shapeIntersectionLst,
+                                      int &lstSize, int &rayHairIntersections, AOITHair &dataAT, RayIntersection shadowPoints[][N_SHADOW_POINTS], 
+                                      int *nShadowPoints, float3 rayDirections[][N_SHADOW_POINTS]) {
+
+    CylinderNode *bvh = (CylinderNode*) d_shapes[cylinderIndex];
+    
+    bool intersectionFound = traverseHairHybridBVH(bvh, d_shapeSizes[cylinderIndex], cone, 
+                                                   shapeIntersectionLst, lstSize, 
+                                                   rayHairIntersections, dataAT,
+                                                   shadowPoints, nShadowPoints,
+                                                   rayDirections);
 
     return intersectionFound;
 }
@@ -384,17 +582,13 @@ __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* light
     AOITHair dataAT;
     initAT(dataAT);
 
-    hairIntersections[lstSize].distance = backgroundDistance;
-    hairIntersections[lstSize].shapeMaterial.color = backgroundColor;
-    hairIntersections[lstSize].shapeMaterial.transparency = 0.0f;
-    lstSize++;
     insertFragment(backgroundDistance, 0.0f, dataAT);
 
     bool foundIntersect = findHairIntersections(d_shapes, d_shapeSizes, ray, hairIntersections, 
                                                 lstSize, rayHairIntersections, dataAT);
 
     if(foundIntersect) {    
-        for(int i = 1; i < lstSize; i++) {
+        for(int i = 0; i < lstSize; i++) {
             // local illumination
             colorAux = black;
 	        for(uint li = 0; li < lightSize; li++) {
@@ -416,6 +610,12 @@ __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* light
     float3 color = black;
     // Fetch all nodes again and composite them
     float vis;
+
+    //background special case -> areaFraction 1 transparency 0
+    AOITFragment frag = getFragment(dataAT, backgroundDistance);
+    vis = frag.index == 0 ? 1.0f : frag.transA;
+    color += backgroundColor * vis;
+
     for(int i = 0; i < lstSize; i++) {
         node = &hairIntersections[i];
 
@@ -438,44 +638,61 @@ __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* light
     float3 black = make_float3(0.0f);
     RayIntersection *node;
 
+    RayIntersection shadowPoints[HAIR_INTERSECTION_LST_SIZE][N_SHADOW_POINTS];
+    float3 rayDirections[HAIR_INTERSECTION_LST_SIZE][N_SHADOW_POINTS];
+    int nShadowPoints[HAIR_INTERSECTION_LST_SIZE];
+
     AOITHair dataAT;
     initAT(dataAT);
-
-    hairIntersections[lstSize].distance = backgroundDistance;
-    hairIntersections[lstSize].shapeMaterial.color = backgroundColor;
-    hairIntersections[lstSize].shapeMaterial.transparency = 0.0f;
-    hairIntersections[lstSize].shapeMaterial.ior = 1.0f;
-    lstSize++;
+    
     insertFragment(backgroundDistance, 0.0f, dataAT);
 
     bool foundIntersect = findHairIntersections(d_shapes, d_shapeSizes, cone, hairIntersections, 
-                                                lstSize, rayHairIntersections, dataAT);
-
+                                                lstSize, rayHairIntersections, dataAT, shadowPoints, 
+                                                nShadowPoints, rayDirections);
+    
     if(foundIntersect) {
-        //prov TODO
-        Ray ray = Ray(cone.origin, cone.direction);
+        Ray ray = Ray();
+        float3 shadowPointColor;
 
-        for(int i = 1; i < lstSize; i++) {
-            // local illumination
-            colorAux = black;
-	        for(uint li = 0; li < lightSize; li++) {
-                #ifndef SOFT_SHADOWS
-                colorAux += computeShadows(d_shapes, d_shapeSizes, lights, ray, hairIntersections[i],
-                                           li, normalize(lights[li].position - hairIntersections[i].point));
+        for(int i = 0; i < lstSize; i++) {
+            shadowPointColor = black;
+
+            float factor = 1.0f / nShadowPoints[i];
+
+            for(int s = 0; s < nShadowPoints[i]; s++) {
+                ray.update(cone.origin, rayDirections[i][s]);
+
+                // local illumination
+                colorAux = black;
+	            for(uint li = 0; li < lightSize; li++) {
+                    #ifndef SOFT_SHADOWS
+                    colorAux += computeShadows(d_shapes, d_shapeSizes, lights, ray, shadowPoints[i][s],
+                                               li, normalize(lights[li].position - shadowPoints[i][s].point));
                     
-                #else
-                colorAux += computeSoftShadows(d_shapes, d_shapeSizes, lights, ray, hairIntersections[i],
-                                               li, normalize(lights[li].position - hairIntersections[i].point));
-                #endif
-	        }
+                    #else
+                    colorAux += computeSoftShadows(d_shapes, d_shapeSizes, lights, ray, shadowPoints[i][s],
+                                                   li, normalize(lights[li].position - shadowPoints[i][s].point));
+                    #endif
+	            }
 
-            hairIntersections[i].shapeMaterial.color = colorAux;
+                shadowPointColor += colorAux;
+            }
+
+            hairIntersections[i].shapeMaterial.color = factor * shadowPointColor;
+
         }
     }
 
     float3 color = black;
     // Fetch all nodes again and composite them
     float vis;
+    
+    //background special case -> areaFraction 1 transparency 0
+    AOITFragment frag = getFragment(dataAT, backgroundDistance);
+    vis = frag.index == 0 ? 1.0f : frag.transA;
+    color += backgroundColor * vis;
+
     for(int i = 0; i < lstSize; i++) {
         node = &hairIntersections[i];
 

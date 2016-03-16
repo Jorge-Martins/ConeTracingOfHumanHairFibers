@@ -1209,23 +1209,32 @@ float quadCircleIntersectionArea(float2 *quad, float coneCircleR) {
 __device__
 float SignedPolygonArea(float2 *polygon, int nPoints) {
     float area = 0.0f;
-    int j = nPoints - 1;  // The last vertex is the 'previous' one to the first
+    //int j = nPoints - 1;  // The last vertex is the 'previous' one to the first
 
-  for(int i = 0; i<nPoints; i++) { 
-      area = area +  (polygon[j].x+polygon[i].x) * (polygon[j].y-polygon[i].y); 
-      j = i;  //j is previous vertex to i
+    for(int i = 0; i < nPoints; i++) { 
+        //area = area +  (polygon[j].x + polygon[i].x) * (polygon[j].y - polygon[i].y); 
+
+        //area += polygon[i].x * polygon[j].y - polygon[j].x * polygon[i].y;
+        //j = i;  //j is previous vertex to i
+
+        area += (polygon[(i + 1) % nPoints].x - polygon[i].x) * (polygon[(i + 1) % nPoints].y + polygon[i].y);
     }
 
-  return area * 0.5f;
+    return fabsf(area * 0.5f);
 }
 
 
 //aproximate cone cylinder intersection
 __device__
-bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder) {
+bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder, RayIntersection *shadowPoints, 
+                  int &nShadowPoints, float3 *rayDirections) {
+
     float3 coneCircleV = cone.origin + cone.direction * (length((fmaxf(cylinder->base, cylinder->top) + cylinder->radius) - 
                                                          cone.origin));
+
     float coneCircleR = length(coneCircleV - cone.origin) * tanf(cone.spread);
+
+    RayIntersection aux = RayIntersection();
 
     //find projection plane
     float3 planeNormal = -cone.direction;
@@ -1245,28 +1254,37 @@ bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder) {
     */
 
     int nPoints = 0;
-    float2 polygon[(int)N_POLYGONS_POINTS];
+    //float2 polygon[(int)N_POLYGONS_POINTS];
     float theta = 0.0f;
     float thetaStep = 2 * PI / N_POLYGONS_POINTS;
     float3 direction;
 
-    float3 normals = make_float3(0.0f);
-    float distances = FLT_MAX;
-    float3 points;
+    float minDistance = FLT_MAX;
+    float3 minPoint = make_float3(FLT_MAX);
+    int shadowPointsIndex;
 
     for(int i = 0; i < N_POLYGONS_POINTS; i++) {
-        float3 point = coneCircleV + (planeYAxis * coneCircleR * sinf(theta) - planeXAxis * coneCircleR * cosf(theta));
+        float3 point = coneCircleV + (planeYAxis * coneCircleR * sinf(theta) - 
+                                      planeXAxis * coneCircleR * cosf(theta));
 
         direction = normalize(point - cone.origin);
-        if(intersection(Ray(cone.origin, direction), out, cylinder)) {                  
-            normals += out->normal;
-                    
-            if(distances > out->distance) {
-                distances = out->distance;
-                points = out->point;
+        if(intersection(Ray(cone.origin, direction), &aux, cylinder)) {
+            if(minDistance > aux.distance) {
+                minDistance = aux.distance;
+                minPoint = aux.point;
             }
 
-            polygon[nPoints++] = make_float2(dot(point, planeXAxis), dot(point, planeYAxis));
+            shadowPointsIndex = nPoints % N_SHADOW_POINTS;
+
+            //store the ray direction for the shading
+            rayDirections[shadowPointsIndex] = direction;
+
+            shadowPoints[shadowPointsIndex].normal = aux.normal;
+            shadowPoints[shadowPointsIndex].point = aux.point;
+            shadowPoints[shadowPointsIndex].shapeMaterial = aux.shapeMaterial;
+
+            //polygon[nPoints] = make_float2(dot(point, planeXAxis), dot(point, planeYAxis));
+            nPoints++;
         }
 
         theta += thetaStep;
@@ -1274,16 +1292,25 @@ bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder) {
 
     //If less than half of the points test the circle vertex
     if(nPoints < (0.5f * N_POLYGONS_POINTS)) {
-        if(intersection(Ray(cone.origin, cone.direction), out, cylinder)) {
-            normals += out->normal;
-                    
-            if(distances > out->distance) {
-                distances = out->distance;
-                points = out->point;
+        if(intersection(Ray(cone.origin, cone.direction), &aux, cylinder)) {
+            if(minDistance > aux.distance) {
+                minDistance = aux.distance;
+                minPoint = aux.point;
             }
 
+            shadowPointsIndex = nPoints % N_SHADOW_POINTS;
+
+            //store the ray direction for the shading
+            rayDirections[shadowPointsIndex] = direction;
+
+            shadowPoints[shadowPointsIndex].normal = aux.normal;
+            shadowPoints[shadowPointsIndex].point = aux.point;
+            shadowPoints[shadowPointsIndex].shapeMaterial = aux.shapeMaterial;
+
             //add circle vertex to polygon
-            polygon[nPoints++] = make_float2(dot(coneCircleV, planeXAxis), dot(coneCircleV, planeYAxis));
+            //polygon[nPoints] = make_float2(dot(coneCircleV, planeXAxis), dot(coneCircleV, planeYAxis));
+            nPoints++;
+            
         }
     }
 
@@ -1291,18 +1318,19 @@ bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder) {
         return false;
     }
 
-    float area = SignedPolygonArea(polygon, nPoints);
+    //float area = SignedPolygonArea(polygon, nPoints);
 
-    if(area > 0.0f && out != nullptr) {
-        float maxArea = 0.5f * coneCircleR * coneCircleR * N_POLYGONS_POINTS * sinf(thetaStep); 
-         
-        out->normal = normalize(normals / nPoints);
-        out->distance = distances;
-        out->point = points;
+    if(out != nullptr) { //area > 0.0f
+        //float maxArea = 0.5f * coneCircleR * coneCircleR * N_POLYGONS_POINTS * sinf(thetaStep); 
+        
+        out->distance = minDistance;
+        out->point = minPoint;
         out->shapeMaterial = cylinder->material;
-
+        
         //update area fraction
-        out->shapeMaterial.ior = area / maxArea;
+        out->shapeMaterial.ior = nPoints/ N_POLYGONS_POINTS; //area / maxArea;
+
+        nShadowPoints = imin(nPoints, N_SHADOW_POINTS);
 
         return true;
         
@@ -1311,12 +1339,13 @@ bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder) {
     return false;
 }
 
-//Proximate through projection into plane, quad creation, circle-quad intersection
+//Aproximate through projection into plane, quad creation, circle-quad intersection
 __device__
 bool intersection2(Cone cone, RayIntersection *out, Cylinder *cylinder) { 
     float3 quad[4];
     float3 coneCircleV = cone.origin + cone.direction * (length((fmaxf(cylinder->base, cylinder->top) + cylinder->radius) - 
                                                          cone.origin));
+
     float coneCircleR = length(coneCircleV - cone.origin) * tanf(cone.spread);
 
     //find projection plane

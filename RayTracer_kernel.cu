@@ -290,7 +290,7 @@ float3 naiveSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, uin
                           int resX, int resY, RayIntersection *d_hairIntersectionLst) {
 
     float3 direction, color = make_float3(0.0f), yeFactor, xeFactor;
-    coneSpread *= SUPER_SAMPLING_2_F;
+    coneSpread *= SUPER_SAMPLING_F;
     for(int sx = 0; sx < SUPER_SAMPLING; sx++) {
         for(int sy = 0; sy < SUPER_SAMPLING; sy++) {
             yeFactor = ye * ((y + (sy + 0.5f) * SUPER_SAMPLING_F) / (float)resY - 0.5f);
