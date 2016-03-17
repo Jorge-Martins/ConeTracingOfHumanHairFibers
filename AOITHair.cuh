@@ -631,16 +631,14 @@ __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* light
 
 __device__ float3 computeHairAT(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightSize, Cone cone,
                                 RayIntersection *hairIntersections, float3 backgroundColor, 
-                                float backgroundDistance, int &rayHairIntersections) {
+                                float backgroundDistance, int &rayHairIntersections, 
+                                RayIntersection shadowPoints[][N_SHADOW_POINTS], 
+                                int *nShadowPoints, float3 rayDirections[][N_SHADOW_POINTS]) {
 
     int lstSize = 0;
     float3 colorAux;
     float3 black = make_float3(0.0f);
     RayIntersection *node;
-
-    RayIntersection shadowPoints[HAIR_INTERSECTION_LST_SIZE][N_SHADOW_POINTS];
-    float3 rayDirections[HAIR_INTERSECTION_LST_SIZE][N_SHADOW_POINTS];
-    int nShadowPoints[HAIR_INTERSECTION_LST_SIZE];
 
     AOITHair dataAT;
     initAT(dataAT);

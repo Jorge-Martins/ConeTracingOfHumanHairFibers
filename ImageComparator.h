@@ -179,6 +179,15 @@ void saveFrame(GLuint tex, std::string sceneName, int resX, int resY) {
 
     ss << resourceDirPath << sceneName;
 
+    #ifndef CONE_TRACING
+    ss << "_R_";
+
+    #else
+    ss << "_C_";
+
+    #endif
+
+
     #ifndef AT_HAIR
     ss << "d" << MAX_DEPTH;
 
@@ -214,14 +223,27 @@ void saveFrame(GLuint tex, std::string sceneName, int resX, int resY) {
 	FreeImage_Unload(image);
 	delete[] imageData;
 
+    #ifndef CONE_TRACING
     #ifndef AT_HAIR
-	std::cout << "Snapshot saved as " << sceneName << "d" << MAX_DEPTH << "ss" << SUPER_SAMPLING << "_" <<
+	std::cout << "Snapshot saved as " << sceneName << "_R_" << "d" << MAX_DEPTH << "ss" << SUPER_SAMPLING << "_" <<
                   std::to_string(static_cast<long long>(counter - 1)) << ".png"<< std::endl << std::endl;
 
     #else
-    std::cout << "Snapshot saved as " << sceneName << "AT" << AOIT_HAIR_NODE_COUNT << "_"  << HAIR_INTERSECTION_LST_SIZE << "ss" << SUPER_SAMPLING << "_" <<
+    std::cout << "Snapshot saved as " << sceneName << "_R_" << "AT" << AOIT_HAIR_NODE_COUNT << "_"  << HAIR_INTERSECTION_LST_SIZE << "ss" << SUPER_SAMPLING << "_" <<
                   std::to_string(static_cast<long long>(counter - 1)) << ".png"<< std::endl << std::endl;
     
+    #endif
+
+    #else
+    #ifndef AT_HAIR
+	std::cout << "Snapshot saved as " << sceneName << "_C_" << "d" << MAX_DEPTH << "ss" << SUPER_SAMPLING << "_" <<
+                  std::to_string(static_cast<long long>(counter - 1)) << ".png"<< std::endl << std::endl;
+
+    #else
+    std::cout << "Snapshot saved as " << sceneName << "_C_" << "AT" << AOIT_HAIR_NODE_COUNT << "_"  << HAIR_INTERSECTION_LST_SIZE << "ss" << SUPER_SAMPLING << "_" <<
+                  std::to_string(static_cast<long long>(counter - 1)) << ".png"<< std::endl << std::endl;
+    
+    #endif
     #endif
 
 

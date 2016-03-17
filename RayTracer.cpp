@@ -22,8 +22,8 @@ RayIntersection *d_hairIntersectionLst = 0;
 int fpsCount = 0;
 int fpsLimit = 1;        // FPS limit for sampling
 
-int RES_X = 1024;
-int RES_Y = 1024;
+int RES_X = 512;
+int RES_Y = 512;
 
 dim3 blockSize(8, 8);
 dim3 gridSize;
@@ -391,6 +391,7 @@ void keyboardKey(unsigned char key, int x, int y) {
     }
     
     if(key == 'm') {
+        #ifdef nff
         if(!lock) {
             if(videoMode) {
                 std::cout << "frame Mode:" << std::endl << std::endl;
@@ -403,6 +404,7 @@ void keyboardKey(unsigned char key, int x, int y) {
         } else {
             std::cout << "Release lock!" << std::endl << std::endl;
         }
+        #endif
     }
     
     if(key == 'i') {
@@ -524,14 +526,14 @@ int main(int argc, char *argv[]) {
     #ifdef nff
     path = resourceDirPath + "nffFiles/";
     //sceneName = "balls_low";
-    sceneName = "balls_low_t";
+    //sceneName = "balls_low_t";
     //sceneName = "balls_medium";
     //sceneName = "balls_high";
     //sceneName = "mount_low";
     //sceneName = "mount_very_high";
     //sceneName = "rings_low";
     //sceneName = "rings";
-    //sceneName = "cyl";
+    sceneName = "cyl";
 
 	if (!load_nff(path + sceneName, scene, &initRadius, &initVerticalAngle, &initHorizontalAngle, &initFov, &up)) {
         cleanup();
@@ -544,8 +546,8 @@ int main(int argc, char *argv[]) {
     path = resourceDirPath + "HairModels/";
     int hairScene = 0;
 
-    //hairScene = straight;
-    hairScene = blonde;
+    hairScene = straight;
+    //hairScene = blonde;
     //hairScene = natural;
     //hairScene = curly;
     //hairScene = darkStraight;

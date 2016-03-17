@@ -25,7 +25,7 @@
     #endif
 #endif
 
-#define SUPER_SAMPLING 1
+#define SUPER_SAMPLING 3
 #define SUPER_SAMPLING_F (1.0f / SUPER_SAMPLING)
 #define SUPER_SAMPLING_2 (SUPER_SAMPLING * SUPER_SAMPLING)
 #define SUPER_SAMPLING_2_F (1.0f / SUPER_SAMPLING_2)
@@ -34,8 +34,8 @@
 #define EPSILON 1E-4f
 #define OBB_AABB_EPSILON 15.0f
 
-#define N_POLYGONS_POINTS 20.0f
-#define N_SHADOW_POINTS 8
+#define N_CONE_POINTS 10.0f
+#define N_SHADOW_POINTS 6
 
 #define INTERSECTION_LST_SIZE 4
 #define TRANSMITANCE_LIMIT 0.05f
@@ -271,6 +271,19 @@ inline __device__ float3 projectToPlane(float3 point, float3 planeNormal, float 
     float dist = dot(planeNormal, point) + planeDistance;
 
     return point - dist * planeNormal;
+}
+
+inline __device__ float haltonSequance(int index, int base) {
+    float result = 0.0f;
+    float f = 1.0f;
+      
+    for(int i = index; i > 0; i = floorf(i / base)) {
+        f = f / base;
+        result = result + f * (i % base);
+           
+    }
+
+    return result;
 }
 
 #endif

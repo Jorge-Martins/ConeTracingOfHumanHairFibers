@@ -16,21 +16,6 @@ float2 cudaRandom(thrust::default_random_engine &rng) {
 }
 
 __device__
-float haltonSequance(int index, int base) {
-       float result = 0.0f;
-       float f = 1.0f;
-      
-       for(int i = index; i > 0; i = floorf(i / base)) {
-           f = f / base;
-           result = result + f * (i % base);
-           
-       }
-
-       return result;
-}
-
-
-__device__
 float3 printRayHairIntersections(int rayHairIntersections, float3 finalColor, int nRays) {
     if(rayHairIntersections == 0) {
         return finalColor;
@@ -97,7 +82,8 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
 __device__
 float3 coneTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightSize, float3 backcolor, 
                    float3 coneOrigin, float3 coneDirection, float coneSpread, int offset, 
-                   RayIntersection *globalHairIntersectionLst) {
+                   RayIntersection *globalHairIntersectionLst, RayIntersection shadowPoints[][N_SHADOW_POINTS], 
+                   int *nShadowPoints, float3 rayDirections[][N_SHADOW_POINTS]) {
 
     RayIntersection *hairIntersectionLst = &globalHairIntersectionLst[HAIR_INTERSECTION_LST_SIZE * offset];
 
@@ -109,7 +95,8 @@ float3 coneTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint light
     int rayHairIntersections = 0;
 
     colorAux = computeHairAT(d_shapes, d_shapeSizes, lights, lightSize, cone,
-                             hairIntersectionLst, backcolor, 100.0f, rayHairIntersections);
+                             hairIntersectionLst, backcolor, 100.0f, rayHairIntersections,
+                             shadowPoints, nShadowPoints, rayDirections);
         
     #ifdef PRINT_N_INTERSECTIONS
     colorAux = make_float3(rayHairIntersections, 1, 0.0f);
@@ -290,7 +277,16 @@ float3 naiveSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, uin
                           int resX, int resY, RayIntersection *d_hairIntersectionLst) {
 
     float3 direction, color = make_float3(0.0f), yeFactor, xeFactor;
+
+    #ifdef CONE_TRACING
     coneSpread *= SUPER_SAMPLING_F;
+
+    RayIntersection shadowPoints[HAIR_INTERSECTION_LST_SIZE][N_SHADOW_POINTS];
+    float3 rayDirections[HAIR_INTERSECTION_LST_SIZE][N_SHADOW_POINTS];
+    int nShadowPoints[HAIR_INTERSECTION_LST_SIZE];
+
+    #endif
+
     for(int sx = 0; sx < SUPER_SAMPLING; sx++) {
         for(int sy = 0; sy < SUPER_SAMPLING; sy++) {
             yeFactor = ye * ((y + (sy + 0.5f) * SUPER_SAMPLING_F) / (float)resY - 0.5f);
@@ -300,21 +296,22 @@ float3 naiveSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, uin
 
             #ifndef CONE_TRACING
             #ifndef AT_HAIR
-            color += SUPER_SAMPLING_2_F * rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
-                                                     rayInfo, d_colors, d_colorContributionType, index);
+            color += rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
+                                rayInfo, d_colors, d_colorContributionType, index);
             #else
-            color += SUPER_SAMPLING_2_F * rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
-                                                     index, d_hairIntersectionLst);
+            color += rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
+                                index, d_hairIntersectionLst);
             #endif
 
             #else 
-            color += SUPER_SAMPLING_2_F * coneTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
-                                                      coneSpread, index, d_hairIntersectionLst);
+            color += coneTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
+                                 coneSpread, index, d_hairIntersectionLst, shadowPoints, nShadowPoints, 
+                                 rayDirections);
             #endif
         }
     }
 
-    return color;
+    return SUPER_SAMPLING_2_F * color;
 }
 
 __device__
@@ -336,16 +333,16 @@ float3 naiveRdmSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights, 
             direction = normalize(zeFactor + yeFactor + xeFactor);
 
             #ifndef AT_HAIR
-            color += SUPER_SAMPLING_2_F * rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
-                                                     rayInfo, d_colors, d_colorContributionType, index);
+            color += rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
+                                rayInfo, d_colors, d_colorContributionType, index);
             #else
-            color += SUPER_SAMPLING_2_F * rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
+            color +=  rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
                                                      index, d_hairIntersectionLst);
             #endif
         }
     }
 
-    return color;
+    return SUPER_SAMPLING_2_F * color;
 }
 
 __device__
@@ -367,15 +364,15 @@ float3 stocasticSupersampling(int **d_shapes, uint *d_shapeSizes, Light *lights,
         direction = normalize(zeFactor + yeFactor + xeFactor);
 
         #ifndef AT_HAIR
-        color += SUPER_SAMPLING_2_F * rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
-                                                 rayInfo, d_colors, d_colorContributionType, index);
+        color += rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
+                            rayInfo, d_colors, d_colorContributionType, index);
         #else
-        color += SUPER_SAMPLING_2_F * rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
-                                                 index, d_hairIntersectionLst);
+        color += rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
+                            index, d_hairIntersectionLst);
         #endif
     }
 
-    return color;
+    return SUPER_SAMPLING_2_F * color;
 }
 
 __device__
@@ -394,15 +391,15 @@ float3 stocasticHSSupersampling(int **d_shapes, uint *d_shapeSizes, Light *light
         direction = normalize(zeFactor + yeFactor + xeFactor);
 
         #ifndef AT_HAIR
-        color += SUPER_SAMPLING_2_F * rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
-                                                 rayInfo, d_colors, d_colorContributionType, index);
+        color += rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
+                            rayInfo, d_colors, d_colorContributionType, index);
         #else
-        color += SUPER_SAMPLING_2_F * rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
-                                                 index, d_hairIntersectionLst);
+        color += rayTracing(d_shapes, d_shapeSizes, lights, lightSize, backcolor, from, direction, 
+                            index, d_hairIntersectionLst);
         #endif
     }
 
-    return color;
+    return SUPER_SAMPLING_2_F * color;
 }
 
 __device__

@@ -351,12 +351,12 @@ __device__ float3 computeSoftShadows(int **d_shapes, uint *d_shapeSizes, Light* 
 
 			feelerDir = normalize((lights[li].position + xCoord*u + yCoord*v) - intersect.point);
                     
-            localColor += SUM_FACTOR * computeShadows(d_shapes, d_shapeSizes, lights, ray,
-                                                      intersect, li, feelerDir);
+            localColor += computeShadows(d_shapes, d_shapeSizes, lights, ray,
+                                         intersect, li, feelerDir);
 		}
 	}
 
-    return localColor;
+    return SUM_FACTOR * localColor;
 }
 
 

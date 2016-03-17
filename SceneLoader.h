@@ -265,7 +265,7 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
 
     // If segments array exists
     if(segments) {
-        for(int segment = 0; segment < nSegments; segment++ ) {
+        for(int segment = 0; segment < nSegments; segment++) {
             segmentSize = segments[segment];
 
             for(int point = pointIndex; point < pointIndex + segmentSize; point++) {
@@ -294,7 +294,7 @@ bool load_hair(std::string filePath, Scene *sc, std::string sceneName) {
         }
 
     } else {
-        for(int segment = 0; segment < nSegments; segment++ ) {
+        for(int segment = 0; segment < nSegments; segment++) {
             for(int point = pointIndex; point < pointIndex + segmentSize; point++) {
                 int cpIndex = point * 3;
 
