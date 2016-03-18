@@ -1201,7 +1201,7 @@ bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder, RayInters
         }
     }
 
-    float areaFraction = nPoints / N_CONE_POINTS;
+    float areaFraction = (nPoints + 0.35f) / N_CONE_POINTS;
 
     if(areaFraction <= 0.3f) {
         return false;
