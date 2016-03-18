@@ -10,8 +10,10 @@
 //#define SOFT_SHADOWS
 #define SHADOW_TRANSMITANCE
 #define AT_HAIR
-//#define CONE_TRACING
+#define CONE_TRACING
 //#define PRINT_N_INTERSECTIONS
+
+#define Cone_Approach5_3
 
 #ifdef CONE_TRACING
     #ifndef AT_HAIR
@@ -25,7 +27,7 @@
     #endif
 #endif
 
-#define SUPER_SAMPLING 16
+#define SUPER_SAMPLING 5
 #define SUPER_SAMPLING_F (1.0f / SUPER_SAMPLING)
 #define SUPER_SAMPLING_2 (SUPER_SAMPLING * SUPER_SAMPLING)
 #define SUPER_SAMPLING_2_F (1.0f / SUPER_SAMPLING_2)
@@ -34,8 +36,18 @@
 #define EPSILON 1E-4f
 #define OBB_AABB_EPSILON 15.0f
 
+
+#ifdef Cone_Approach5_3
 #define N_CONE_POINTS 5.0f
 #define N_SHADOW_POINTS 3
+#define CONE_AREA_FACTOR 0.35f
+
+#else
+#define N_CONE_POINTS 5.0f
+#define N_SHADOW_POINTS 4
+#define CONE_AREA_FACTOR 0.2f
+
+#endif
 
 #define INTERSECTION_LST_SIZE 4
 #define TRANSMITANCE_LIMIT 0.05f
