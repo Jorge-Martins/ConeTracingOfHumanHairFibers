@@ -22,8 +22,8 @@ RayIntersection *d_hairIntersectionLst = 0;
 int fpsCount = 0;
 int fpsLimit = 1;        // FPS limit for sampling
 
-int RES_X = 512;
-int RES_Y = 512;
+int RES_X = 1024;
+int RES_Y = 1024;
 
 dim3 blockSize(8, 8);
 dim3 gridSize;
@@ -177,7 +177,6 @@ void cudaInit() {
     totalSize += size;
     checkCudaErrors(cudaMalloc((void**) &d_hairIntersectionLst, size));
 
-    size = RES_X * RES_Y * sizeof(AOITHair);
     #endif
     clock_t end = clock();
 
@@ -478,7 +477,7 @@ void buildBVH() {
                                       c_start, c_end, scene->d_cylinderShapes, scene->d_matrixes, scene->d_translations, 
                                       scene->d_OBBIndexes, scene->nCylOBBs);
 
-        std::cout << "Cylinder BVH building time: " << time << "s" << std::endl;
+        //std::cout << "Cylinder BVH building time: " << time << "s" << std::endl;
         totalTime += time;
     }
 
@@ -490,7 +489,7 @@ void buildBVH() {
         time = deviceBuildSphereBVH(scene->d_sphereBVH, size, grid, vectorBlock, (uint*)scene->mortonCodes[sphereIndex], 
                                     c_start, c_end, scene->d_sphereShapes);
 
-        std::cout << "Sphere BVH building time: " << time << "s" << std::endl;
+        //std::cout << "Sphere BVH building time: " << time << "s" << std::endl;
         totalTime += time;
     }
 
@@ -502,7 +501,7 @@ void buildBVH() {
         time = deviceBuildTriangleBVH(scene->d_triangleBVH, size, grid, vectorBlock, (uint*)scene->mortonCodes[triangleIndex], 
                                       c_start, c_end, scene->d_triangleShapes);
 
-        std::cout << "Triangle BVH building time: " << time << "s" << std::endl;
+        //std::cout << "Triangle BVH building time: " << time << "s" << std::endl;
         totalTime += time;
     }
 

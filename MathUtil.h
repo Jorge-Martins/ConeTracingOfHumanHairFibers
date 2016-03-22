@@ -13,7 +13,7 @@
 #define CONE_TRACING
 //#define PRINT_N_INTERSECTIONS
 
-#define Cone_Approach5_3
+//#define Cone_Approach5_3
 
 #ifdef CONE_TRACING
     #ifndef AT_HAIR
@@ -27,7 +27,7 @@
     #endif
 #endif
 
-#define SUPER_SAMPLING 5
+#define SUPER_SAMPLING 2
 #define SUPER_SAMPLING_F (1.0f / SUPER_SAMPLING)
 #define SUPER_SAMPLING_2 (SUPER_SAMPLING * SUPER_SAMPLING)
 #define SUPER_SAMPLING_2_F (1.0f / SUPER_SAMPLING_2)
@@ -289,8 +289,8 @@ inline __device__ float haltonSequance(int index, int base) {
     float result = 0.0f;
     float f = 1.0f;
       
-    for(int i = index; i > 0; i = floorf(i / base)) {
-        f = f / base;
+    for(int i = index; i > 0; i = (int)(i /(float) base)) {
+        f = f / (float) base;
         result = result + f * (i % base);
            
     }

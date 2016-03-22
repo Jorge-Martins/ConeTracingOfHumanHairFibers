@@ -56,9 +56,11 @@ private:
         std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
 
         std::cout << "Cylinder data transfer: " << std::endl;
-        std::cout << "Number of Cylinders = " << size << std::endl;
-        std::cout << "Total Cylinders Size: " << printSize(size * (sizeof(CylinderNode) + cylinderSize)) << std::endl;
-        start = clock();
+        std::string s = printSize(size);
+        s.pop_back();
+        std::cout << "Number of Cylinders = " << s << std::endl << std::endl;
+        //std::cout << "Total Cylinders Size: " << printSize(size * (sizeof(CylinderNode) + cylinderSize)) << std::endl;
+        //start = clock();
         uint leafOffset = size - 1;
 
         uint sizebvh = (2 * size - 1) * sizeof(CylinderNode);
@@ -131,8 +133,8 @@ private:
             cudaMemset(d_cylinderBVH, 0, leafOffset * sizeof(CylinderNode));
         }
 
-        end = clock();
-        std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
+        //end = clock();
+        //std::cout << "time: " << (float)(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
 
         delete[] values;
         h_cylinderBVH.clear();

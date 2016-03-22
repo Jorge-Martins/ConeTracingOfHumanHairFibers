@@ -73,7 +73,12 @@ float3 rayTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint lightS
                              hairIntersectionLst, backcolor, 100.0f, rayHairIntersections);
     
     #ifdef PRINT_N_INTERSECTIONS
+    #ifdef AT_HAIR
+    colorAux = make_float3(rayHairIntersections, 0.5f * HAIR_INTERSECTION_LST_SIZE, 0.0f);
+    #else
+
     colorAux = make_float3(rayHairIntersections, 1, 0.0f);
+    #endif
     #endif
     
     return colorAux;
@@ -99,7 +104,12 @@ float3 coneTracing(int **d_shapes, uint *d_shapeSizes, Light* lights, uint light
                              shadowPoints, nShadowPoints, rayDirections);
         
     #ifdef PRINT_N_INTERSECTIONS
+    #ifdef AT_HAIR
+    colorAux = make_float3(rayHairIntersections, 0.5f * HAIR_INTERSECTION_LST_SIZE, 0.0f);
+    #else
+
     colorAux = make_float3(rayHairIntersections, 1, 0.0f);
+    #endif
     #endif
     
     return colorAux;
@@ -449,23 +459,6 @@ float3 adaptiveStocasticSupersampling(int **d_shapes, uint *d_shapeSizes, Light 
             threashold *= step;
         }
     }
-
-    //color debug output
-    /*if(samplingLimit <= initNSamples) {
-        return make_float3(0.76, 1, 0.96);
-    } else if (samplingLimit <= 2 * initNSamples) {
-        return make_float3(0, 0, 1);
-    } else if(samplingLimit <= 4 * initNSamples) {
-        return make_float3(0.6, 1, 0.6);
-    } else if(samplingLimit <= 8 * initNSamples) {
-        return make_float3(0, 1, 0);
-    } else if(samplingLimit <= 16 * initNSamples) {
-        return make_float3(1, 1, 0);
-    } else if(samplingLimit <= 32 * initNSamples) {
-        return make_float3(10, 0, 0);
-    } else {
-        return make_float3(0.5, 0, 0);
-    }*/
 
     return color;
 }

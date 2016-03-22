@@ -1140,16 +1140,12 @@ bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder, RayInters
 
     RayIntersection aux = RayIntersection();
 
-    //find projection plane
-    float3 planeNormal = -cone.direction;
-    float planeDistance = -dot(planeNormal, coneCircleV);
-
-    //compute plane coordenate system and convert the problem to 2D
-    float3 planeXAxis = normalize(cross(make_float3(0.0f, 0.0f, 1.0f), planeNormal));
-    float3 planeYAxis = normalize(cross(planeNormal, planeXAxis));
+    //compute plane coordenate system
+    float3 planeXAxis = normalize(cross(make_float3(0.0f, 0.0f, 1.0f), -cone.direction));
+    float3 planeYAxis = normalize(cross(-cone.direction, planeXAxis));
 
     /*approximation through rays
-    Idea shoot rays inside the circle and estimate the area
+    Shoot rays inside the circle and estimate the area
        _x_
      x/   \x
     x|  x  |x
@@ -1161,7 +1157,6 @@ bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder, RayInters
     float3 direction;
 
     float minDistance = FLT_MAX;
-    float3 minPoint = make_float3(FLT_MAX);
     int shadowPointsIndex;
 
     float3 point;
@@ -1185,7 +1180,6 @@ bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder, RayInters
         if(intersection(Ray(cone.origin, direction), &aux, cylinder)) {
             if(minDistance > aux.distance) {
                 minDistance = aux.distance;
-                minPoint = aux.point;
             }
 
             shadowPointsIndex = nPoints % N_SHADOW_POINTS;
@@ -1201,7 +1195,7 @@ bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder, RayInters
         }
     }
 
-    float areaFraction = (nPoints + CONE_AREA_FACTOR) / N_CONE_POINTS;
+    float areaFraction = nPoints / N_CONE_POINTS;
 
     if(areaFraction <= 0.3f) {
         return false;
@@ -1209,11 +1203,10 @@ bool intersection(Cone cone, RayIntersection *out, Cylinder *cylinder, RayInters
 
     if(out != nullptr) {
         out->distance = minDistance;
-        out->point = minPoint;
         out->shapeMaterial = cylinder->material;
         
         //update area fraction
-        out->shapeMaterial.ior = areaFraction;
+        out->shapeMaterial.ior = (nPoints + CONE_AREA_FACTOR) / N_CONE_POINTS;
 
         nShadowPoints = imin(nPoints, N_SHADOW_POINTS);
 
