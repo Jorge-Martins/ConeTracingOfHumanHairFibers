@@ -10,7 +10,7 @@
  * Traverse BVH and insert intersected shapes into AT (for shadows)
  */
 template <typename BVHNodeType>
-__device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, int &lstIndex, float3 &color, float &transmitance) {
+__device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, float3 &color, float &transmitance) {
     
     bool intersectionFound = false;
     RayIntersection curr = RayIntersection();
@@ -52,7 +52,7 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, int &
             if (lIntersection) {
                 // Leaf node
                 if (childL->shape != nullptr) {
-                    if(lstIndex < INTERSECTION_LST_SIZE && transmitance > TRANSMITANCE_LIMIT) {
+                    if(transmitance > TRANSMITANCE_LIMIT) {
                         intersectionFound = intersection(ray, &curr, childL->shape);
 
                         if(intersectionFound) {
@@ -84,7 +84,7 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, int &
             if (rIntersection) {
                 // Leaf node
                 if (childR->shape != nullptr) {
-                    if(lstIndex < INTERSECTION_LST_SIZE && transmitance > TRANSMITANCE_LIMIT) {
+                    if(transmitance > TRANSMITANCE_LIMIT) {
                         intersectionFound = intersection(ray, &curr, childR->shape);
 
                         if(intersectionFound) {
@@ -120,7 +120,7 @@ __device__ bool traverseHybridBVH(BVHNodeType *bvh, uint bvhSize, Ray ray, int &
 }
 
 template <typename BVHNodeType>
-__device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray, int &lstIndex, float3 &color, float &transmitance) {
+__device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray, float3 &color, float &transmitance) {
 
     bool intersectionFound = false;
     RayIntersection curr = RayIntersection();
@@ -157,7 +157,7 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray, int &lstIndex,
             if (lIntersection) {
                 // Leaf node
                 if (childL->shape != nullptr) {
-                    if(lstIndex < INTERSECTION_LST_SIZE && transmitance > TRANSMITANCE_LIMIT) {
+                    if(transmitance > TRANSMITANCE_LIMIT) {
                         intersectionFound = intersection(ray, &curr, childL->shape);
 
                         if(intersectionFound) {
@@ -186,7 +186,7 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray, int &lstIndex,
             if (rIntersection) {
                 // Leaf node
                 if (childR->shape != nullptr) {
-                    if(lstIndex < INTERSECTION_LST_SIZE && transmitance > TRANSMITANCE_LIMIT) {
+                    if(transmitance > TRANSMITANCE_LIMIT) {
                         intersectionFound = intersection(ray, &curr, childR->shape);
 
                         if(intersectionFound) {
@@ -225,7 +225,6 @@ __device__ bool traverse(BVHNodeType *bvh, uint bvhSize, Ray ray, int &lstIndex,
 __device__ float3 computeTransparency(int **d_shapes, uint *d_shapeSizes, Ray feeler, float3 lightColor) {
     bool intersectionFound = false;
 
-    int lstSize = 0;
     float3 color = lightColor;
     float transmitance = 1.0f;
 
@@ -237,29 +236,26 @@ __device__ float3 computeTransparency(int **d_shapes, uint *d_shapeSizes, Ray fe
         if(shapeType == sphereIndex && transmitance > TRANSMITANCE_LIMIT) {
             SphereNode *bvh = (SphereNode*) d_shapes[shapeType];
 
-            intersectionFound |= traverse(bvh, d_shapeSizes[cylinderIndex], feeler, lstSize, color, transmitance);
+            intersectionFound |= traverse(bvh, d_shapeSizes[cylinderIndex], feeler, color, transmitance);
                
         } else if(shapeType == cylinderIndex && transmitance > TRANSMITANCE_LIMIT) {
             CylinderNode *bvh = (CylinderNode*) d_shapes[shapeType];
 
-            intersectionFound |= traverseHybridBVH(bvh, d_shapeSizes[cylinderIndex], feeler, lstSize, color, transmitance);
+            intersectionFound |= traverseHybridBVH(bvh, d_shapeSizes[cylinderIndex], feeler, color, transmitance);
 
         } else if(shapeType == triangleIndex && transmitance > TRANSMITANCE_LIMIT) {
             TriangleNode *bvh = (TriangleNode*) d_shapes[shapeType];
 
-            intersectionFound |= traverse(bvh, d_shapeSizes[cylinderIndex], feeler, lstSize, color, transmitance);
+            intersectionFound |= traverse(bvh, d_shapeSizes[cylinderIndex], feeler, color, transmitance);
 
         } else if(shapeType == planeIndex && transmitance > TRANSMITANCE_LIMIT) {
             Plane *plane = (Plane*) d_shapes[shapeType];
             bool result = false;
             RayIntersection curr = RayIntersection();
 
-            if(lstSize < INTERSECTION_LST_SIZE) {
-                result = intersection(feeler, &curr, plane[0]);
-            }
-
+            result = intersection(feeler, &curr, plane[0]);
+            
             if(result) {
-                lstSize++;
                 transmitance *= curr.shapeMaterial.transparency;
                 color *= curr.shapeMaterial.color;
             }
@@ -274,11 +270,10 @@ __device__ float3 computeTransparency(int **d_shapes, uint *d_shapeSizes, Ray fe
 __device__ float3 cylComputeTransparency(int **d_shapes, uint *d_shapeSizes, Ray feeler, float3 lightColor) {
     CylinderNode *bvh = (CylinderNode*) d_shapes[cylinderIndex];
 
-    int lstSize = 0;
     float3 color = lightColor;
     float transmitance = 1.0f;
 
-    traverseHybridBVH(bvh, d_shapeSizes[cylinderIndex], feeler, lstSize, color, transmitance);
+    traverseHybridBVH(bvh, d_shapeSizes[cylinderIndex], feeler, color, transmitance);
 
     return color * transmitance;
 }

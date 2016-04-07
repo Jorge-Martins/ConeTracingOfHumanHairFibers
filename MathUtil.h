@@ -49,7 +49,6 @@
 
 #endif
 
-#define INTERSECTION_LST_SIZE 4
 #define TRANSMITANCE_LIMIT 0.05f
 
 #define AOIT_HAIR_NODE_COUNT 8
