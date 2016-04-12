@@ -138,13 +138,9 @@ __device__ void insertFragment(float fragmentDepth, float fragmentTrans, AOITHai
     }
     
     // Insert new fragment
-    for(int i = 0; i <= AOIT_HAIR_NODE_COUNT; i++) {
-        if(index == i) {
-            data.depth[i] = fragmentDepth;
-            data.trans[i] = fragmentTrans * prevTrans;
-        }
-    } 
-    
+    data.depth[index] = fragmentDepth;
+    data.trans[index] = fragmentTrans * prevTrans;
+
     // pack representation if we have too many nodes
     if(data.depth[AOIT_HAIR_NODE_COUNT] != AIOT_EMPTY_NODE_DEPTH) {	                
         
