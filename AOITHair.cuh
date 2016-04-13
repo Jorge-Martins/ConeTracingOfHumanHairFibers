@@ -9,7 +9,7 @@
 
 //#define AOIT_DONT_COMPRESS_FIRST_HALF
 
-#include "ShadowTransmitance.cuh"
+#include "ShadowTransmittance.cuh"
 
 __device__ AOITFragment getFragment(AOITHair data, float fragmentDepth) {
     float depth[4];

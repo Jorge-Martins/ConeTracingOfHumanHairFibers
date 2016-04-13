@@ -34,7 +34,7 @@
     <ClInclude Include="AOITHair.cuh">
       <Filter>cuda</Filter>
     </ClInclude>
-    <ClInclude Include="ShadowTransmitance.cuh">
+    <ClInclude Include="ShadowTransmittance.cuh">
       <Filter>cuda</Filter>
     </ClInclude>
   </ItemGroup>
