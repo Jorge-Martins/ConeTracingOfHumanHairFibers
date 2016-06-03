@@ -126,6 +126,100 @@ void saveDiff() {
     }
 }
 
+void saveDiff2() {
+    std::string fileName1, fileName2;
+    float3 *image1 = 0, *image2 = 0;
+    int res1, res2, resX, resY;
+    float contrastFactor = 5.0f;
+
+    //try again if image not found
+    for(int i = 2; i > 0 && !image1; i--) {
+        image1 = loadImage(res1, &fileName1);
+    }
+
+    //try again if image not found
+    for(int i = 2; i > 0 && !image2; i--) {
+        image2 = loadImage(res2, &fileName2);
+    }
+
+    if(image1 && image2) {
+        if(res1 != res2) {
+            std::cout << "The two images provided have different resolutions" << std::endl << std::endl;
+            
+            delete image1;
+            delete image2;
+            return;
+        }
+
+        float *imageDiff = computeFloatDiff(image1, image2, res1);
+        
+
+        BYTE *imageData = new BYTE[res1 * 3];
+        for(int i = 0; i < res1; i++) {
+            float valueDif = imageDiff[i];
+
+            if(valueDif <= 0) {
+                imageData[i * 3 + 2] = (BYTE) 255;
+                imageData[i * 3 + 1] = (BYTE) 255;
+                imageData[i * 3 + 0] = (BYTE) 255;
+
+            } else if(valueDif <= 0.01) {
+                imageData[i * 3 + 2] = (BYTE) 128;
+                imageData[i * 3 + 1] = (BYTE) 128;
+                imageData[i * 3 + 0] = (BYTE) 255;
+
+            } else if(valueDif <= 0.02) {
+                imageData[i * 3 + 2] = (BYTE) 0;
+                imageData[i * 3 + 1] = (BYTE) 0;
+                imageData[i * 3 + 0] = (BYTE) 255;
+
+            } else if(valueDif <= 0.05) {
+                imageData[i * 3 + 2] = (BYTE) 0;
+                imageData[i * 3 + 1] = (BYTE) 255;
+                imageData[i * 3 + 0] = (BYTE) 0;
+
+            } else if(valueDif <= 0.1) {
+                imageData[i * 3 + 2] = (BYTE) 255;
+                imageData[i * 3 + 1] = (BYTE) 255;
+                imageData[i * 3 + 0] = (BYTE) 0;
+
+            } else if (valueDif <= 0.2) {
+                imageData[i * 3 + 2] = (BYTE) 255;
+                imageData[i * 3 + 1] = (BYTE) 0;
+                imageData[i * 3 + 0] = (BYTE) 0;
+
+            } else {
+                imageData[i * 3 + 2] = (BYTE) 128;
+                imageData[i * 3 + 1] = (BYTE) 0;
+                imageData[i * 3 + 0] = (BYTE) 0;
+            }
+
+        }
+
+        resX = resY = (int) sqrtf((float)res1);
+        std::string newImage = resourceDirPath + "dif_" + fileName1 + "_" + fileName2 + ".png";
+        FIBITMAP *image = FreeImage_ConvertFromRawBits(imageData, resX, resY, resX * 3, 24, 0xFF0000, 0x00FF00, 0x0000FF, false);
+        FreeImage_Save(FIF_PNG, image, newImage.c_str(), 0);
+
+        FreeImage_Unload(image);
+
+        delete imageData;
+
+        std::cout << "Image saved" << std::endl << std::endl;
+    
+    } else {
+        std::cout << "Unable to load images " << fileName1 << " and " << fileName2 << std::endl;
+    }
+
+    if(image1) {
+        delete image1;
+    }
+
+    if(image2) {
+        delete image2;
+    }
+}
+
 float computeRMSError() {
     float3 *image1 = 0, *image2 = 0;
     int res1, res2;
