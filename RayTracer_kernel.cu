@@ -499,15 +499,20 @@ void drawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize
     /*d_output[index] = stocasticHSSupersampling(d_shapes, d_shapeSizes, lights, lightSize, backcolor, xe, ye, ze, 
                                                from, rayInfo, d_colors, d_colorContributionType, index, x, y, resX, 
                                                resY, seed, d_hairIntersectionLst);*/
-
-    #ifdef PRINT_N_INTERSECTIONS
-    int rayHairIntersections = d_output[index].x;
-    int nRays = d_output[index].y;
-    d_output[index] = printRayHairIntersections(rayHairIntersections, backcolor, nRays);
-    #endif
-
 }
 
+__global__
+void printNIntersections(float3 *d_output, float3 backcolor, int res) {
+    long value = 0;
+
+    for(int i = 0; i < res; i++) {
+        value += d_output[i].x;
+
+        d_output[i] = printRayHairIntersections(d_output[i].x, backcolor, d_output[i].y);
+    }
+
+    printf("nIntersections %ld\n", value);
+}
 
 void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lightSize, float3 backcolor, 
                      int resX, int resY, float width, float height, float atDistance, float3 xe, float3 ye, 
@@ -524,6 +529,10 @@ void deviceDrawScene(int **d_shapes, uint *d_shapeSizes, Light *lights, uint lig
     drawScene<<<gridSize, blockSize>>>(d_shapes, d_shapeSizes, lights, lightSize, backcolor, resX, resY,
                                        coneSpread, xe, ye, ze, from, d_output, rayInfo, d_colors, 
                                        d_colorContributionType, seed, d_hairIntersectionLst);
+
+    #ifdef PRINT_N_INTERSECTIONS
+    printNIntersections<<<dim3(1), dim3(1)>>>(d_output, backcolor, resX * resY);
+    #endif
 
 }
 
