@@ -6,12 +6,24 @@
 #include <helper_math.h>
 #include <helper_cuda.h>
 
+/* Select between using an AABB LBVH or an hybrid AABB/OBB LBVH */
 //#define GENERAL_INTERSECTION
+
+/* Turn soft shadows on */
 //#define SOFT_SHADOWS
+
+/* Turn shadow transmittance on (following the shadow ray and computing the transmittance at every intersection) */
 #define SHADOW_TRANSMITTANCE
+
+/* Select between shading using the adaptive transparency technique or the traditional shading technique */
 #define AT_HAIR
-#define CONE_TRACING
+
+/* Select between the cone and ray tracing solutions */
+//#define CONE_TRACING
+
+/* Turn on the visual number of intersections */
 //#define PRINT_N_INTERSECTIONS
+
 
 //#define Cone_Approach5_3
 

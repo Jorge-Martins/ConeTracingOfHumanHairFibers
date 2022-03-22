@@ -9,6 +9,8 @@
 #include <cuda_gl_interop.h>
 #include <helper_functions.h>
 
+
+/* Select between using .nff and .Hair resource files. nff files should be located at "../../resources/nffFiles/". Hair files should be located at"../../resources/HairModels/" */
 //#define nff
 
 Scene *scene = 0;
@@ -22,6 +24,7 @@ RayIntersection *d_hairIntersectionLst = 0;
 int fpsCount = 0;
 int fpsLimit = 1;        // FPS limit for sampling
 
+/* Define the rendering resolution */
 int RES_X = 1024;
 int RES_Y = 1024;
 
@@ -524,15 +527,7 @@ int main(int argc, char *argv[]) {
 
     #ifdef nff
     path = resourceDirPath + "nffFiles/";
-    //sceneName = "balls_low";
-    //sceneName = "balls_low_t";
-    //sceneName = "balls_medium";
-    //sceneName = "balls_high";
-    //sceneName = "mount_low";
-    //sceneName = "mount_very_high";
-    //sceneName = "rings_low";
-    //sceneName = "rings";
-    sceneName = "cyl";
+    sceneName = "mount_low";
 
 	if (!load_nff(path + sceneName, scene, &initRadius, &initVerticalAngle, &initHorizontalAngle, &initFov, &up)) {
         cleanup();
