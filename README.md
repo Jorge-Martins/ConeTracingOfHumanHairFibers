@@ -7,7 +7,7 @@ This solution provides you with:
 - A cone tracer
 - A LBVH with axis aligned bounding boxes
 - A hybrid LBVH with both axis aligned and object oriented bounding boxes
-- A console image comparator that provides the visual difference between two images as well as RMS error.
+- A console image comparator that provides the visual difference between two images as well as the RMS error value.
 
 # Terms of Use
 This code is made available for academic use only and under the requirement of providing proper acknowledgments of its consultation, use or extension. Please reference this repository "https://github.com/Jorge-Martins/ConeTracingOfHumanHairFibers" as well as the published work available at https://fenix.tecnico.ulisboa.pt/cursos/meic-a/dissertacao/283828618789642 and https://www.igi-global.com/article/efficient-hair-rendering-with-a-gpu-cone-tracing-approach/      
